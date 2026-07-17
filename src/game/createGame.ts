@@ -1,11 +1,12 @@
 import { createStandardDeck, shuffleDeck } from "./cards";
+import { dealHand, FOUR_PLAYER_DEAL_SCHEDULE } from "./deals";
+import { getNextPlayer } from "./rules";
 import { PLAYER_IDS, type GameState, type Piece, type Player } from "./types";
 
 const PIECES_PER_PLAYER = 4;
-const CARDS_PER_PLAYER = 5;
-
 type CreateGameOptions = {
   shuffle?: boolean;
+  dealer?: Player["id"];
 };
 
 function createPiecesForPlayer(owner: Player["id"]): Piece[] {
@@ -19,18 +20,24 @@ function createPiecesForPlayer(owner: Player["id"]): Piece[] {
 export function createGame(options: CreateGameOptions = {}): GameState {
   const shouldShuffle = options.shuffle ?? true;
   const deck = shouldShuffle ? shuffleDeck(createStandardDeck()) : createStandardDeck();
+  const dealer =
+    options.dealer ?? PLAYER_IDS[Math.floor(Math.random() * PLAYER_IDS.length)];
   const players: Player[] = PLAYER_IDS.map((id) => ({
     id,
-    hand: deck.splice(0, CARDS_PER_PLAYER),
+    hand: [],
     pieces: createPiecesForPlayer(id),
   }));
+  const dealt = dealHand(players, deck, FOUR_PLAYER_DEAL_SCHEDULE[0]);
 
   return {
-    players,
-    currentPlayer: "P1",
-    drawPile: deck,
+    ...dealt,
+    currentPlayer: getNextPlayer(dealer),
     discardPile: [],
     forcedDiscardPlayer: null,
     winningTeam: null,
+    dealer,
+    dealIndex: 0,
+    phase: "exchange",
+    exchangeSelections: {},
   };
 }

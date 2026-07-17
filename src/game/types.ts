@@ -60,4 +60,8 @@ export type GameState = {
   discardPile: Card[];
   forcedDiscardPlayer: PlayerId | null;
   winningTeam: readonly [PlayerId, PlayerId] | null;
+  dealer: PlayerId;
+  dealIndex: 0 | 1 | 2;
+  phase: "exchange" | "play";
+  exchangeSelections: Partial<Record<PlayerId, number>>;
 };

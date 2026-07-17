@@ -13,7 +13,7 @@ describe("local game engine", () => {
   });
 
   it("creates four players", () => {
-    const game = createGame({ shuffle: false });
+    const game = createGame({ shuffle: false, dealer: "P4" });
 
     expect(game.players.map((player) => player.id)).toEqual([
       "P1",
@@ -22,10 +22,12 @@ describe("local game engine", () => {
       "P4",
     ]);
     expect(game.currentPlayer).toBe("P1");
+    expect(game.dealer).toBe("P4");
+    expect(game.phase).toBe("exchange");
   });
 
   it("creates four pieces per player in reserve", () => {
-    const game = createGame({ shuffle: false });
+    const game = createGame({ shuffle: false, dealer: "P4" });
 
     for (const player of game.players) {
       expect(player.pieces).toHaveLength(4);

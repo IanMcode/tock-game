@@ -1,5 +1,6 @@
 import { applyAtomicMove, type AtomicMove } from "./actions";
 import { getLegalBasicCardMoves } from "./cardMoves";
+import { advanceDealIfHandComplete } from "./deals";
 import { getAllPieces } from "./occupancy";
 import {
   applySplitSevenMove,
@@ -72,7 +73,11 @@ export function discardCardForTurn(
 }
 
 export function getPlayableCardIndexes(game: GameState): number[] {
-  if (game.winningTeam || game.forcedDiscardPlayer === game.currentPlayer) {
+  if (
+    game.phase !== "play" ||
+    game.winningTeam ||
+    game.forcedDiscardPlayer === game.currentPlayer
+  ) {
     return [];
   }
 
@@ -126,7 +131,7 @@ function advanceTurn(
     ),
   }));
 
-  return {
+  const nextGame = {
     ...game,
     players,
     currentPlayer: nextPlayer,
@@ -136,6 +141,8 @@ function advanceTurn(
     forcedDiscardPlayer: discardedCard?.rank === "10" ? nextPlayer : null,
     winningTeam: getWinningTeam(pieces),
   };
+
+  return advanceDealIfHandComplete(nextGame);
 }
 
 function getCurrentPlayer(game: GameState) {
@@ -159,6 +166,10 @@ function getCardAtIndex(hand: readonly Card[], cardIndex: number): Card {
 function assertGameIsActive(game: GameState): void {
   if (game.winningTeam) {
     throw new Error("The game has already ended.");
+  }
+
+  if (game.phase !== "play") {
+    throw new Error("Cards cannot be played before the partner exchange.");
   }
 }
 

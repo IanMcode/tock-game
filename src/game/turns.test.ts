@@ -18,6 +18,9 @@ function card(rank: Card["rank"]): Card {
 function withHand(game: GameState, playerId: PlayerId, hand: Card[]): GameState {
   return {
     ...game,
+    currentPlayer: playerId,
+    phase: "play",
+    exchangeSelections: {},
     players: game.players.map((player) =>
       player.id === playerId ? { ...player, hand } : player,
     ),
