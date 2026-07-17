@@ -24,8 +24,6 @@ export type Card = {
   suit: CardSuit;
 };
 
-export type CardMoveValue = number | "start" | "swap" | "split7";
-
 export type ReservePosition = {
   zone: "reserve";
 };

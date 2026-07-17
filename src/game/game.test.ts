@@ -2,15 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createStandardDeck } from "./cards";
 import { createGame } from "./createGame";
-import { getCardMoveValue, getNextPlayer } from "./rules";
-import type { Card } from "./types";
-
-function card(rank: Card["rank"]): Card {
-  return {
-    rank,
-    suit: "clubs",
-  };
-}
+import { getNextPlayer } from "./rules";
 
 describe("local game engine", () => {
   it("creates a standard 52-card deck without jokers", () => {
@@ -48,15 +40,5 @@ describe("local game engine", () => {
     expect(getNextPlayer("P2")).toBe("P3");
     expect(getNextPlayer("P3")).toBe("P4");
     expect(getNextPlayer("P4")).toBe("P1");
-  });
-
-  it("returns card move values", () => {
-    expect(getCardMoveValue(card("A"))).toBe("start");
-    expect(getCardMoveValue(card("K"))).toBe("start");
-    expect(getCardMoveValue(card("J"))).toBe("swap");
-    expect(getCardMoveValue(card("7"))).toBe("split7");
-    expect(getCardMoveValue(card("Q"))).toBe(12);
-    expect(getCardMoveValue(card("2"))).toBe(2);
-    expect(getCardMoveValue(card("10"))).toBe(10);
   });
 });
