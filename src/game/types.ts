@@ -58,4 +58,6 @@ export type GameState = {
   currentPlayer: PlayerId;
   drawPile: Card[];
   discardPile: Card[];
+  forcedDiscardPlayer: PlayerId | null;
+  winningTeam: readonly [PlayerId, PlayerId] | null;
 };

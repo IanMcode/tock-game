@@ -30,5 +30,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     currentPlayer: "P1",
     drawPile: deck,
     discardPile: [],
+    forcedDiscardPlayer: null,
+    winningTeam: null,
   };
 }

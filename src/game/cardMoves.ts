@@ -5,6 +5,7 @@ import {
   getLegalSplitSevenMoves,
   type SplitSevenMove,
 } from "./specialMoves";
+import { getControlledPlayer } from "./teams";
 import type { Card, CardRank, Piece, PlayerId } from "./types";
 
 const FORWARD_DISTANCES = {
@@ -22,29 +23,31 @@ export function getLegalBasicCardMoves(
   playerId: PlayerId,
   card: Card,
 ): Array<AtomicMove | SplitSevenMove> {
+  const controlledPlayerId = getControlledPlayer(pieces, playerId);
+
   switch (card.rank) {
     case "A":
       return [
-        ...getLegalEntryMoves(pieces, playerId),
-        ...getPlayerForwardMoves(pieces, playerId, [1, 11]),
+        ...getLegalEntryMoves(pieces, controlledPlayerId),
+        ...getPlayerForwardMoves(pieces, controlledPlayerId, [1, 11]),
       ];
     case "K":
       return [
-        ...getLegalEntryMoves(pieces, playerId),
-        ...getPlayerForwardMoves(pieces, playerId, [13]),
+        ...getLegalEntryMoves(pieces, controlledPlayerId),
+        ...getPlayerForwardMoves(pieces, controlledPlayerId, [13]),
       ];
     case "4":
       return pieces
-        .filter((piece) => piece.owner === playerId)
+        .filter((piece) => piece.owner === controlledPlayerId)
         .flatMap((piece) => getLegalBackwardMove(pieces, piece.id, 4));
     case "5":
       return pieces
         .filter((piece) => piece.position.zone === "track")
         .flatMap((piece) => getLegalForwardMoves(pieces, piece.id, 5));
     case "7":
-      return getLegalSplitSevenMoves(pieces, playerId);
+      return getLegalSplitSevenMoves(pieces, controlledPlayerId);
     case "J":
-      return getLegalJackMoves(pieces, playerId);
+      return getLegalJackMoves(pieces, controlledPlayerId);
     case "2":
     case "3":
     case "6":
@@ -54,7 +57,7 @@ export function getLegalBasicCardMoves(
     case "Q":
       return getPlayerForwardMoves(
         pieces,
-        playerId,
+        controlledPlayerId,
         FORWARD_DISTANCES[card.rank],
       );
   }
