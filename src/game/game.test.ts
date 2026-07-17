@@ -32,14 +32,14 @@ describe("local game engine", () => {
     expect(game.currentPlayer).toBe("P1");
   });
 
-  it("creates four pieces per player at start", () => {
+  it("creates four pieces per player in reserve", () => {
     const game = createGame({ shuffle: false });
 
     for (const player of game.players) {
       expect(player.pieces).toHaveLength(4);
-      expect(player.pieces.every((piece) => piece.position === "start")).toBe(
-        true,
-      );
+      expect(
+        player.pieces.every((piece) => piece.position.zone === "reserve"),
+      ).toBe(true);
     }
   });
 

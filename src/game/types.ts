@@ -26,7 +26,22 @@ export type Card = {
 
 export type CardMoveValue = number | "start" | "swap" | "split7";
 
-export type PiecePosition = "start";
+export type ReservePosition = {
+  zone: "reserve";
+};
+
+export type TrackPosition = {
+  zone: "track";
+  index: number;
+  isEntryProtected: boolean;
+};
+
+export type HomePosition = {
+  zone: "home";
+  index: number;
+};
+
+export type PiecePosition = ReservePosition | TrackPosition | HomePosition;
 
 export type Piece = {
   id: string;

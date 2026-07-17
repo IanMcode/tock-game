@@ -12,7 +12,7 @@ function createPiecesForPlayer(owner: Player["id"]): Piece[] {
   return Array.from({ length: PIECES_PER_PLAYER }, (_, index) => ({
     id: `${owner}-${index + 1}`,
     owner,
-    position: "start",
+    position: { zone: "reserve" },
   }));
 }
 

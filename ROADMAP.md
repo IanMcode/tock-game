@@ -4,6 +4,8 @@
 
 Goal: Build a tested local-only game engine.
 
+The canonical default game rules are defined in [RULES.md](./RULES.md).
+
 Must support:
 - 4 players
 - 4 pieces per player
@@ -12,11 +14,13 @@ Must support:
 - Deal cards
 - Turn order
 - Current player
-- Basic piece positions
+- Reserve, main-track, and home-lane piece positions
+- 72-space board geometry
+- Protected entry state
 - Starting a piece with A/K
 - Moving pieces forward with normal number cards
 - Discard pile
-- Basic legal move validation
+- Basic legal move generation and validation
 
 Not included:
 - Multiplayer
