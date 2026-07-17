@@ -1,5 +1,10 @@
-import { getLegalEntryMoves, type PieceMove } from "./actions";
+import { getLegalEntryMoves, type AtomicMove } from "./actions";
 import { getLegalBackwardMove, getLegalForwardMoves } from "./moves";
+import {
+  getLegalJackMoves,
+  getLegalSplitSevenMoves,
+  type SplitSevenMove,
+} from "./specialMoves";
 import type { Card, CardRank, Piece, PlayerId } from "./types";
 
 const FORWARD_DISTANCES = {
@@ -16,7 +21,7 @@ export function getLegalBasicCardMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
   card: Card,
-): PieceMove[] {
+): Array<AtomicMove | SplitSevenMove> {
   switch (card.rank) {
     case "A":
       return [
@@ -36,6 +41,10 @@ export function getLegalBasicCardMoves(
       return pieces
         .filter((piece) => piece.position.zone === "track")
         .flatMap((piece) => getLegalForwardMoves(pieces, piece.id, 5));
+    case "7":
+      return getLegalSplitSevenMoves(pieces, playerId);
+    case "J":
+      return getLegalJackMoves(pieces, playerId);
     case "2":
     case "3":
     case "6":
@@ -48,9 +57,6 @@ export function getLegalBasicCardMoves(
         playerId,
         FORWARD_DISTANCES[card.rank],
       );
-    case "7":
-    case "J":
-      throw new Error(`Card ${card.rank} requires special move generation.`);
   }
 }
 
@@ -58,7 +64,7 @@ function getPlayerForwardMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
   distances: readonly number[],
-): PieceMove[] {
+): AtomicMove[] {
   return pieces
     .filter((piece) => piece.owner === playerId)
     .flatMap((piece) =>

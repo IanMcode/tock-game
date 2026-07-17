@@ -15,6 +15,16 @@ export type EntryMove = {
 
 export type PieceMove = EntryMove | ForwardMove | BackwardMove;
 
+export type SwapMove = {
+  kind: "swap";
+  pieceId: string;
+  targetPieceId: string;
+  destination: TrackPosition;
+  targetDestination: TrackPosition;
+};
+
+export type AtomicMove = PieceMove | SwapMove;
+
 export function getLegalEntryMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
@@ -71,5 +81,37 @@ export function applyPieceMove(
     }
 
     return piece;
+  });
+}
+
+export function applyAtomicMove(
+  pieces: readonly Piece[],
+  move: AtomicMove,
+): Piece[] {
+  if (move.kind !== "swap") {
+    return applyPieceMove(pieces, move);
+  }
+
+  const piece = getPieceById(pieces, move.pieceId);
+  const target = getPieceById(pieces, move.targetPieceId);
+
+  if (!piece) {
+    throw new Error(`Unknown moving piece: ${move.pieceId}`);
+  }
+
+  if (!target) {
+    throw new Error(`Unknown swap target: ${move.targetPieceId}`);
+  }
+
+  return pieces.map((currentPiece) => {
+    if (currentPiece.id === move.pieceId) {
+      return { ...currentPiece, position: move.destination };
+    }
+
+    if (currentPiece.id === move.targetPieceId) {
+      return { ...currentPiece, position: move.targetDestination };
+    }
+
+    return currentPiece;
   });
 }

@@ -81,7 +81,11 @@ describe("basic card move generation", () => {
   it("does not generate moves for another player's pieces", () => {
     const moves = getLegalBasicCardMoves(pieces, "P1", card("2"));
 
-    expect(moves.every((move) => move.pieceId.startsWith("P1-"))).toBe(true);
+    expect(
+      moves.every(
+        (move) => move.kind !== "split7" && move.pieceId.startsWith("P1-"),
+      ),
+    ).toBe(true);
   });
 
   it("moves only the current player's pieces backward with a 4", () => {
@@ -104,16 +108,29 @@ describe("basic card move generation", () => {
     ];
     const moves = getLegalBasicCardMoves(piecesWithHome, "P1", card("5"));
 
-    expect(moves.map((move) => move.pieceId)).toEqual(["P1-2", "P2-1"]);
-    expect(moves.some((move) => move.pieceId === "P3-1")).toBe(false);
+    const pieceIds = moves.flatMap((move) =>
+      move.kind === "split7" ? [] : [move.pieceId],
+    );
+
+    expect(pieceIds).toEqual(["P1-2", "P2-1"]);
+    expect(pieceIds).not.toContain("P3-1");
   });
 
-  it.each(["7", "J"] as const)(
-    "requires a specialized generator for %s",
-    (rank) => {
-      expect(() => getLegalBasicCardMoves(pieces, "P1", card(rank))).toThrow(
-        `Card ${rank} requires special move generation.`,
-      );
-    },
-  );
+  it("generates complete split-7 sequences", () => {
+    const moves = getLegalBasicCardMoves(pieces, "P1", card("7"));
+
+    expect(moves.length).toBeGreaterThan(0);
+    expect(moves.every((move) => move.kind === "split7")).toBe(true);
+  });
+
+  it("generates Jack swaps", () => {
+    const moves = getLegalBasicCardMoves(pieces, "P1", card("J"));
+
+    expect(moves).toHaveLength(1);
+    expect(moves[0]).toMatchObject({
+      kind: "swap",
+      pieceId: "P1-2",
+      targetPieceId: "P2-1",
+    });
+  });
 });
