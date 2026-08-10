@@ -643,6 +643,8 @@ function PieceButton({ piece, active, selected, onClick }: {
   selected: boolean;
   onClick: () => void;
 }) {
+  const pieceNumber = Number(piece.id.split("-")[1]);
+
   return (
     <button
       className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
@@ -652,9 +654,11 @@ function PieceButton({ piece, active, selected, onClick }: {
       }}
       aria-disabled={!active}
       tabIndex={active ? 0 : -1}
-      aria-label={`${PLAYER_META[piece.owner].name} piece ${piece.id.split("-")[1]}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
+      aria-label={`${PLAYER_META[piece.owner].name} piece ${pieceNumber}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
     >
-      <span>{piece.id.split("-")[1]}</span>
+      <span className={`piece-pips pips-${pieceNumber}`} aria-hidden="true">
+        {Array.from({ length: pieceNumber }, (_, index) => <i key={index} />)}
+      </span>
     </button>
   );
 }

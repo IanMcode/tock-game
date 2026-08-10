@@ -98,7 +98,12 @@ button { font: inherit; }
 
 .piece { position: relative; z-index: 4; width: 128%; aspect-ratio: 1; padding: 0; border: 2px solid rgba(255,255,255,.9); border-radius: 50%; color: white; background: var(--piece); box-shadow: 0 2px 5px rgba(18,42,33,.3); cursor: default; }
 .piece[aria-disabled="true"] { pointer-events: none; }
-.piece span { font-size: clamp(7px, 1vw, 11px); font-weight: 900; }
+.piece .piece-pips { width: 48%; height: 48%; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); place-items: center; gap: 1px; }
+.piece-pips i { width: clamp(2px, .42vw, 4px); aspect-ratio: 1; border-radius: 50%; background: currentColor; box-shadow: 0 1px 1px rgba(20,45,37,.28); }
+.piece-pips.pips-1 i { grid-area: 1 / 1 / 3 / 3; }
+.piece-pips.pips-2 i:first-child { grid-area: 1 / 1 / 3 / 2; }
+.piece-pips.pips-2 i:last-child { grid-area: 1 / 2 / 3 / 3; }
+.piece-pips.pips-3 i:last-child { grid-area: 2 / 1 / 3 / 3; }
 .piece.active { cursor: pointer; animation: piece-pulse 1.25s infinite; }
 .piece.active:hover, .piece.selected { transform: scale(1.25); }
 .piece.protected::after { content: ""; position: absolute; inset: 2px; border: 2px solid #f5ce69; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
