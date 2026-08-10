@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import {
   createOnlineRoom,
   joinOnlineRoom,
   readOnlineRoom,
+  sendOnlineCommand,
 } from "../../src/online/client";
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
+import { Board, type DestinationOption } from "../game-table";
+import { applyPieceMove, type AtomicMove } from "../../src/game/actions";
+import { getLegalBasicCardMoves } from "../../src/game/cardMoves";
+import { getRulesetDefinition } from "../../src/game/definition";
+import type { ForwardMove } from "../../src/game/moves";
+import { getSplitSevenDestinationOptions } from "../../src/game/splitSelection";
+import type { SplitSevenMove } from "../../src/game/specialMoves";
+import type { Card, Piece } from "../../src/game/types";
+import type { GameCommand } from "../../src/game/session";
+import type { CardMove } from "../../src/game/turns";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAYER_NAMES: Record<PlayerId, string> = {
@@ -140,11 +151,8 @@ export default function OnlineLobby() {
           }) : <p>Connecting to room…</p>}
         </section>
 
-        {room?.status === "active" && (
-          <div className="online-ready-note">
-            <strong>Room synchronized</strong>
-            <span>The remote board-control screen is the next implementation pass. The authoritative room is ready and polling successfully.</span>
-          </div>
+        {room && room.status !== "waiting" && (
+          <OnlineRoomTable access={access} room={room} onRoom={setRoom} />
         )}
         {error && <p className="online-error" role="alert">{error}</p>}
         <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>
@@ -212,4 +220,231 @@ export default function OnlineLobby() {
 
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : "The online request failed.";
+}
+
+function OnlineRoomTable({
+  access,
+  room,
+  onRoom,
+}: {
+  access: RoomAccess;
+  room: RoomView;
+  onRoom: (room: RoomView) => void;
+}) {
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
+  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
+  const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
+  const [showNumbers, setShowNumbers] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const game = room.session.game;
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  const viewer = game.players.find((player) => player.id === access.playerId);
+  const hand = useMemo(() => viewer?.hand ?? [], [viewer]);
+  const pieces = useMemo(() => game.players.flatMap((player) => player.pieces), [game.players]);
+  const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
+  const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
+  const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
+  const legalMoves = useMemo(() =>
+    selectedCard && isMyTurn && !forcedDiscard
+      ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
+      : [],
+  [access.playerId, forcedDiscard, game.rulesetId, isMyTurn, pieces, selectedCard]);
+  const playableIndexes = useMemo(() =>
+    !isMyTurn || forcedDiscard ? [] : hand.flatMap((card, index) =>
+      getLegalBasicCardMoves(pieces, access.playerId, card, game.rulesetId).length ? [index] : [],
+    ),
+  [access.playerId, forcedDiscard, game.rulesetId, hand, isMyTurn, pieces]);
+  const isSplitSeven = selectedCard?.rank === "7";
+  const previewPieces = useMemo(() => splitSteps.reduce<Piece[]>(
+    (current, step) => applyPieceMove(current, step),
+    pieces,
+  ), [pieces, splitSteps]);
+  const matchingSplitMoves = useMemo(() => !isSplitSeven ? [] : (legalMoves as SplitSevenMove[]).filter(
+    (move) => splitSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
+  ), [isSplitSeven, legalMoves, splitSteps]);
+  const activePieceIds = useMemo(() => {
+    if (!selectedCard || busy) return new Set<string>();
+    if (isSplitSeven) {
+      return new Set(matchingSplitMoves
+        .map((move) => move.steps[splitSteps.length]?.pieceId)
+        .filter((pieceId): pieceId is string => Boolean(pieceId)));
+    }
+    return new Set(legalMoves.filter((move): move is AtomicMove => move.kind !== "split7").map((move) => move.pieceId));
+  }, [busy, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
+  const boardPlayers = game.players.map((player) => ({
+    id: player.id,
+    pieces: player.pieces,
+    hand: Array.from({ length: player.handCount }, () => ({ rank: "A" as const, suit: "spades" as const })),
+  }));
+  const alreadyExchanged = Boolean(game.exchangeSelections[access.playerId]);
+  const onlyFivesPlayable = playableIndexes.length > 0 && playableIndexes.every((index) => hand[index]?.rank === "5");
+  const canDiscard = selectedCardIndex !== null && (
+    forcedDiscard || playableIndexes.length === 0 || (onlyFivesPlayable && selectedCard?.rank !== "5")
+  );
+
+  function resetSelection() {
+    setSelectedCardIndex(null);
+    setSelectedPieceId(null);
+    setSplitSteps([]);
+    setDestinationMoves([]);
+  }
+
+  function chooseCard(index: number) {
+    setSelectedCardIndex(index);
+    setSelectedPieceId(null);
+    setSplitSteps([]);
+    setDestinationMoves([]);
+  }
+
+  function choosePiece(pieceId: string) {
+    if (!selectedCard || !activePieceIds.has(pieceId)) return;
+    setSelectedPieceId(pieceId);
+    if (isSplitSeven) {
+      const options = getSplitSevenDestinationOptions(matchingSplitMoves, splitSteps.length, pieceId);
+      setDestinationMoves(options.map((option) => ({
+        move: option.steps[option.steps.length - 1],
+        splitSteps: option.steps,
+      })));
+      return;
+    }
+    setDestinationMoves(uniqueOnlineMoves(
+      legalMoves.filter((move): move is AtomicMove => move.kind !== "split7" && move.pieceId === pieceId),
+    ).map((move) => ({ move })));
+  }
+
+  async function chooseDestination(option: DestinationOption) {
+    if (isSplitSeven && option.splitSteps) {
+      const nextSteps = [...splitSteps, ...option.splitSteps];
+      if (nextSteps.length < 7) {
+        setSplitSteps(nextSteps);
+        setSelectedPieceId(null);
+        setDestinationMoves([]);
+        return;
+      }
+      const complete = matchingSplitMoves.find((move) =>
+        nextSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
+      );
+      if (complete) await playMove(complete);
+      return;
+    }
+    await playMove(option.move);
+  }
+
+  async function playMove(move: CardMove) {
+    if (selectedCardIndex === null) return;
+    await submit({ type: "play-card", actor: access.playerId, cardIndex: selectedCardIndex, move });
+  }
+
+  async function submit(command: GameCommand) {
+    setBusy(true);
+    setCommandError(null);
+    try {
+      const next = await sendOnlineCommand(access.roomId, access.playerToken, {
+        commandId: crypto.randomUUID(),
+        expectedRevision: room.session.revision,
+        command,
+      });
+      onRoom(next);
+      resetSelection();
+    } catch (submitError) {
+      setCommandError(messageFrom(submitError));
+      try {
+        onRoom(await readOnlineRoom(access.roomId, access.playerToken));
+      } catch {
+        // Keep the command error visible if refreshing also fails.
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="online-table" style={ONLINE_APPEARANCE as React.CSSProperties}>
+      <div className="online-turn-heading">
+        <div>
+          <p className="eyebrow">Remote table · revision {room.session.revision}</p>
+          <h2>{game.winningTeam ? `${PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
+        </div>
+        {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+      </div>
+
+      <Board
+        pieces={isSplitSeven ? previewPieces : pieces}
+        boardDefinition={ruleset.board}
+        teamMode={ruleset.exchange === "partners"}
+        activePieceIds={activePieceIds}
+        hoppingPieces={[]}
+        swappingPieces={[]}
+        capturingPieceIds={[]}
+        players={boardPlayers}
+        dealer={game.dealer}
+        dealIndex={game.dealIndex}
+        dealCount={ruleset.dealSchedule.length}
+        selectedPieceId={selectedPieceId}
+        destinationMoves={destinationMoves}
+        showSpaceNumbers={showNumbers}
+        onToggleSpaceNumbers={() => setShowNumbers((shown) => !shown)}
+        onPieceClick={choosePiece}
+        onDestinationClick={(option) => void chooseDestination(option)}
+      />
+
+      <div className="online-hand-panel">
+        <div>
+          <p className="eyebrow">Your hand</p>
+          <strong>{PLAYER_NAMES[access.playerId]}</strong>
+        </div>
+        <div className="online-hand">
+          {hand.map((card, index) => (
+            <button
+              type="button"
+              className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
+              disabled={busy || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+              onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
+              key={`${card.rank}-${card.suit}-${index}`}
+            >
+              <span>{card.rank}</span>
+              <strong>{cardSymbol(card)}</strong>
+            </button>
+          ))}
+          {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
+        </div>
+        {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
+        {isMyTurn && game.phase === "play" && (
+          <button
+            className="online-discard"
+            type="button"
+            disabled={busy || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+            onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
+          >
+            {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
+          </button>
+        )}
+        {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
+      </div>
+      {commandError && <p className="online-error" role="alert">{commandError}</p>}
+    </section>
+  );
+}
+
+const ONLINE_APPEARANCE = {
+  "--color-p1": "#D81B60", "--color-p1-soft": "#F8DCE8", "--color-p1-ink": "#FFFFFF", "--shape-p1": "circle(49% at 50% 50%)",
+  "--color-p2": "#0057B8", "--color-p2-soft": "#D9E7F7", "--color-p2-ink": "#FFFFFF", "--shape-p2": "inset(2% round 24%)",
+  "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)",
+  "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)",
+};
+
+function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return moves.filter((move) => {
+    const key = JSON.stringify(move);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function cardSymbol(card: Card): string {
+  return { clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" }[card.suit];
 }

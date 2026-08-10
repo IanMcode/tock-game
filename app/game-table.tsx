@@ -54,7 +54,7 @@ const SUIT_SYMBOL: Record<Card["suit"], string> = {
 };
 
 type MoveChoice = AtomicMove | SplitSevenMove;
-type DestinationOption = {
+export type DestinationOption = {
   move: AtomicMove;
   splitSteps?: ForwardMove[];
 };
@@ -889,7 +889,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   );
 }
 
-function Board({
+export function Board({
   pieces,
   boardDefinition,
   teamMode,
