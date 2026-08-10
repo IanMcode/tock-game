@@ -45,6 +45,10 @@ export function selectExchangeCard(
     throw new Error(`Unknown player: ${playerId}`);
   }
 
+  if (game.exchangeSelections[playerId] !== undefined) {
+    throw new Error(`${playerId} has already chosen a card for this exchange.`);
+  }
+
   if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= player.hand.length) {
     throw new RangeError("Exchange card index is outside the player's hand.");
   }

@@ -53,7 +53,16 @@ a full circuit.
 
 At the beginning of every deal, each player chooses one card to give their
 partner. All players choose without seeing the card being sent to them, and all
-four cards are exchanged simultaneously before play begins.
+four cards are exchanged simultaneously before play begins. A player's first
+submitted choice is final for that exchange.
+
+### Engine invariants
+
+The rules engine exposes a complete-state validator for simulations and future
+network boundaries. It verifies the four-player roster, piece ownership,
+single occupancy, entry protection, exchange indexes, forced-turn ownership,
+and conservation of the 52-card deck. Online commands should be validated on
+the authoritative host before their resulting state is accepted.
 
 ## Turn structure
 
@@ -226,4 +235,3 @@ These are planned capabilities, not part of the current default rules:
 - User-selected initial dealer.
 - A Jack variant that permits ordinary forward movement, with its exact value
   to be chosen when variant rules are designed.
-

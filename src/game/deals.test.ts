@@ -54,6 +54,15 @@ describe("four-player deal lifecycle", () => {
     expect(partial.players.map((player) => player.hand)).toEqual(originalHands);
   });
 
+  it("locks a player's first exchange choice in the engine", () => {
+    const game = createGame({ shuffle: false, dealer: "P4" });
+    const partial = selectExchangeCard(game, "P1", 1);
+
+    expect(() => selectExchangeCard(partial, "P1", 2)).toThrow(
+      "P1 has already chosen a card for this exchange.",
+    );
+  });
+
   it("simultaneously exchanges the selected cards between partners", () => {
     const game = createGame({ shuffle: false, dealer: "P4" });
     const sentByP1 = game.players[0].hand[1];
