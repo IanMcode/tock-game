@@ -119,6 +119,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
   const [swappingPieces, setSwappingPieces] = useState<SwappingPiece[]>([]);
+  const [capturingPieceIds, setCapturingPieceIds] = useState<string[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
   const [draftSettings, setDraftSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
@@ -273,6 +274,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     } finally {
       setHoppingPieces([]);
       setSwappingPieces([]);
+      setCapturingPieceIds([]);
       setIsAnimating(false);
     }
   }
@@ -321,8 +323,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 
       const frames = getMoveAnimationFrames(pieces, move);
 
-      for (const frame of frames) {
+      for (const [frameIndex, frame] of frames.entries()) {
         frameNumber += 1;
+        if (
+          frameIndex === frames.length - 1 &&
+          move.capturedPieceId
+        ) {
+          setCapturingPieceIds([move.capturedPieceId]);
+        }
         setHoppingPieces(frame.flatMap((animated) => {
           const piece = pieces.find((candidate) => candidate.id === animated.pieceId);
           return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
@@ -331,6 +339,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       }
 
       pieces = applyAtomicMove(pieces, move);
+      setCapturingPieceIds([]);
     }
   }
 
@@ -437,10 +446,23 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       </header>
 
       {game.winningTeam ? (
-        <section className="winner-banner">
-          <span>Game complete</span>
-          <h2>{PLAYER_META[game.winningTeam[0]].team} wins the table</h2>
-          <button onClick={newGame}>Play again</button>
+        <section
+          className="winner-banner"
+          style={{
+            "--winner-first": playerColorVar(game.winningTeam[0]),
+            "--winner-second": playerColorVar(game.winningTeam[1]),
+          } as React.CSSProperties}
+        >
+          <div className="winner-mark" aria-hidden="true">★</div>
+          <div className="winner-copy">
+            <span>Game complete</span>
+            <h2>{PLAYER_META[game.winningTeam[0]].team} wins the table</h2>
+            <p>{PLAYER_META[game.winningTeam[0]].name} and {PLAYER_META[game.winningTeam[1]].name} brought all eight pieces home.</p>
+          </div>
+          <div className="winner-actions">
+            <button className="winner-setup" onClick={openSetup}>Game setup</button>
+            <button onClick={newGame}>Play again</button>
+          </div>
         </section>
       ) : game.phase === "exchange" ? (
         <section className="exchange-banner">
@@ -475,6 +497,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           activePieceIds={activePieceIds}
           hoppingPieces={hoppingPieces}
           swappingPieces={swappingPieces}
+          capturingPieceIds={capturingPieceIds}
           players={game.players}
           dealer={game.dealer}
           dealIndex={game.dealIndex}
@@ -553,9 +576,11 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           const isCurrent = player.id === game.currentPlayer && game.phase === "play";
           const exchangeCardIndex = game.exchangeSelections[player.id];
           const choseExchange = exchangeCardIndex !== undefined;
+          const homeCount = player.pieces.filter((piece) => piece.position.zone === "home").length;
+          const isHomeComplete = homeCount === player.pieces.length;
           return (
             <article
-              className={`player-panel ${isCurrent ? "is-current" : ""}`}
+              className={`player-panel ${isCurrent ? "is-current" : ""} ${isHomeComplete ? "is-home-complete" : ""}`}
               key={player.id}
               style={{ "--player": playerColorVar(player.id), "--player-soft": playerSoftVar(player.id) } as React.CSSProperties}
             >
@@ -571,8 +596,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   </div>
                 ) : (
                   <div className="piece-summary">
-                    <span>{player.pieces.filter((piece) => piece.position.zone === "home").length} home</span>
-                    <span>{player.pieces.filter((piece) => piece.position.zone === "reserve").length} reserve</span>
+                    {isHomeComplete ? (
+                      <strong>Home complete ✓</strong>
+                    ) : (
+                      <>
+                        <span>{homeCount} home</span>
+                        <span>{player.pieces.filter((piece) => piece.position.zone === "reserve").length} reserve</span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -589,6 +620,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                       card={card}
                       selected={isSelected}
                       exchangeSelected={isExchangeSelection}
+                      committing={canSelect && isSelected && isAnimating}
                       playable={canSelect && isPlayable && !forcedDiscard}
                       dimmed={canSelect && !isPlayable && !forcedDiscard && playableIndexes.length > 0}
                       disabled={game.phase === "exchange" ? !canExchange : isAnimating || !canSelect}
@@ -715,6 +747,7 @@ function Board({
   activePieceIds,
   hoppingPieces,
   swappingPieces,
+  capturingPieceIds,
   players,
   dealer,
   dealIndex,
@@ -729,6 +762,7 @@ function Board({
   activePieceIds: ReadonlySet<string>;
   hoppingPieces: readonly HoppingPiece[];
   swappingPieces: readonly SwappingPiece[];
+  capturingPieceIds: readonly string[];
   players: GameState["players"];
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
@@ -777,9 +811,12 @@ function Board({
               !animatedPieceIds.has(piece.id),
           );
           const handCount = players.find((player) => player.id === owner)?.hand.length ?? 0;
+          const homeComplete = pieces.filter((piece) => piece.owner === owner).every(
+            (piece) => piece.position.zone === "home",
+          );
           return (
             <div
-              className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""}`}
+              className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""}`}
               key={`${owner}-reserve`}
               style={{
                 "--reserve": playerColorVar(owner),
@@ -822,9 +859,10 @@ function Board({
                     piece={piece}
                     active={activePieceIds.has(piece.id)}
                     selected={selectedPieceId === piece.id}
+                    capturing={capturingPieceIds.includes(piece.id)}
                     onClick={() => onPieceClick(piece.id)}
                   />
-                )) : <small>All in play</small>}
+                )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
               </div>
             </div>
           );
@@ -856,6 +894,7 @@ function Board({
                   piece={occupant}
                   active={activePieceIds.has(occupant.id)}
                   selected={selectedPieceId === occupant.id}
+                  capturing={capturingPieceIds.includes(occupant.id)}
                   onClick={() => onPieceClick(occupant.id)}
                 />
               )}
@@ -895,6 +934,7 @@ function Board({
                     piece={occupant}
                     active={activePieceIds.has(occupant.id)}
                     selected={selectedPieceId === occupant.id}
+                    capturing={capturingPieceIds.includes(occupant.id)}
                     onClick={() => onPieceClick(occupant.id)}
                   />
                 )}
@@ -975,10 +1015,11 @@ function Board({
   );
 }
 
-function CardButton({ card, selected, exchangeSelected, playable, dimmed, disabled, onClick }: {
+function CardButton({ card, selected, exchangeSelected, committing, playable, dimmed, disabled, onClick }: {
   card: Card;
   selected: boolean;
   exchangeSelected: boolean;
+  committing: boolean;
   playable: boolean;
   dimmed: boolean;
   disabled: boolean;
@@ -987,7 +1028,7 @@ function CardButton({ card, selected, exchangeSelected, playable, dimmed, disabl
   const red = card.suit === "hearts" || card.suit === "diamonds";
   return (
     <button
-      className={`playing-card ${red ? "red" : "black"} ${selected ? "selected" : ""} ${exchangeSelected ? "exchange-selected" : ""} ${playable ? "playable" : ""} ${dimmed ? "dimmed" : ""}`}
+      className={`playing-card ${red ? "red" : "black"} ${selected ? "selected" : ""} ${exchangeSelected ? "exchange-selected" : ""} ${committing ? "is-committing" : ""} ${playable ? "playable" : ""} ${dimmed ? "dimmed" : ""}`}
       disabled={disabled}
       onClick={onClick}
       aria-label={`${card.rank} of ${card.suit}`}
@@ -1019,10 +1060,11 @@ function DeckIcon() {
   );
 }
 
-function PieceButton({ piece, active, selected, hopping = false, onClick }: {
+function PieceButton({ piece, active, selected, capturing = false, hopping = false, onClick }: {
   piece: Piece;
   active: boolean;
   selected: boolean;
+  capturing?: boolean;
   hopping?: boolean;
   onClick: () => void;
 }) {
@@ -1030,7 +1072,7 @@ function PieceButton({ piece, active, selected, hopping = false, onClick }: {
 
   return (
     <button
-      className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
+      className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${capturing ? "is-captured" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
       style={{ "--piece": playerColorVar(piece.owner), width: hopping ? "90%" : undefined } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
