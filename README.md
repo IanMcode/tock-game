@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tock
 
-## Getting Started
+A local four-player partner game of Tock, built with Next.js, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## Play locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Everything runs in one browser; there are no accounts, rooms, or network services.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How to use the table
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. At the start of each hand, choose one card from every player's hand for the blind partner exchange.
+2. On a turn, choose a card in the current player's hand.
+3. Legal pieces glow. Choose one to make the move; when a card has more than one action, choose the action in the move desk.
+4. For a 7, assign the seven legal steps one at a time. For a Jack, choose the initiating piece and then its swap.
+5. When no card can move—or a 10 forces the turn—choose a card and use **Discard selected card**.
 
-## Learn More
+The board marks protected entries with an outer gold ring. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
 
-To learn more about Next.js, take a look at the following resources:
+## Included rules
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Four players, four pieces each, and opposite-seat partners
+- 72-space shared track, reserve, protected entry, and four-space home lanes
+- Three-hand 5/4/4 deal schedule, dealer rotation, and simultaneous partner exchange
+- Entry, forward and backward movement, exact home entry, captures, and blockades
+- Ace and King entry, backward 4, universal 5, split 7, forced-discard 10, Jack swap, and face-card movement
+- Partner piece control after a player gets all four pieces home
+- Team win detection and automatic progression between hands and decks
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The canonical rules are documented in [RULES.md](./RULES.md). Pure game logic lives in `src/game/`; the React interface only presents state and dispatches legal actions.
 
-## Deploy on Vercel
+## Verify
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm test -- --run
+npm run lint
+npm run build
+```
