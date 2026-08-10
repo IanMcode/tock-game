@@ -1,8 +1,8 @@
 # Tock
 
-A two-to-four-player game of Tock, built with Next.js and TypeScript. The current
-table runs locally, and the engine now includes the authoritative room foundations
-needed for guest online play.
+A two-to-four-player game of Tock, built with Next.js and TypeScript. It includes
+both a local test table and private-code guest rooms backed by an authoritative
+server game session.
 
 ## Play locally
 
@@ -11,8 +11,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The visible table remains the
-local test client; it does not yet connect to an online room.
+Open [http://localhost:3000](http://localhost:3000) for the local test table, or
+[http://localhost:3000/online](http://localhost:3000/online) to create or join a
+private room in separate browser tabs or devices connected to the same server.
 
 ## How to use the table
 
@@ -40,15 +41,17 @@ Reserve and eliminated pieces remain visible in the four colored trays around th
 
 The canonical rules are documented in [RULES.md](./RULES.md). Pure game logic lives in `src/game/`; the React interface only presents state and dispatches legal actions.
 
-## Online foundation
+## Online play
 
-The project now has a tested guest-room API beneath the local table:
+The online lobby and remote table use a tested guest-room API:
 
 - deterministic shuffling and versioned game snapshots;
 - revisioned, idempotent commands validated by an authoritative game session;
 - private player views that expose only the viewer's hand;
-- room codes, four guest seats, reconnect tokens, and spectator-safe views;
+- room codes, two-to-four guest seats, tab-scoped reconnect tokens, and spectator-safe views;
 - create, join, read, and command Route Handlers under `/api/rooms`;
+- private hands, partner exchange, legal destination selection, split-seven moves,
+  discards, polling, and revision-conflict recovery in the remote table;
 - a replaceable `RoomStore` boundary for future durable storage.
 
 The bundled store is intentionally in-memory and suitable only for development or

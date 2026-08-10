@@ -1,8 +1,8 @@
 # Online Play Architecture
 
 This document describes the online foundation currently implemented and the work
-remaining before public deployment. The browser table is still the local test
-client; the room API is ready for a lobby/client UI to consume.
+remaining before public deployment. The `/online` browser client can create or
+join a room, reconnect within the tab, and play through the authoritative API.
 
 ## Authority model
 
@@ -64,7 +64,7 @@ four-player room.
 `POST /api/rooms/{roomId}/join`
 
 Assigns the next open seat and returns its reconnect token. The room becomes
-`active` when all four seats are occupied.
+`active` when all seats selected by the host are occupied.
 
 ### Read or reconnect
 
@@ -102,9 +102,9 @@ a durable `RoomStore` adapter backed by a transaction-capable database or Redis.
 Saving a command must atomically compare the expected revision and write the new
 snapshot/event so two server instances cannot both accept revision 12.
 
-The initial client can poll `GET /api/rooms/{roomId}` after submitting a command.
-Once the lobby and remote table are stable, add Server-Sent Events or WebSockets as
-a notification layer. Notifications should only tell clients that a newer revision
+The current client polls `GET /api/rooms/{roomId}` and refreshes after a rejected
+stale command. Server-Sent Events or WebSockets can later replace polling as a
+notification layer. Notifications should only tell clients that a newer revision
 exists; authoritative state still comes from the same privacy-safe room view.
 
 ## Production checklist
@@ -116,9 +116,9 @@ Before sharing rooms publicly:
 3. Rate-limit room creation, joins, reads, and invalid commands.
 4. Enforce allowed origins and HTTPS; never place player tokens in query strings.
 5. Add structured logs that exclude hands, draw piles, and player tokens.
-6. Add a lobby UI, reconnect storage, network error recovery, and revision-conflict UX.
-7. Add polling first, then an SSE/WebSocket notification adapter if needed.
-8. Add browser-level tests with four isolated clients before deployment.
+6. Add a cross-device reconnect/reclaim flow; tab-scoped reconnect is implemented.
+7. Replace polling with an SSE/WebSocket notification adapter if needed.
+8. Add browser-level tests with isolated clients for every supported room size.
 
 Authentication, rankings, payments, public matchmaking, and chat remain outside the
 current milestone.
