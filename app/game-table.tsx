@@ -63,11 +63,33 @@ type SwappingPiece = {
   to: BoardPoint;
 };
 type BoardPoint = { x: number; y: number };
+type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
+type DealerChoice = PlayerId | "random";
+type GameSettings = {
+  startWithPieceOnEntry: boolean;
+  showSpaceNumbers: boolean;
+  animationSpeed: AnimationSpeed;
+  dealer: DealerChoice;
+};
 type RecentPlay = {
   actor: string;
   card: Card;
   summary: string;
   verb: "played" | "discarded";
+};
+
+const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> = {
+  relaxed: { hop: 200, swap: 1_050 },
+  standard: { hop: 130, swap: 720 },
+  quick: { hop: 75, swap: 420 },
+  off: { hop: 0, swap: 0 },
+};
+
+const DEFAULT_SETTINGS: GameSettings = {
+  startWithPieceOnEntry: true,
+  showSpaceNumbers: true,
+  animationSpeed: "standard",
+  dealer: "random",
 };
 
 export default function GameTable({ initialGame }: { initialGame: GameState }) {
@@ -79,7 +101,10 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
   const [swappingPieces, setSwappingPieces] = useState<SwappingPiece[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
+  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [draftSettings, setDraftSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [showSpaceNumbers, setShowSpaceNumbers] = useState(DEFAULT_SETTINGS.showSpaceNumbers);
   const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
   const [history, setHistory] = useState<string[]>([
     `${PLAYER_META[game.dealer].name} dealt the first hand.`,
@@ -91,6 +116,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const selectedCard =
     selectedCardIndex === null ? null : currentPlayer.hand[selectedCardIndex] ?? null;
   const forcedDiscard = game.forcedDiscardPlayer === game.currentPlayer;
+  const animationTimings = ANIMATION_TIMINGS[settings.animationSpeed];
   const legalMoves = useMemo(
     () =>
       selectedCard && !forcedDiscard
@@ -236,6 +262,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     startingPieces: readonly Piece[],
     moves: readonly AtomicMove[],
   ) {
+    if (settings.animationSpeed === "off") return;
+
     let pieces = [...startingPieces];
     let frameNumber = 0;
 
@@ -266,7 +294,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             to: targetTo,
           },
         ]);
-        await waitForSwap();
+        await waitForAnimation(animationTimings.swap);
         setSwappingPieces([]);
         pieces = applyAtomicMove(pieces, move);
         continue;
@@ -280,7 +308,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           const piece = pieces.find((candidate) => candidate.id === animated.pieceId);
           return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
         }));
-        await waitForHop();
+        await waitForAnimation(animationTimings.hop);
       }
 
       pieces = applyAtomicMove(pieces, move);
@@ -323,17 +351,41 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 
   function newGame() {
     if (isAnimating) return;
-    const next = createGame();
+    startNewGame({ ...settings, showSpaceNumbers });
+  }
+
+  function startNewGame(nextSettings: GameSettings) {
+    const next = createGame({
+      startWithPieceOnEntry: nextSettings.startWithPieceOnEntry,
+      ...(nextSettings.dealer === "random" ? {} : { dealer: nextSettings.dealer }),
+    });
+    setSettings(nextSettings);
+    setDraftSettings(nextSettings);
+    setShowSpaceNumbers(nextSettings.showSpaceNumbers);
     setGame(next);
     setRecentPlay(null);
     setHistory([`${PLAYER_META[next.dealer].name} dealt a new game.`]);
     resetSelection();
+    setSetupOpen(false);
+  }
+
+  function openSetup() {
+    if (isAnimating) return;
+    setDraftSettings({ ...settings, showSpaceNumbers });
+    setSetupOpen(true);
   }
 
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
 
   return (
-    <main className={`game-shell ${isAnimating ? "is-animating" : ""}`} aria-busy={isAnimating}>
+    <main
+      className={`game-shell ${isAnimating ? "is-animating" : ""}`}
+      aria-busy={isAnimating}
+      style={{
+        "--hop-duration": `${animationTimings.hop}ms`,
+        "--swap-duration": `${animationTimings.swap}ms`,
+      } as React.CSSProperties}
+    >
       <header className="topbar">
         <div>
           <p className="eyebrow">A local partner game</p>
@@ -345,6 +397,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <strong>{PLAYER_META[game.dealer].name}</strong>
             <small>hand {game.dealIndex + 1} of 3</small>
           </div>
+          <button className="quiet-button" disabled={isAnimating} onClick={openSetup}>Game setup</button>
           <button className="quiet-button" disabled={isAnimating} onClick={newGame}>New game</button>
         </div>
       </header>
@@ -515,6 +568,80 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           );
         })}
       </section>
+
+      {setupOpen && (
+        <div className="setup-backdrop">
+          <section className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+            <div className="setup-heading">
+              <div>
+                <p className="eyebrow">New table</p>
+                <h2 id="setup-title">Game setup</h2>
+              </div>
+              <button className="setup-close" aria-label="Close game setup" onClick={() => setSetupOpen(false)}>×</button>
+            </div>
+
+            <div className="setup-options">
+              <label className="setup-toggle">
+                <span>
+                  <strong>Start on protected entry</strong>
+                  <small>Place each player’s first piece on space 18.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={draftSettings.startWithPieceOnEntry}
+                  onChange={(event) => setDraftSettings((current) => ({ ...current, startWithPieceOnEntry: event.target.checked }))}
+                />
+              </label>
+              <label className="setup-toggle">
+                <span>
+                  <strong>Show space numbers</strong>
+                  <small>Display 1–18 in every player section.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={draftSettings.showSpaceNumbers}
+                  onChange={(event) => setDraftSettings((current) => ({ ...current, showSpaceNumbers: event.target.checked }))}
+                />
+              </label>
+
+              <label className="setup-select">
+                <span>
+                  <strong>First dealer</strong>
+                  <small>Random remains the default.</small>
+                </span>
+                <select
+                  value={draftSettings.dealer}
+                  onChange={(event) => setDraftSettings((current) => ({ ...current, dealer: event.target.value as DealerChoice }))}
+                >
+                  <option value="random">Random</option>
+                  {PLAYER_IDS.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_META[playerId].name}</option>)}
+                </select>
+              </label>
+
+              <fieldset className="motion-options">
+                <legend>Movement animation</legend>
+                {(["relaxed", "standard", "quick", "off"] as const).map((speed) => (
+                  <label key={speed}>
+                    <input
+                      type="radio"
+                      name="animation-speed"
+                      value={speed}
+                      checked={draftSettings.animationSpeed === speed}
+                      onChange={() => setDraftSettings((current) => ({ ...current, animationSpeed: speed }))}
+                    />
+                    <span>{speed[0].toUpperCase() + speed.slice(1)}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+
+            <div className="setup-actions">
+              <button className="quiet-button" onClick={() => setSetupOpen(false)}>Cancel</button>
+              <button className="primary-button" onClick={() => startNewGame(draftSettings)}>Start new game</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -1000,10 +1127,6 @@ function cardHelp(card: Card) {
   }
 }
 
-function waitForHop() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 130));
-}
-
-function waitForSwap() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 720));
+function waitForAnimation(duration: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
 }
