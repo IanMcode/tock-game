@@ -200,6 +200,15 @@ button { font: inherit; }
 .motion-options input { position: absolute; opacity: 0; }
 .motion-options span { display: block; padding: 10px 6px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); text-align: center; cursor: pointer; font-size: 11px; font-weight: 800; }
 .motion-options input:checked + span { border-color: var(--green); color: white; background: var(--green); }
+.setup-colors { display: grid; gap: 10px; margin: 0; padding: 15px 16px 16px; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.setup-colors legend { padding: 0 5px; font-size: 13px; font-weight: 800; }
+.setup-colors > p { margin: -2px 0 2px; color: var(--muted); font-size: 10px; }
+.setup-color-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 12px; }
+.setup-color-row > strong { font-family: Georgia, serif; font-size: 14px; font-weight: 500; }
+.setup-color-row > div { display: flex; gap: 9px; }
+.setup-color-row button { width: 31px; height: 31px; display: grid; place-items: center; padding: 0; border: 2px solid white; border-radius: 50%; color: white; background: var(--swatch); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.setup-color-row button.is-selected { box-shadow: 0 0 0 3px var(--ink); }
+.setup-color-row button span { font-size: 12px; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .setup-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .setup-actions .primary-button { width: auto; margin: 0; padding-inline: 18px; }
 

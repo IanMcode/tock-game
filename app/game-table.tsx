@@ -32,12 +32,12 @@ import {
 
 const PLAYER_META: Record<
   PlayerId,
-  { name: string; team: string; color: string; soft: string }
+  { name: string; team: string }
 > = {
-  P1: { name: "Poppy", team: "Sun team", color: "#e5533d", soft: "#ffe1d8" },
-  P2: { name: "River", team: "Moon team", color: "#2878b8", soft: "#dceeff" },
-  P3: { name: "Sunny", team: "Sun team", color: "#d39412", soft: "#fff0bd" },
-  P4: { name: "Fern", team: "Moon team", color: "#34835b", soft: "#dff3e6" },
+  P1: { name: "Poppy", team: "Sun team" },
+  P2: { name: "River", team: "Moon team" },
+  P3: { name: "Sunny", team: "Sun team" },
+  P4: { name: "Fern", team: "Moon team" },
 };
 
 const SUIT_SYMBOL: Record<Card["suit"], string> = {
@@ -65,11 +65,13 @@ type SwappingPiece = {
 type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
+type PlayerColorId = "vermillion" | "blue" | "orange" | "green" | "purple" | "sky";
 type GameSettings = {
   startWithPieceOnEntry: boolean;
   showSpaceNumbers: boolean;
   animationSpeed: AnimationSpeed;
   dealer: DealerChoice;
+  playerColors: Record<PlayerId, PlayerColorId>;
 };
 type RecentPlay = {
   actor: string;
@@ -85,11 +87,28 @@ const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> =
   off: { hop: 0, swap: 0 },
 };
 
+const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string }> = {
+  vermillion: { label: "Vermillion", color: "#D55E00", soft: "#FBE5D5" },
+  blue: { label: "Blue", color: "#0072B2", soft: "#DCECF5" },
+  orange: { label: "Orange", color: "#E69F00", soft: "#FFF0C9" },
+  green: { label: "Bluish green", color: "#009E73", soft: "#D9F1E9" },
+  purple: { label: "Reddish purple", color: "#CC79A7", soft: "#F6E3EE" },
+  sky: { label: "Sky blue", color: "#56B4E9", soft: "#DFF2FC" },
+};
+
+const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
+
 const DEFAULT_SETTINGS: GameSettings = {
   startWithPieceOnEntry: true,
   showSpaceNumbers: true,
   animationSpeed: "standard",
   dealer: "random",
+  playerColors: {
+    P1: "vermillion",
+    P2: "blue",
+    P3: "orange",
+    P4: "green",
+  },
 };
 
 export default function GameTable({ initialGame }: { initialGame: GameState }) {
@@ -355,13 +374,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function startNewGame(nextSettings: GameSettings) {
+    const normalizedSettings = normalizeGameSettings(nextSettings);
     const next = createGame({
-      startWithPieceOnEntry: nextSettings.startWithPieceOnEntry,
-      ...(nextSettings.dealer === "random" ? {} : { dealer: nextSettings.dealer }),
+      startWithPieceOnEntry: normalizedSettings.startWithPieceOnEntry,
+      ...(normalizedSettings.dealer === "random" ? {} : { dealer: normalizedSettings.dealer }),
     });
-    setSettings(nextSettings);
-    setDraftSettings(nextSettings);
-    setShowSpaceNumbers(nextSettings.showSpaceNumbers);
+    setSettings(normalizedSettings);
+    setDraftSettings(normalizedSettings);
+    setShowSpaceNumbers(normalizedSettings.showSpaceNumbers);
     setGame(next);
     setRecentPlay(null);
     setHistory([`${PLAYER_META[next.dealer].name} dealt a new game.`]);
@@ -371,8 +391,21 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 
   function openSetup() {
     if (isAnimating) return;
-    setDraftSettings({ ...settings, showSpaceNumbers });
+    setDraftSettings(normalizeGameSettings({ ...settings, showSpaceNumbers }));
     setSetupOpen(true);
+  }
+
+  function chooseDraftColor(playerId: PlayerId, colorId: PlayerColorId) {
+    setDraftSettings((current) => {
+      const currentColors = current.playerColors ?? DEFAULT_SETTINGS.playerColors;
+      const previousColor = currentColors[playerId];
+      const otherPlayer = PLAYER_IDS.find(
+        (candidate) => candidate !== playerId && currentColors[candidate] === colorId,
+      );
+      const playerColors = { ...currentColors, [playerId]: colorId };
+      if (otherPlayer) playerColors[otherPlayer] = previousColor;
+      return { ...current, playerColors };
+    });
   }
 
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
@@ -382,6 +415,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       className={`game-shell ${isAnimating ? "is-animating" : ""}`}
       aria-busy={isAnimating}
       style={{
+        ...getPlayerColorVariables(settings.playerColors),
         "--hop-duration": `${animationTimings.hop}ms`,
         "--swap-duration": `${animationTimings.swap}ms`,
       } as React.CSSProperties}
@@ -417,7 +451,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           <p>{Object.keys(game.exchangeSelections).length} of 4 cards chosen</p>
         </section>
       ) : (
-        <section className="turn-banner" style={{ "--player": PLAYER_META[game.currentPlayer].color } as React.CSSProperties}>
+        <section className="turn-banner" style={{ "--player": playerColorVar(game.currentPlayer) } as React.CSSProperties}>
           <span className="turn-dot" />
           <div>
             <p className="eyebrow">Current turn</p>
@@ -523,7 +557,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <article
               className={`player-panel ${isCurrent ? "is-current" : ""}`}
               key={player.id}
-              style={{ "--player": meta.color, "--player-soft": meta.soft } as React.CSSProperties}
+              style={{ "--player": playerColorVar(player.id), "--player-soft": playerSoftVar(player.id) } as React.CSSProperties}
             >
               <div className="player-heading">
                 <div className="player-badge">{player.id.slice(1)}</div>
@@ -633,6 +667,36 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   </label>
                 ))}
               </fieldset>
+
+              <fieldset className="setup-colors">
+                <legend>Player colors</legend>
+                <p>Color-vision-safe palette · selecting a used color swaps it.</p>
+                {PLAYER_IDS.map((playerId) => (
+                  <div className="setup-color-row" key={playerId}>
+                    <strong>{PLAYER_META[playerId].name}</strong>
+                    <div>
+                      {PLAYER_COLOR_IDS.map((colorId) => {
+                        const color = PLAYER_COLORS[colorId];
+                        const selected = (draftSettings.playerColors ?? DEFAULT_SETTINGS.playerColors)[playerId] === colorId;
+                        return (
+                          <button
+                            type="button"
+                            className={selected ? "is-selected" : ""}
+                            aria-label={`${PLAYER_META[playerId].name}: ${color.label}`}
+                            aria-pressed={selected}
+                            title={color.label}
+                            key={colorId}
+                            style={{ "--swatch": color.color } as React.CSSProperties}
+                            onClick={() => chooseDraftColor(playerId, colorId)}
+                          >
+                            <span aria-hidden="true">{selected ? "✓" : ""}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </fieldset>
             </div>
 
             <div className="setup-actions">
@@ -680,8 +744,8 @@ function Board({
     ...swappingPieces.map((animated) => animated.piece.id),
   ]);
   const destinationColor = selectedPieceId
-    ? PLAYER_META[pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1"].color
-    : PLAYER_META.P1.color;
+    ? playerColorVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
+    : playerColorVar("P1");
 
   return (
     <div className="board-wrap">
@@ -718,8 +782,8 @@ function Board({
               className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""}`}
               key={`${owner}-reserve`}
               style={{
-                "--reserve": PLAYER_META[owner].color,
-                "--reserve-soft": PLAYER_META[owner].soft,
+                "--reserve": playerColorVar(owner),
+                "--reserve-soft": playerSoftVar(owner),
               } as React.CSSProperties}
               aria-label={`${PLAYER_META[owner].name}'s reserve`}
             >
@@ -782,7 +846,7 @@ function Board({
             <div
               className={`track-space ${entryOwner ? "entry-space" : ""} ${destinationMove ? "possible-destination" : ""}`}
               key={index}
-              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": PLAYER_META[owner].soft, "--entry": entryOwner ? PLAYER_META[entryOwner].color : undefined, "--destination": destinationColor } as React.CSSProperties}
+              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": playerSoftVar(owner), "--entry": entryOwner ? playerColorVar(entryOwner) : undefined, "--destination": destinationColor } as React.CSSProperties}
             >
               <span className="space-number" aria-hidden="true">
                 {showSpaceNumbers ? index % 18 + 1 : ""}
@@ -824,7 +888,7 @@ function Board({
               <div
                 className={`home-space ${destinationMove ? "possible-destination" : ""}`}
                 key={`${owner}-home-${index}`}
-                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": PLAYER_META[owner].soft, "--destination": destinationColor } as React.CSSProperties}
+                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": playerSoftVar(owner), "--destination": destinationColor } as React.CSSProperties}
               >
                 {occupant && (
                   <PieceButton
@@ -903,8 +967,8 @@ function Board({
         ))}
       </div>
       <div className="team-key">
-        <span><i style={{ background: PLAYER_META.P1.color }} /> Poppy + Sunny</span>
-        <span><i style={{ background: PLAYER_META.P2.color }} /> River + Fern</span>
+        <span><i style={{ background: playerColorVar("P1") }} /> Poppy + Sunny</span>
+        <span><i style={{ background: playerColorVar("P2") }} /> River + Fern</span>
         <span className="protection-key"><b>✦</b> Protected entry</span>
       </div>
     </div>
@@ -967,7 +1031,7 @@ function PieceButton({ piece, active, selected, hopping = false, onClick }: {
   return (
     <button
       className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
-      style={{ "--piece": PLAYER_META[piece.owner].color, width: hopping ? "90%" : undefined } as React.CSSProperties}
+      style={{ "--piece": playerColorVar(piece.owner), width: hopping ? "90%" : undefined } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
       }}
@@ -1047,6 +1111,36 @@ function roundPoint(point: { x: number; y: number }) {
   return {
     x: Number(point.x.toFixed(4)),
     y: Number(point.y.toFixed(4)),
+  };
+}
+
+function playerColorVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()})`;
+}
+
+function playerSoftVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()}-soft)`;
+}
+
+function getPlayerColorVariables(
+  selections: Record<PlayerId, PlayerColorId> | undefined,
+): React.CSSProperties {
+  return PLAYER_IDS.reduce<Record<string, string>>((variables, playerId) => {
+    const color = PLAYER_COLORS[selections?.[playerId] ?? DEFAULT_SETTINGS.playerColors[playerId]];
+    variables[`--color-${playerId.toLowerCase()}`] = color.color;
+    variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
+    return variables;
+  }, {}) as React.CSSProperties;
+}
+
+function normalizeGameSettings(settings: GameSettings): GameSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    playerColors: {
+      ...DEFAULT_SETTINGS.playerColors,
+      ...settings.playerColors,
+    },
   };
 }
 
