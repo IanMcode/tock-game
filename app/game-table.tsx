@@ -422,7 +422,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         {game.players.map((player) => {
           const meta = PLAYER_META[player.id];
           const isCurrent = player.id === game.currentPlayer && game.phase === "play";
-          const choseExchange = game.exchangeSelections[player.id] !== undefined;
+          const exchangeCardIndex = game.exchangeSelections[player.id];
+          const choseExchange = exchangeCardIndex !== undefined;
           return (
             <article
               className={`player-panel ${isCurrent ? "is-current" : ""}`}
@@ -435,22 +436,30 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   <h3>{meta.name}</h3>
                   <p>{meta.team} · partner {PLAYER_META[getPartner(player.id)].name}</p>
                 </div>
-                <div className="piece-summary">
-                  <span>{player.pieces.filter((piece) => piece.position.zone === "home").length} home</span>
-                  <span>{player.pieces.filter((piece) => piece.position.zone === "reserve").length} reserve</span>
-                </div>
+                {game.phase === "exchange" ? (
+                  <div className={`exchange-status ${choseExchange ? "is-chosen" : ""}`}>
+                    {choseExchange ? "Pass chosen ✓" : "Choose 1 card"}
+                  </div>
+                ) : (
+                  <div className="piece-summary">
+                    <span>{player.pieces.filter((piece) => piece.position.zone === "home").length} home</span>
+                    <span>{player.pieces.filter((piece) => piece.position.zone === "reserve").length} reserve</span>
+                  </div>
+                )}
               </div>
               <div className="hand">
                 {player.hand.map((card, index) => {
                   const canExchange = game.phase === "exchange" && !choseExchange;
                   const canSelect = isCurrent && game.phase === "play";
-                  const isSelected = canSelect && selectedCardIndex === index;
+                  const isExchangeSelection = game.phase === "exchange" && exchangeCardIndex === index;
+                  const isSelected = (canSelect && selectedCardIndex === index) || isExchangeSelection;
                   const isPlayable = playableIndexes.includes(index);
                   return (
                     <CardButton
                       key={`${card.rank}-${card.suit}-${index}`}
                       card={card}
                       selected={isSelected}
+                      exchangeSelected={isExchangeSelection}
                       playable={canSelect && isPlayable && !forcedDiscard}
                       dimmed={canSelect && !isPlayable && !forcedDiscard && playableIndexes.length > 0}
                       disabled={game.phase === "exchange" ? !canExchange : isAnimating || !canSelect}
@@ -459,7 +468,6 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   );
                 })}
                 {player.hand.length === 0 && <div className="empty-hand">No cards</div>}
-                {choseExchange && <div className="exchange-chosen">Card chosen ✓</div>}
               </div>
             </article>
           );
@@ -706,9 +714,10 @@ function Board({
   );
 }
 
-function CardButton({ card, selected, playable, dimmed, disabled, onClick }: {
+function CardButton({ card, selected, exchangeSelected, playable, dimmed, disabled, onClick }: {
   card: Card;
   selected: boolean;
+  exchangeSelected: boolean;
   playable: boolean;
   dimmed: boolean;
   disabled: boolean;
@@ -717,7 +726,7 @@ function CardButton({ card, selected, playable, dimmed, disabled, onClick }: {
   const red = card.suit === "hearts" || card.suit === "diamonds";
   return (
     <button
-      className={`playing-card ${red ? "red" : "black"} ${selected ? "selected" : ""} ${playable ? "playable" : ""} ${dimmed ? "dimmed" : ""}`}
+      className={`playing-card ${red ? "red" : "black"} ${selected ? "selected" : ""} ${exchangeSelected ? "exchange-selected" : ""} ${playable ? "playable" : ""} ${dimmed ? "dimmed" : ""}`}
       disabled={disabled}
       onClick={onClick}
       aria-label={`${card.rank} of ${card.suit}`}

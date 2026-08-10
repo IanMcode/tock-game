@@ -157,6 +157,8 @@ button { font: inherit; }
 .deck-icon i:nth-child(3) { left: 6px; top: 2px; background: var(--reserve); }
 .deck-icon i:nth-child(3)::after { content: "♠"; position: absolute; inset: 0; display: grid; place-items: center; color: white; font-size: 8px; }
 .piece-summary { display: flex; gap: 9px; margin-left: auto; color: var(--muted); font-size: 10px; }
+.exchange-status { margin-left: auto; padding: 7px 9px; border-radius: 999px; color: var(--muted); background: rgba(23,49,42,.06); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.exchange-status.is-chosen { color: var(--player); background: var(--player-soft); }
 .hand { min-height: 90px; display: flex; align-items: center; gap: clamp(3px, .6vw, 8px); overflow-x: auto; padding: 6px 3px 9px; }
 .playing-card { position: relative; width: clamp(48px, 5.2vw, 68px); aspect-ratio: .7; flex: 0 0 auto; padding: 6px; border: 1px solid #d7d1c5; border-radius: 9px; background: #fffefa; box-shadow: 0 4px 10px rgba(42,47,42,.1); cursor: pointer; text-align: left; transition: transform .16s, box-shadow .16s, opacity .16s; }
 .playing-card.red { color: #c73c35; }
@@ -167,11 +169,11 @@ button { font: inherit; }
 .playing-card .card-face > small { position: absolute; right: 6px; bottom: 6px; transform: rotate(180deg); }
 .playing-card:not(:disabled):hover, .playing-card.selected { transform: translateY(-8px); box-shadow: 0 11px 20px rgba(32,48,40,.17); }
 .playing-card.selected { outline: 3px solid var(--player); }
+.playing-card.exchange-selected::after { content: "✓"; position: absolute; right: -7px; top: -8px; z-index: 2; width: 22px; height: 22px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: var(--player); box-shadow: 0 3px 8px rgba(32,48,40,.2); font-size: 12px; font-weight: 900; }
 .playing-card.playable::after { content: ""; position: absolute; inset: -3px; border: 2px solid color-mix(in srgb, var(--player) 60%, white); border-radius: 11px; }
 .playing-card.dimmed { opacity: .42; }
 .playing-card:disabled { cursor: default; }
-.empty-hand, .exchange-chosen { color: var(--muted); font-size: 12px; }
-.exchange-chosen { margin-left: 6px; padding: 9px; border-radius: 9px; background: var(--player-soft); color: var(--player); font-weight: 800; }
+.empty-hand { color: var(--muted); font-size: 12px; }
 
 @media (max-width: 980px) {
   .table-layout { grid-template-columns: 1fr; }
