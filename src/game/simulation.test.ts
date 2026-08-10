@@ -33,4 +33,21 @@ describe("deterministic game simulations", () => {
     expect(result.actions).toBeLessThan(20_000);
     assertValidGameState(result.game);
   }, 30_000);
+
+  it.each([2, 3, 4] as const)("plays a complete %i-player free-for-all", (playerCount) => {
+    const result = simulateGame(
+      createGame({
+        playerCount,
+        teams: false,
+        randomState: 42_000 + playerCount,
+        dealer: "P1",
+      }),
+      20_000,
+    );
+
+    expect(result.game.winningTeam).toHaveLength(1);
+    expect(result.game.players).toHaveLength(playerCount);
+    expect(result.completedDeals).toBeGreaterThan(0);
+    assertValidGameState(result.game);
+  }, 30_000);
 });

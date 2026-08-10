@@ -1,5 +1,6 @@
 import { applyPieceMove, type SwapMove } from "./actions";
 import { getLegalForwardMoves, type ForwardMove } from "./moves";
+import type { BoardDefinition } from "./definition";
 import type { Piece, PlayerId, TrackPosition } from "./types";
 
 export type SplitSevenMove = {
@@ -60,8 +61,9 @@ export function getLegalJackMoves(
 export function getLegalSplitSevenMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
+  board?: BoardDefinition,
 ): SplitSevenMove[] {
-  return buildSplitSevenMoves(pieces, playerId, 7, []);
+  return buildSplitSevenMoves(pieces, playerId, 7, [], board);
 }
 
 function buildSplitSevenMoves(
@@ -69,6 +71,7 @@ function buildSplitSevenMoves(
   playerId: PlayerId,
   stepsRemaining: number,
   steps: readonly ForwardMove[],
+  board?: BoardDefinition,
 ): SplitSevenMove[] {
   if (stepsRemaining === 0) {
     return [{ kind: "split7", steps: [...steps] }];
@@ -76,7 +79,7 @@ function buildSplitSevenMoves(
 
   const nextSteps = pieces
     .filter((piece) => piece.owner === playerId)
-    .flatMap((piece) => getLegalForwardMoves(pieces, piece.id, 1));
+    .flatMap((piece) => getLegalForwardMoves(pieces, piece.id, 1, board));
 
   return nextSteps.flatMap((step) =>
     buildSplitSevenMoves(
@@ -84,6 +87,7 @@ function buildSplitSevenMoves(
       playerId,
       stepsRemaining - 1,
       [...steps, step],
+      board,
     ),
   );
 }

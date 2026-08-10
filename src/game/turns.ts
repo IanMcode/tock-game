@@ -26,7 +26,7 @@ export function playCardForTurn(
   const player = getCurrentPlayer(game);
   const card = getCardAtIndex(player.hand, cardIndex);
   const pieces = getAllPieces(game);
-  const legalMoves = getLegalBasicCardMoves(pieces, player.id, card);
+  const legalMoves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId);
   const legalMove = legalMoves.find(
     (candidate) => serializeMove(candidate) === serializeMove(selectedMove),
   );
@@ -85,7 +85,7 @@ export function getPlayableCardIndexes(game: GameState): number[] {
   const pieces = getAllPieces(game);
 
   return player.hand.flatMap((card, index) =>
-    getLegalBasicCardMoves(pieces, player.id, card).length > 0 ? [index] : [],
+    getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId).length > 0 ? [index] : [],
   );
 }
 
@@ -119,7 +119,10 @@ function advanceTurn(
   discardedCard: Card | null,
   pieces: readonly Piece[],
 ): GameState {
-  const nextPlayer = getNextPlayer(game.currentPlayer);
+  const nextPlayer = getNextPlayer(
+    game.currentPlayer,
+    game.players.map((player) => player.id),
+  );
   const players = game.players.map((player) => ({
     ...player,
     hand:
@@ -139,7 +142,7 @@ function advanceTurn(
       ? [...game.discardPile, discardedCard]
       : game.discardPile,
     forcedDiscardPlayer: discardedCard?.rank === "10" ? nextPlayer : null,
-    winningTeam: getWinningTeam(pieces),
+    winningTeam: getWinningTeam(pieces, game.rulesetId),
   };
 
   return advanceDealIfHandComplete(nextGame);

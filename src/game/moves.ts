@@ -6,6 +6,7 @@ import {
   getForwardStepsToHome,
   getForwardTrackPath,
 } from "./board";
+import type { BoardDefinition } from "./definition";
 import {
   getHomeOccupant,
   getPieceById,
@@ -34,6 +35,7 @@ export function getLegalForwardMoves(
   pieces: readonly Piece[],
   pieceId: string,
   spaces: number,
+  board?: BoardDefinition,
 ): ForwardMove[] {
   assertPositiveInteger(spaces);
   const piece = getPieceById(pieces, pieceId);
@@ -46,9 +48,9 @@ export function getLegalForwardMoves(
     case "reserve":
       return [];
     case "home":
-      return getHomeMoves(pieces, piece, piece.position, spaces);
+      return getHomeMoves(pieces, piece, piece.position, spaces, board);
     case "track":
-      return getTrackMoves(pieces, piece, piece.position, spaces);
+      return getTrackMoves(pieces, piece, piece.position, spaces, board);
   }
 }
 
@@ -56,6 +58,7 @@ export function getLegalBackwardMove(
   pieces: readonly Piece[],
   pieceId: string,
   spaces: number,
+  board?: BoardDefinition,
 ): BackwardMove[] {
   assertPositiveInteger(spaces);
   const piece = getPieceById(pieces, pieceId);
@@ -68,13 +71,13 @@ export function getLegalBackwardMove(
     return [];
   }
 
-  const path = getBackwardTrackPath(piece.position.index, spaces);
+  const path = getBackwardTrackPath(piece.position.index, spaces, board);
 
   if (hasProtectedBlocker(pieces, path, piece.id)) {
     return [];
   }
 
-  const destinationIndex = advanceTrackIndex(piece.position.index, -spaces);
+  const destinationIndex = advanceTrackIndex(piece.position.index, -spaces, board);
   const occupant = getTrackOccupant(pieces, destinationIndex, piece.id);
 
   return [
@@ -97,12 +100,13 @@ function getTrackMoves(
   piece: Piece,
   position: TrackPosition,
   spaces: number,
+  board?: BoardDefinition,
 ): ForwardMove[] {
   const moves: ForwardMove[] = [];
-  const trackPath = getForwardTrackPath(position.index, spaces);
+  const trackPath = getForwardTrackPath(position.index, spaces, board);
 
   if (!hasProtectedBlocker(pieces, trackPath, piece.id)) {
-    const destinationIndex = advanceTrackIndex(position.index, spaces);
+    const destinationIndex = advanceTrackIndex(position.index, spaces, board);
     const occupant = getTrackOccupant(pieces, destinationIndex, piece.id);
 
     moves.push({
@@ -118,11 +122,11 @@ function getTrackMoves(
     });
   }
 
-  const homeDestination = enterHome(position, piece.owner, spaces);
+  const homeDestination = enterHome(position, piece.owner, spaces, board);
 
   if (
     homeDestination &&
-    canEnterHome(pieces, piece, position, spaces, homeDestination)
+    canEnterHome(pieces, piece, position, spaces, homeDestination, board)
   ) {
     moves.push({
       kind: "forward",
@@ -140,8 +144,9 @@ function getHomeMoves(
   piece: Piece,
   position: HomePosition,
   spaces: number,
+  board?: BoardDefinition,
 ): ForwardMove[] {
-  const destination = advanceHome(position, spaces);
+  const destination = advanceHome(position, spaces, board);
 
   if (!destination) {
     return [];
@@ -169,9 +174,10 @@ function canEnterHome(
   position: TrackPosition,
   spaces: number,
   destination: HomePosition,
+  board?: BoardDefinition,
 ): boolean {
-  const stepsToHome = getForwardStepsToHome(position.index, piece.owner);
-  const trackPath = getForwardTrackPath(position.index, stepsToHome - 1);
+  const stepsToHome = getForwardStepsToHome(position.index, piece.owner, board);
+  const trackPath = getForwardTrackPath(position.index, stepsToHome - 1, board);
 
   if (spaces < stepsToHome || hasProtectedBlocker(pieces, trackPath, piece.id)) {
     return false;

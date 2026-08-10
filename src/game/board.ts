@@ -1,5 +1,6 @@
 import type { HomePosition, PlayerId, TrackPosition } from "./types";
 import {
+  type BoardDefinition,
   CLASSIC_PARTNERS_RULESET,
   getBoardEntryIndex,
   getBoardHomeEntranceIndex,
@@ -7,6 +8,7 @@ import {
 } from "./definition";
 
 const CLASSIC_BOARD = CLASSIC_PARTNERS_RULESET.board;
+export const DEFAULT_BOARD = CLASSIC_BOARD;
 
 export const PLAYER_SECTION_SIZE = CLASSIC_BOARD.sectionSize;
 export const TRACK_SIZE = CLASSIC_BOARD.trackSize;
@@ -35,66 +37,69 @@ export type SectionSpace =
 export function getTrackIndex(
   playerId: PlayerId,
   sectionSpace: SectionSpace,
+  board: BoardDefinition = CLASSIC_BOARD,
 ): number {
-  return getBoardTrackIndex(CLASSIC_BOARD, playerId, sectionSpace);
+  return getBoardTrackIndex(board, playerId, sectionSpace);
 }
 
-export function getEntryIndex(playerId: PlayerId): number {
-  return getBoardEntryIndex(CLASSIC_BOARD, playerId);
+export function getEntryIndex(playerId: PlayerId, board: BoardDefinition = CLASSIC_BOARD): number {
+  return getBoardEntryIndex(board, playerId);
 }
 
-export function getHomeEntranceIndex(playerId: PlayerId): number {
-  return getBoardHomeEntranceIndex(CLASSIC_BOARD, playerId);
+export function getHomeEntranceIndex(playerId: PlayerId, board: BoardDefinition = CLASSIC_BOARD): number {
+  return getBoardHomeEntranceIndex(board, playerId);
 }
 
-export function advanceTrackIndex(index: number, spaces: number): number {
-  assertTrackIndex(index);
+export function advanceTrackIndex(index: number, spaces: number, board: BoardDefinition = CLASSIC_BOARD): number {
+  assertTrackIndex(index, board);
 
   if (!Number.isInteger(spaces)) {
     throw new RangeError("Track movement must use a whole number of spaces.");
   }
 
-  return modulo(index + spaces, TRACK_SIZE);
+  return modulo(index + spaces, board.trackSize);
 }
 
-export function getForwardTrackPath(index: number, spaces: number): number[] {
-  assertTrackIndex(index);
+export function getForwardTrackPath(index: number, spaces: number, board: BoardDefinition = CLASSIC_BOARD): number[] {
+  assertTrackIndex(index, board);
   assertNonNegativeInteger(spaces, "Forward movement");
 
   return Array.from({ length: spaces }, (_, offset) =>
-    advanceTrackIndex(index, offset + 1),
+    advanceTrackIndex(index, offset + 1, board),
   );
 }
 
-export function getBackwardTrackPath(index: number, spaces: number): number[] {
-  assertTrackIndex(index);
+export function getBackwardTrackPath(index: number, spaces: number, board: BoardDefinition = CLASSIC_BOARD): number[] {
+  assertTrackIndex(index, board);
   assertNonNegativeInteger(spaces, "Backward movement");
 
   return Array.from({ length: spaces }, (_, offset) =>
-    advanceTrackIndex(index, -(offset + 1)),
+    advanceTrackIndex(index, -(offset + 1), board),
   );
 }
 
 export function getForwardStepsToHome(
   index: number,
   playerId: PlayerId,
+  board: BoardDefinition = CLASSIC_BOARD,
 ): number {
-  assertTrackIndex(index);
-  const entranceIndex = getHomeEntranceIndex(playerId);
+  assertTrackIndex(index, board);
+  const entranceIndex = getHomeEntranceIndex(playerId, board);
 
-  return modulo(entranceIndex - index, TRACK_SIZE) + 1;
+  return modulo(entranceIndex - index, board.trackSize) + 1;
 }
 
 export function enterHome(
   position: TrackPosition,
   playerId: PlayerId,
   spaces: number,
+  board: BoardDefinition = CLASSIC_BOARD,
 ): HomePosition | null {
   assertNonNegativeInteger(spaces, "Forward movement");
-  const stepsToHome = getForwardStepsToHome(position.index, playerId);
+  const stepsToHome = getForwardStepsToHome(position.index, playerId, board);
   const homeIndex = spaces - stepsToHome;
 
-  if (homeIndex < 0 || homeIndex >= HOME_SIZE) {
+  if (homeIndex < 0 || homeIndex >= board.homeSize) {
     return null;
   }
 
@@ -107,12 +112,13 @@ export function enterHome(
 export function advanceHome(
   position: HomePosition,
   spaces: number,
+  board: BoardDefinition = CLASSIC_BOARD,
 ): HomePosition | null {
-  assertHomeIndex(position.index);
+  assertHomeIndex(position.index, board);
   assertNonNegativeInteger(spaces, "Home movement");
   const index = position.index + spaces;
 
-  if (index >= HOME_SIZE) {
+  if (index >= board.homeSize) {
     return null;
   }
 
@@ -122,15 +128,15 @@ export function advanceHome(
   };
 }
 
-function assertTrackIndex(index: number): void {
-  if (!Number.isInteger(index) || index < 0 || index >= TRACK_SIZE) {
-    throw new RangeError(`Track index must be between 0 and ${TRACK_SIZE - 1}.`);
+function assertTrackIndex(index: number, board: BoardDefinition): void {
+  if (!Number.isInteger(index) || index < 0 || index >= board.trackSize) {
+    throw new RangeError(`Track index must be between 0 and ${board.trackSize - 1}.`);
   }
 }
 
-function assertHomeIndex(index: number): void {
-  if (!Number.isInteger(index) || index < 0 || index >= HOME_SIZE) {
-    throw new RangeError(`Home index must be between 0 and ${HOME_SIZE - 1}.`);
+function assertHomeIndex(index: number, board: BoardDefinition): void {
+  if (!Number.isInteger(index) || index < 0 || index >= board.homeSize) {
+    throw new RangeError(`Home index must be between 0 and ${board.homeSize - 1}.`);
   }
 }
 

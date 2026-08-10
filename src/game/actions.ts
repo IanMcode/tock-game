@@ -1,4 +1,5 @@
 import { getEntryIndex } from "./board";
+import type { BoardDefinition } from "./definition";
 import {
   getPieceById,
   getTrackOccupant,
@@ -28,8 +29,9 @@ export type AtomicMove = PieceMove | SwapMove;
 export function getLegalEntryMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
+  board?: BoardDefinition,
 ): EntryMove[] {
-  const entryIndex = getEntryIndex(playerId);
+  const entryIndex = getEntryIndex(playerId, board);
   const occupant = getTrackOccupant(pieces, entryIndex);
 
   return pieces

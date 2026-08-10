@@ -1,8 +1,9 @@
 import { shuffleDeckWithState } from "./cards";
 import { CLASSIC_PARTNERS_RULESET } from "./definition";
+import { getRulesetDefinition } from "./definition";
 import { getNextPlayer } from "./rules";
 import { getPartner } from "./teams";
-import { PLAYER_IDS, type GameState, type Player, type PlayerId } from "./types";
+import type { GameState, Player, PlayerId } from "./types";
 
 export const FOUR_PLAYER_DEAL_SCHEDULE = CLASSIC_PARTNERS_RULESET.dealSchedule;
 
@@ -39,6 +40,10 @@ export function selectExchangeCard(
   if (game.phase !== "exchange") {
     throw new Error("Cards can only be selected during the exchange phase.");
   }
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  if (ruleset.exchange !== "partners") {
+    throw new Error("This ruleset does not exchange cards.");
+  }
 
   const player = game.players.find(({ id }) => id === playerId);
 
@@ -59,14 +64,14 @@ export function selectExchangeCard(
     [playerId]: cardIndex,
   };
 
-  if (!PLAYER_IDS.every((id) => exchangeSelections[id] !== undefined)) {
+  if (!game.players.every(({ id }) => exchangeSelections[id] !== undefined)) {
     return { ...game, exchangeSelections };
   }
 
   const exchangedPlayers = game.players.map((currentPlayer) => {
     const ownIndex = exchangeSelections[currentPlayer.id];
     const partner = game.players.find(
-      ({ id }) => id === getPartner(currentPlayer.id),
+      ({ id }) => id === getPartner(currentPlayer.id, game.rulesetId),
     );
     const partnerIndex = partner
       ? exchangeSelections[partner.id]
@@ -103,26 +108,32 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
     return game;
   }
 
-  if (game.dealIndex < FOUR_PLAYER_DEAL_SCHEDULE.length - 1) {
-    const dealIndex = (game.dealIndex + 1) as 1 | 2;
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  const schedule = ruleset.dealSchedule;
+  if (game.dealIndex < schedule.length - 1) {
+    const dealIndex = game.dealIndex + 1;
     const dealt = dealHand(
       game.players,
       game.drawPile,
-      FOUR_PLAYER_DEAL_SCHEDULE[dealIndex],
+      schedule[dealIndex],
     );
 
-    return startExchange({ ...game, ...dealt, dealIndex });
+    return startHand({ ...game, ...dealt, dealIndex });
   }
 
-  const dealer = getNextPlayer(game.dealer);
-  const shuffled = shuffleDeckWithState(game.discardPile, game.randomState);
+  const playerIds = game.players.map((player) => player.id);
+  const dealer = getNextPlayer(game.dealer, playerIds);
+  const shuffled = shuffleDeckWithState(
+    [...game.drawPile, ...game.discardPile],
+    game.randomState,
+  );
   const dealt = dealHand(
     game.players,
     shuffled.cards,
-    FOUR_PLAYER_DEAL_SCHEDULE[0],
+    schedule[0],
   );
 
-  return startExchange({
+  return startHand({
     ...game,
     ...dealt,
     dealer,
@@ -132,11 +143,12 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
   });
 }
 
-function startExchange(game: GameState): GameState {
+function startHand(game: GameState): GameState {
+  const ruleset = getRulesetDefinition(game.rulesetId);
   return {
     ...game,
-    currentPlayer: getNextPlayer(game.dealer),
-    phase: "exchange",
+    currentPlayer: getNextPlayer(game.dealer, game.players.map((player) => player.id)),
+    phase: ruleset.exchange === "partners" ? "exchange" : "play",
     exchangeSelections: {},
     forcedDiscardPlayer: null,
   };

@@ -157,9 +157,9 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const legalMoves = useMemo(
     () =>
       selectedCard && !forcedDiscard
-        ? getLegalBasicCardMoves(allPieces, game.currentPlayer, selectedCard)
+        ? getLegalBasicCardMoves(allPieces, game.currentPlayer, selectedCard, game.rulesetId)
         : [],
-    [allPieces, forcedDiscard, game.currentPlayer, selectedCard],
+    [allPieces, forcedDiscard, game.currentPlayer, game.rulesetId, selectedCard],
   );
   const isSplitSeven = selectedCard?.rank === "7";
   const previewPieces = useMemo(
@@ -457,7 +457,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     }));
   }
 
-  const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
+  const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer, game.rulesetId);
 
   return (
     <main

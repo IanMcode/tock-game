@@ -9,7 +9,7 @@ import {
   playCardForTurn,
   type CardMove,
 } from "./turns";
-import { PLAYER_IDS, type GameState, type Piece, type PlayerId } from "./types";
+import type { GameState, Piece, PlayerId } from "./types";
 import { assertValidGameState } from "./validation";
 
 export type SimulationSummary = {
@@ -55,7 +55,7 @@ export function simulateNextAction(game: GameState): GameState {
   if (game.winningTeam) return game;
 
   if (game.phase === "exchange") {
-    const playerId = PLAYER_IDS.find(
+    const playerId = game.players.map((player) => player.id).find(
       (candidate) => game.exchangeSelections[candidate] === undefined,
     );
     if (!playerId) throw new Error("Exchange phase has no player left to select.");
@@ -77,7 +77,7 @@ export function simulateNextAction(game: GameState): GameState {
   const cardIndex = chooseCardIndex(game, playableIndexes);
   const card = player.hand[cardIndex];
   const pieces = getAllPieces(game);
-  const moves = getLegalBasicCardMoves(pieces, player.id, card);
+  const moves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId);
   const move = chooseMove(pieces, moves);
   return playCardForTurn(game, cardIndex, move);
 }

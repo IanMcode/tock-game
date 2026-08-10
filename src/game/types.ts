@@ -53,17 +53,23 @@ export type Player = {
   pieces: Piece[];
 };
 
+export type RulesetId =
+  | "free-for-all-2"
+  | "free-for-all-3"
+  | "free-for-all-4"
+  | "classic-partners-4";
+
 export type GameState = {
-  rulesetId: "classic-partners-4";
+  rulesetId: RulesetId;
   randomState: number;
   players: Player[];
   currentPlayer: PlayerId;
   drawPile: Card[];
   discardPile: Card[];
   forcedDiscardPlayer: PlayerId | null;
-  winningTeam: readonly [PlayerId, PlayerId] | null;
+  winningTeam: readonly PlayerId[] | null;
   dealer: PlayerId;
-  dealIndex: 0 | 1 | 2;
+  dealIndex: number;
   phase: "exchange" | "play";
   exchangeSelections: Partial<Record<PlayerId, number>>;
 };

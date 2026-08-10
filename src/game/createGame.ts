@@ -5,29 +5,38 @@ import {
   shuffleDeckWithState,
 } from "./cards";
 import { getEntryIndex } from "./board";
-import { dealHand, FOUR_PLAYER_DEAL_SCHEDULE } from "./deals";
+import { dealHand } from "./deals";
+import {
+  getRulesetDefinition,
+  getRulesetForOptions,
+  type BoardDefinition,
+  type BoardPlayerCount,
+} from "./definition";
 import { getNextPlayer } from "./rules";
-import { PLAYER_IDS, type GameState, type Piece, type Player } from "./types";
+import type { GameState, Piece, Player, RulesetId } from "./types";
 
-const PIECES_PER_PLAYER = 4;
 export type CreateGameOptions = {
   shuffle?: boolean;
   dealer?: Player["id"];
   startWithPieceOnEntry?: boolean;
   randomState?: number;
+  playerCount?: BoardPlayerCount;
+  teams?: boolean;
+  rulesetId?: RulesetId;
 };
 
 function createPiecesForPlayer(
   owner: Player["id"],
   startWithPieceOnEntry: boolean,
+  board: BoardDefinition,
 ): Piece[] {
-  return Array.from({ length: PIECES_PER_PLAYER }, (_, index) => ({
+  return Array.from({ length: board.piecesPerPlayer }, (_, index) => ({
     id: `${owner}-${index + 1}`,
     owner,
     position: index === 0 && startWithPieceOnEntry
       ? {
           zone: "track" as const,
-          index: getEntryIndex(owner),
+          index: getEntryIndex(owner, board),
           isEntryProtected: true,
         }
       : { zone: "reserve" as const },
@@ -37,6 +46,10 @@ function createPiecesForPlayer(
 export function createGame(options: CreateGameOptions = {}): GameState {
   const shouldShuffle = options.shuffle ?? true;
   const startWithPieceOnEntry = options.startWithPieceOnEntry ?? true;
+  const ruleset = options.rulesetId
+    ? getRulesetDefinition(options.rulesetId)
+    : getRulesetForOptions(options.playerCount ?? 4, options.teams ?? (options.playerCount ?? 4) === 4);
+  const playerIds = ruleset.board.playerIds;
   let randomState = options.randomState ?? createRandomState();
   const shuffled = shouldShuffle
     ? shuffleDeckWithState(createStandardDeck(), randomState)
@@ -46,26 +59,29 @@ export function createGame(options: CreateGameOptions = {}): GameState {
   if (!dealer) {
     const randomDealer = nextSeededRandom(randomState);
     randomState = randomDealer.state;
-    dealer = PLAYER_IDS[Math.floor(randomDealer.value * PLAYER_IDS.length)];
+    dealer = playerIds[Math.floor(randomDealer.value * playerIds.length)];
   }
-  const players: Player[] = PLAYER_IDS.map((id) => ({
+  if (!playerIds.includes(dealer)) {
+    throw new RangeError(`${dealer} is not seated in ${ruleset.id}.`);
+  }
+  const players: Player[] = playerIds.map((id) => ({
     id,
     hand: [],
-    pieces: createPiecesForPlayer(id, startWithPieceOnEntry),
+    pieces: createPiecesForPlayer(id, startWithPieceOnEntry, ruleset.board),
   }));
-  const dealt = dealHand(players, shuffled.cards, FOUR_PLAYER_DEAL_SCHEDULE[0]);
+  const dealt = dealHand(players, shuffled.cards, ruleset.dealSchedule[0]);
 
   return {
     ...dealt,
-    rulesetId: "classic-partners-4",
+    rulesetId: ruleset.id,
     randomState,
-    currentPlayer: getNextPlayer(dealer),
+    currentPlayer: getNextPlayer(dealer, playerIds),
     discardPile: [],
     forcedDiscardPlayer: null,
     winningTeam: null,
     dealer,
     dealIndex: 0,
-    phase: "exchange",
+    phase: ruleset.exchange === "partners" ? "exchange" : "play",
     exchangeSelections: {},
   };
 }

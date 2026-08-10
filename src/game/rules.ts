@@ -1,8 +1,12 @@
 import { PLAYER_IDS, type PlayerId } from "./types";
 
-export function getNextPlayer(currentPlayer: PlayerId): PlayerId {
-  const currentIndex = PLAYER_IDS.indexOf(currentPlayer);
-  const nextIndex = (currentIndex + 1) % PLAYER_IDS.length;
+export function getNextPlayer(
+  currentPlayer: PlayerId,
+  playerIds: readonly PlayerId[] = PLAYER_IDS,
+): PlayerId {
+  const currentIndex = playerIds.indexOf(currentPlayer);
+  if (currentIndex < 0) throw new Error(`${currentPlayer} is not in the turn order.`);
+  const nextIndex = (currentIndex + 1) % playerIds.length;
 
-  return PLAYER_IDS[nextIndex];
+  return playerIds[nextIndex];
 }

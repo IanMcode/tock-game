@@ -1,14 +1,15 @@
-import type { Piece, PlayerId } from "./types";
+import { getRulesetDefinition } from "./definition";
+import type { Piece, PlayerId, RulesetId } from "./types";
 
-const PARTNERS: Record<PlayerId, PlayerId> = {
-  P1: "P3",
-  P2: "P4",
-  P3: "P1",
-  P4: "P2",
-};
-
-export function getPartner(playerId: PlayerId): PlayerId {
-  return PARTNERS[playerId];
+export function getPartner(
+  playerId: PlayerId,
+  rulesetId: RulesetId = "classic-partners-4",
+): PlayerId {
+  const ruleset = getRulesetDefinition(rulesetId);
+  const team = ruleset.teams.find((members) => members.includes(playerId));
+  const partner = team?.find((candidate) => candidate !== playerId);
+  if (!partner) throw new Error(`${playerId} has no partner in ${rulesetId}.`);
+  return partner;
 }
 
 export function areAllPiecesHome(
@@ -26,21 +27,19 @@ export function areAllPiecesHome(
 export function getControlledPlayer(
   pieces: readonly Piece[],
   playerId: PlayerId,
+  rulesetId: RulesetId = "classic-partners-4",
 ): PlayerId {
-  return areAllPiecesHome(pieces, playerId) ? getPartner(playerId) : playerId;
+  const ruleset = getRulesetDefinition(rulesetId);
+  if (ruleset.exchange === "none" || !areAllPiecesHome(pieces, playerId)) return playerId;
+  return getPartner(playerId, rulesetId);
 }
 
 export function getWinningTeam(
   pieces: readonly Piece[],
-): readonly [PlayerId, PlayerId] | null {
-  const teams = [
-    ["P1", "P3"],
-    ["P2", "P4"],
-  ] as const;
-
-  return (
-    teams.find(([first, second]) =>
-      [first, second].every((playerId) => areAllPiecesHome(pieces, playerId)),
-    ) ?? null
-  );
+  rulesetId: RulesetId = "classic-partners-4",
+): readonly PlayerId[] | null {
+  const ruleset = getRulesetDefinition(rulesetId);
+  return ruleset.teams.find((team) =>
+    team.every((playerId) => areAllPiecesHome(pieces, playerId)),
+  ) ?? null;
 }

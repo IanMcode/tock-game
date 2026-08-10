@@ -64,9 +64,7 @@ export function createSessionView(
       drawPileCount: game.drawPile.length,
       discardPile: [...game.discardPile],
       forcedDiscardPlayer: game.forcedDiscardPlayer,
-      winningTeam: game.winningTeam
-        ? [game.winningTeam[0], game.winningTeam[1]]
-        : null,
+      winningTeam: game.winningTeam ? [...game.winningTeam] : null,
       dealer: game.dealer,
       dealIndex: game.dealIndex,
       phase: game.phase,

@@ -1,11 +1,14 @@
-import { getEntryIndex, HOME_SIZE, TRACK_SIZE } from "./board";
+import { getEntryIndex } from "./board";
 import { createStandardDeck } from "./cards";
-import { PLAYER_IDS, type Card, type GameState } from "./types";
+import { CLASSIC_PARTNERS_RULESET, RULESET_DEFINITIONS } from "./definition";
+import { getWinningTeam } from "./teams";
+import type { Card, GameState, RulesetId } from "./types";
 
 export function getGameStateProblems(game: GameState): string[] {
   const problems: string[] = [];
 
-  if (game.rulesetId !== "classic-partners-4") {
+  const ruleset = RULESET_DEFINITIONS[game.rulesetId as RulesetId] ?? CLASSIC_PARTNERS_RULESET;
+  if (!RULESET_DEFINITIONS[game.rulesetId as RulesetId]) {
     problems.push("The game has an unsupported ruleset.");
   }
 
@@ -15,19 +18,27 @@ export function getGameStateProblems(game: GameState): string[] {
   const playerIds = game.players.map((player) => player.id);
 
   if (
-    game.players.length !== PLAYER_IDS.length ||
-    PLAYER_IDS.some((id) => playerIds.filter((candidate) => candidate === id).length !== 1)
+    game.players.length !== ruleset.board.playerIds.length ||
+    ruleset.board.playerIds.some((id) => playerIds.filter((candidate) => candidate === id).length !== 1)
   ) {
-    problems.push("The game must contain each of the four players exactly once.");
+    problems.push(`The game must contain each player from ${ruleset.id} exactly once.`);
+  }
+
+  if (!playerIds.includes(game.currentPlayer)) {
+    problems.push("The current player is not seated in the game.");
+  }
+
+  if (!playerIds.includes(game.dealer)) {
+    problems.push("The dealer is not seated in the game.");
   }
 
   const pieces = game.players.flatMap((player) => player.pieces);
   for (const player of game.players) {
-    const expectedIds = Array.from({ length: 4 }, (_, index) => `${player.id}-${index + 1}`);
+    const expectedIds = Array.from({ length: ruleset.board.piecesPerPlayer }, (_, index) => `${player.id}-${index + 1}`);
     const actualIds = player.pieces.map((piece) => piece.id);
 
     if (
-      player.pieces.length !== 4 ||
+      player.pieces.length !== ruleset.board.piecesPerPlayer ||
       player.pieces.some((piece) => piece.owner !== player.id) ||
       expectedIds.some((id) => !actualIds.includes(id))
     ) {
@@ -50,14 +61,14 @@ export function getGameStateProblems(game: GameState): string[] {
 
     if (
       piece.position.zone === "track" &&
-      (piece.position.index < 0 || piece.position.index >= TRACK_SIZE)
+      (piece.position.index < 0 || piece.position.index >= ruleset.board.trackSize)
     ) {
       problems.push(`${piece.id} has an invalid track position.`);
     }
 
     if (
       piece.position.zone === "home" &&
-      (piece.position.index < 0 || piece.position.index >= HOME_SIZE)
+      (piece.position.index < 0 || piece.position.index >= ruleset.board.homeSize)
     ) {
       problems.push(`${piece.id} has an invalid home position.`);
     }
@@ -65,7 +76,7 @@ export function getGameStateProblems(game: GameState): string[] {
     if (
       piece.position.zone === "track" &&
       piece.position.isEntryProtected &&
-      piece.position.index !== getEntryIndex(piece.owner)
+      piece.position.index !== getEntryIndex(piece.owner, ruleset.board)
     ) {
       problems.push(`${piece.id} is protected away from its entry.`);
     }
@@ -89,6 +100,14 @@ export function getGameStateProblems(game: GameState): string[] {
     problems.push("Exchange selections must be empty during play.");
   }
 
+  if (game.phase === "exchange" && ruleset.exchange !== "partners") {
+    problems.push("A free-for-all game cannot enter the exchange phase.");
+  }
+
+  if (!Number.isInteger(game.dealIndex) || game.dealIndex < 0 || game.dealIndex >= ruleset.dealSchedule.length) {
+    problems.push("The game has an invalid deal index.");
+  }
+
   for (const [playerId, index] of Object.entries(game.exchangeSelections)) {
     const player = game.players.find((candidate) => candidate.id === playerId);
     if (!player || index === undefined || index < 0 || index >= player.hand.length) {
@@ -98,6 +117,11 @@ export function getGameStateProblems(game: GameState): string[] {
 
   if (game.forcedDiscardPlayer && game.forcedDiscardPlayer !== game.currentPlayer) {
     problems.push("A forced discard must belong to the current player.");
+  }
+
+  const expectedWinner = getWinningTeam(pieces, ruleset.id);
+  if (JSON.stringify(game.winningTeam) !== JSON.stringify(expectedWinner)) {
+    problems.push("The recorded winner does not match the pieces at home.");
   }
 
   return problems;
