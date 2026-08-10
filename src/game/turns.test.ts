@@ -29,7 +29,11 @@ function withHand(game: GameState, playerId: PlayerId, hand: Card[]): GameState 
 
 describe("turn actions", () => {
   it("plays a legal Ace entry, discards the card, and advances the turn", () => {
-    const game = withHand(createGame({ shuffle: false }), "P1", [card("A")]);
+    const game = withHand(
+      createGame({ shuffle: false, startWithPieceOnEntry: false }),
+      "P1",
+      [card("A")],
+    );
     const [move] = getLegalBasicCardMoves(getAllPieces(game), "P1", card("A"));
     const result = playCardForTurn(game, 0, move);
 

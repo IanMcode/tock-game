@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createStandardDeck } from "./cards";
+import { getEntryIndex } from "./board";
 import { createGame } from "./createGame";
 import { getNextPlayer } from "./rules";
 
@@ -26,15 +27,30 @@ describe("local game engine", () => {
     expect(game.phase).toBe("exchange");
   });
 
-  it("creates four pieces per player in reserve", () => {
+  it("starts each player's first piece protected on its entry", () => {
     const game = createGame({ shuffle: false, dealer: "P4" });
 
     for (const player of game.players) {
       expect(player.pieces).toHaveLength(4);
-      expect(
-        player.pieces.every((piece) => piece.position.zone === "reserve"),
-      ).toBe(true);
+      expect(player.pieces[0].position).toEqual({
+        zone: "track",
+        index: getEntryIndex(player.id),
+        isEntryProtected: true,
+      });
+      expect(player.pieces.slice(1).every((piece) => piece.position.zone === "reserve")).toBe(true);
     }
+  });
+
+  it("can create the all-reserve starting variant", () => {
+    const game = createGame({
+      shuffle: false,
+      dealer: "P4",
+      startWithPieceOnEntry: false,
+    });
+
+    expect(game.players.every((player) =>
+      player.pieces.every((piece) => piece.position.zone === "reserve"),
+    )).toBe(true);
   });
 
   it("returns the next player in turn order", () => {
