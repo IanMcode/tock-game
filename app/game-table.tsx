@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../src/game/actions";
 import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
@@ -505,6 +506,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <strong>{PLAYER_META[game.dealer].name}</strong>
             <small>hand {game.dealIndex + 1} of {ruleset.dealSchedule.length}</small>
           </div>
+          <Link className="quiet-button" href="/online">Online rooms</Link>
           <button className="quiet-button" disabled={isAnimating} onClick={openSetup}>Game setup</button>
           <button className="quiet-button" disabled={isAnimating} onClick={newGame}>New game</button>
         </div>
