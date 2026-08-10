@@ -1,9 +1,10 @@
 import { shuffleDeckWithState } from "./cards";
+import { CLASSIC_PARTNERS_RULESET } from "./definition";
 import { getNextPlayer } from "./rules";
 import { getPartner } from "./teams";
 import { PLAYER_IDS, type GameState, type Player, type PlayerId } from "./types";
 
-export const FOUR_PLAYER_DEAL_SCHEDULE = [5, 4, 4] as const;
+export const FOUR_PLAYER_DEAL_SCHEDULE = CLASSIC_PARTNERS_RULESET.dealSchedule;
 
 export function dealHand(
   players: readonly Player[],

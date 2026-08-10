@@ -1,8 +1,16 @@
 import type { HomePosition, PlayerId, TrackPosition } from "./types";
+import {
+  CLASSIC_PARTNERS_RULESET,
+  getBoardEntryIndex,
+  getBoardHomeEntranceIndex,
+  getBoardTrackIndex,
+} from "./definition";
 
-export const PLAYER_SECTION_SIZE = 18;
-export const TRACK_SIZE = 72;
-export const HOME_SIZE = 4;
+const CLASSIC_BOARD = CLASSIC_PARTNERS_RULESET.board;
+
+export const PLAYER_SECTION_SIZE = CLASSIC_BOARD.sectionSize;
+export const TRACK_SIZE = CLASSIC_BOARD.trackSize;
+export const HOME_SIZE = CLASSIC_BOARD.homeSize;
 
 export type SectionSpace =
   | 1
@@ -24,26 +32,19 @@ export type SectionSpace =
   | 17
   | 18;
 
-const PLAYER_SECTION: Record<PlayerId, number> = {
-  P1: 0,
-  P2: 1,
-  P3: 2,
-  P4: 3,
-};
-
 export function getTrackIndex(
   playerId: PlayerId,
   sectionSpace: SectionSpace,
 ): number {
-  return PLAYER_SECTION[playerId] * PLAYER_SECTION_SIZE + sectionSpace - 1;
+  return getBoardTrackIndex(CLASSIC_BOARD, playerId, sectionSpace);
 }
 
 export function getEntryIndex(playerId: PlayerId): number {
-  return getTrackIndex(playerId, 18);
+  return getBoardEntryIndex(CLASSIC_BOARD, playerId);
 }
 
 export function getHomeEntranceIndex(playerId: PlayerId): number {
-  return getTrackIndex(playerId, 16);
+  return getBoardHomeEntranceIndex(CLASSIC_BOARD, playerId);
 }
 
 export function advanceTrackIndex(index: number, spaces: number): number {
