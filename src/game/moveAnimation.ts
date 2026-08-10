@@ -1,9 +1,10 @@
 import type { AtomicMove } from "./actions";
 import {
   advanceTrackIndex,
+  DEFAULT_BOARD,
   getForwardStepsToHome,
-  TRACK_SIZE,
 } from "./board";
+import type { BoardDefinition } from "./definition";
 import { getPieceById } from "./occupancy";
 import type { HomePosition, Piece, TrackPosition } from "./types";
 
@@ -17,6 +18,7 @@ export type MoveAnimationFrame = AnimatedPiecePosition[];
 export function getMoveAnimationFrames(
   pieces: readonly Piece[],
   move: AtomicMove,
+  board: BoardDefinition = DEFAULT_BOARD,
 ): MoveAnimationFrame[] {
   if (move.kind === "swap") {
     return [[
@@ -40,8 +42,8 @@ export function getMoveAnimationFrames(
   }
 
   const positions = move.kind === "backward"
-    ? getBackwardPositions(piece.position, move.destination)
-    : getForwardPositions(piece.owner, piece.position, move.destination);
+    ? getBackwardPositions(piece.position, move.destination, board)
+    : getForwardPositions(piece.owner, piece.position, move.destination, board);
 
   return positions.map((position) => [{ pieceId: move.pieceId, position }]);
 }
@@ -49,13 +51,14 @@ export function getMoveAnimationFrames(
 function getBackwardPositions(
   start: TrackPosition | HomePosition,
   destination: TrackPosition,
+  board: BoardDefinition,
 ): TrackPosition[] {
   if (start.zone !== "track") return [];
 
-  const spaces = modulo(start.index - destination.index, TRACK_SIZE);
+  const spaces = modulo(start.index - destination.index, board.trackSize);
   return Array.from({ length: spaces }, (_, index) => ({
     zone: "track",
-    index: advanceTrackIndex(start.index, -(index + 1)),
+    index: advanceTrackIndex(start.index, -(index + 1), board),
     isEntryProtected: false,
   }));
 }
@@ -64,6 +67,7 @@ function getForwardPositions(
   owner: Piece["owner"],
   start: TrackPosition | HomePosition,
   destination: TrackPosition | HomePosition,
+  board: BoardDefinition,
 ): Array<TrackPosition | HomePosition> {
   if (start.zone === "home") {
     if (destination.zone !== "home") return [];
@@ -75,15 +79,15 @@ function getForwardPositions(
   }
 
   if (destination.zone === "track") {
-    const spaces = modulo(destination.index - start.index, TRACK_SIZE);
+    const spaces = modulo(destination.index - start.index, board.trackSize);
     return Array.from({ length: spaces }, (_, index) => ({
       zone: "track",
-      index: advanceTrackIndex(start.index, index + 1),
+      index: advanceTrackIndex(start.index, index + 1, board),
       isEntryProtected: false,
     }));
   }
 
-  const stepsToHome = getForwardStepsToHome(start.index, owner);
+  const stepsToHome = getForwardStepsToHome(start.index, owner, board);
   const totalSpaces = stepsToHome + destination.index;
 
   return Array.from({ length: totalSpaces }, (_, index) => {
@@ -92,7 +96,7 @@ function getForwardPositions(
     if (step < stepsToHome) {
       return {
         zone: "track" as const,
-        index: advanceTrackIndex(start.index, step),
+        index: advanceTrackIndex(start.index, step, board),
         isEntryProtected: false,
       };
     }

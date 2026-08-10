@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react";
 
 import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../src/game/actions";
-import { getEntryIndex, getHomeEntranceIndex, TRACK_SIZE } from "../src/game/board";
+import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
 import { getLegalBasicCardMoves } from "../src/game/cardMoves";
 import { createGame } from "../src/game/createGame";
+import {
+  getRulesetDefinition,
+  type BoardDefinition,
+  type BoardPlayerCount,
+} from "../src/game/definition";
 import { selectExchangeCard } from "../src/game/deals";
 import { getAllPieces } from "../src/game/occupancy";
 import {
@@ -68,6 +73,8 @@ type DealerChoice = PlayerId | "random";
 type PlayerColorId = "crimson" | "cobalt" | "gold" | "teal" | "violet" | "cyan";
 type PlayerShapeId = "circle" | "square" | "triangle" | "hexagon";
 type GameSettings = {
+  playerCount: BoardPlayerCount;
+  teams: boolean;
   startWithPieceOnEntry: boolean;
   showSpaceNumbers: boolean;
   animationSpeed: AnimationSpeed;
@@ -110,6 +117,8 @@ const PLAYER_SHAPES: Record<PlayerShapeId, { label: string; clipPath: string }> 
 const PLAYER_SHAPE_IDS = Object.keys(PLAYER_SHAPES) as PlayerShapeId[];
 
 const DEFAULT_SETTINGS: GameSettings = {
+  playerCount: 4,
+  teams: true,
   startWithPieceOnEntry: true,
   showSpaceNumbers: true,
   animationSpeed: "standard",
@@ -153,6 +162,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const selectedCard =
     selectedCardIndex === null ? null : currentPlayer.hand[selectedCardIndex] ?? null;
   const forcedDiscard = game.forcedDiscardPlayer === game.currentPlayer;
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  const boardDefinition = ruleset.board;
   const animationTimings = ANIMATION_TIMINGS[settings.animationSpeed];
   const legalMoves = useMemo(
     () =>
@@ -314,10 +325,10 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           throw new Error("Cannot animate a Jack swap with a missing piece.");
         }
 
-        const movingFrom = getPiecePoint(movingPiece);
-        const movingTo = getCrossTrackPoint(move.destination.index);
-        const targetFrom = getPiecePoint(targetPiece);
-        const targetTo = getCrossTrackPoint(move.targetDestination.index);
+        const movingFrom = getPiecePoint(movingPiece, boardDefinition);
+        const movingTo = getBoardTrackPoint(move.destination.index, boardDefinition);
+        const targetFrom = getPiecePoint(targetPiece, boardDefinition);
+        const targetTo = getBoardTrackPoint(move.targetDestination.index, boardDefinition);
         setSwappingPieces([
           {
             piece: movingPiece,
@@ -338,7 +349,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         continue;
       }
 
-      const frames = getMoveAnimationFrames(pieces, move);
+      const frames = getMoveAnimationFrames(pieces, move, boardDefinition);
 
       for (const [frameIndex, frame] of frames.entries()) {
         frameNumber += 1;
@@ -402,6 +413,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   function startNewGame(nextSettings: GameSettings) {
     const normalizedSettings = normalizeGameSettings(nextSettings);
     const next = createGame({
+      playerCount: normalizedSettings.playerCount,
+      teams: normalizedSettings.teams,
       startWithPieceOnEntry: normalizedSettings.startWithPieceOnEntry,
       ...(normalizedSettings.dealer === "random" ? {} : { dealer: normalizedSettings.dealer }),
     });
@@ -434,6 +447,17 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     });
   }
 
+  function chooseDraftPlayerCount(playerCount: BoardPlayerCount) {
+    setDraftSettings((current) => ({
+      ...current,
+      playerCount,
+      teams: playerCount === 4 ? current.teams : false,
+      dealer: current.dealer !== "random" && PLAYER_IDS.indexOf(current.dealer) >= playerCount
+        ? "random"
+        : current.dealer,
+    }));
+  }
+
   function chooseDraftShape(playerId: PlayerId, shapeId: PlayerShapeId) {
     setDraftSettings((current) => {
       const currentShapes = current.playerShapes ?? DEFAULT_SETTINGS.playerShapes;
@@ -458,6 +482,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer, game.rulesetId);
+  const setupPlayerIds = PLAYER_IDS.slice(0, draftSettings.playerCount);
 
   return (
     <main
@@ -471,14 +496,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     >
       <header className="topbar">
         <div>
-          <p className="eyebrow">A local partner game</p>
+          <p className="eyebrow">A local {ruleset.exchange === "partners" ? "partner" : "free-for-all"} game</p>
           <h1>Tock</h1>
         </div>
         <div className="topbar-actions">
           <div className="deal-chip">
             <span>Dealer</span>
             <strong>{PLAYER_META[game.dealer].name}</strong>
-            <small>hand {game.dealIndex + 1} of 3</small>
+            <small>hand {game.dealIndex + 1} of {ruleset.dealSchedule.length}</small>
           </div>
           <button className="quiet-button" disabled={isAnimating} onClick={openSetup}>Game setup</button>
           <button className="quiet-button" disabled={isAnimating} onClick={newGame}>New game</button>
@@ -490,14 +515,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           className="winner-banner"
           style={{
             "--winner-first": playerColorVar(game.winningTeam[0]),
-            "--winner-second": playerColorVar(game.winningTeam[1]),
+            "--winner-second": playerColorVar(game.winningTeam[1] ?? game.winningTeam[0]),
           } as React.CSSProperties}
         >
           <div className="winner-mark" aria-hidden="true">★</div>
           <div className="winner-copy">
             <span>Game complete</span>
-            <h2>{PLAYER_META[game.winningTeam[0]].team} wins the table</h2>
-            <p>{PLAYER_META[game.winningTeam[0]].name} and {PLAYER_META[game.winningTeam[1]].name} brought all eight pieces home.</p>
+            <h2>{game.winningTeam.length > 1 ? `${PLAYER_META[game.winningTeam[0]].team} wins the table` : `${PLAYER_META[game.winningTeam[0]].name} wins the table`}</h2>
+            <p>{game.winningTeam.length > 1 ? `${game.winningTeam.map((playerId) => PLAYER_META[playerId].name).join(" and ")} brought every team piece home.` : `${PLAYER_META[game.winningTeam[0]].name} brought all four pieces home first.`}</p>
           </div>
           <div className="winner-actions">
             <button className="winner-setup" onClick={openSetup}>Game setup</button>
@@ -510,7 +535,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <p className="eyebrow">Blind partner exchange</p>
             <h2>Each player passes one card across the table.</h2>
           </div>
-          <p>{Object.keys(game.exchangeSelections).length} of 4 cards chosen</p>
+          <p>{Object.keys(game.exchangeSelections).length} of {game.players.length} cards chosen</p>
         </section>
       ) : (
         <section className="turn-banner" style={{ "--player": playerColorVar(game.currentPlayer) } as React.CSSProperties}>
@@ -534,6 +559,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       <section className="table-layout">
         <Board
           pieces={isSplitSeven ? previewPieces : allPieces}
+          boardDefinition={boardDefinition}
+          teamMode={ruleset.exchange === "partners"}
           activePieceIds={activePieceIds}
           hoppingPieces={hoppingPieces}
           swappingPieces={swappingPieces}
@@ -541,6 +568,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           players={game.players}
           dealer={game.dealer}
           dealIndex={game.dealIndex}
+          dealCount={ruleset.dealSchedule.length}
           selectedPieceId={selectedPieceId}
           destinationMoves={destinationMoves}
           showSpaceNumbers={showSpaceNumbers}
@@ -636,7 +664,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                 </div>
                 <div>
                   <h3>{meta.name}</h3>
-                  <p>{meta.team} · partner {PLAYER_META[getPartner(player.id)].name}</p>
+                  <p>{ruleset.exchange === "partners" ? `${meta.team} · partner ${PLAYER_META[getPartner(player.id, game.rulesetId)].name}` : "Free for all"}</p>
                 </div>
                 {game.phase === "exchange" ? (
                   <div className={`exchange-status ${choseExchange ? "is-chosen" : ""}`}>
@@ -695,6 +723,34 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             </div>
 
             <div className="setup-options">
+              <label className="setup-select">
+                <span>
+                  <strong>Players</strong>
+                  <small>The board and deal schedule adapt to the table size.</small>
+                </span>
+                <select
+                  value={draftSettings.playerCount}
+                  onChange={(event) => chooseDraftPlayerCount(Number(event.target.value) as BoardPlayerCount)}
+                >
+                  <option value={2}>2 players</option>
+                  <option value={3}>3 players</option>
+                  <option value={4}>4 players</option>
+                </select>
+              </label>
+
+              <label className="setup-toggle">
+                <span>
+                  <strong>Opposite-seat teams</strong>
+                  <small>{draftSettings.playerCount === 4 ? "Partners exchange cards and win together." : "Team play requires four players."}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={draftSettings.teams}
+                  disabled={draftSettings.playerCount !== 4}
+                  onChange={(event) => setDraftSettings((current) => ({ ...current, teams: event.target.checked }))}
+                />
+              </label>
+
               <label className="setup-toggle">
                 <span>
                   <strong>Start on protected entry</strong>
@@ -728,7 +784,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   onChange={(event) => setDraftSettings((current) => ({ ...current, dealer: event.target.value as DealerChoice }))}
                 >
                   <option value="random">Random</option>
-                  {PLAYER_IDS.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_META[playerId].name}</option>)}
+                  {setupPlayerIds.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_META[playerId].name}</option>)}
                 </select>
               </label>
 
@@ -759,7 +815,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
               <fieldset className="setup-colors">
                 <legend>Player colors</legend>
                 <p>High-contrast palette · selecting a used color swaps it.</p>
-                {PLAYER_IDS.map((playerId) => (
+                {setupPlayerIds.map((playerId) => (
                   <div className="setup-color-row" key={playerId}>
                     <strong>{PLAYER_META[playerId].name}</strong>
                     <div>
@@ -789,7 +845,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
               <fieldset className="setup-shapes">
                 <legend>Player shapes</legend>
                 <p>Shapes remain identifiable without color · selecting a used shape swaps it.</p>
-                {PLAYER_IDS.map((playerId) => (
+                {setupPlayerIds.map((playerId) => (
                   <div className="setup-shape-row" key={playerId}>
                     <strong>{PLAYER_META[playerId].name}</strong>
                     <div>
@@ -833,6 +889,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 
 function Board({
   pieces,
+  boardDefinition,
+  teamMode,
   activePieceIds,
   hoppingPieces,
   swappingPieces,
@@ -840,6 +898,7 @@ function Board({
   players,
   dealer,
   dealIndex,
+  dealCount,
   selectedPieceId,
   destinationMoves,
   showSpaceNumbers,
@@ -848,6 +907,8 @@ function Board({
   onDestinationClick,
 }: {
   pieces: readonly Piece[];
+  boardDefinition: BoardDefinition;
+  teamMode: boolean;
   activePieceIds: ReadonlySet<string>;
   hoppingPieces: readonly HoppingPiece[];
   swappingPieces: readonly SwappingPiece[];
@@ -855,6 +916,7 @@ function Board({
   players: GameState["players"];
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
+  dealCount: number;
   selectedPieceId: string | null;
   destinationMoves: readonly DestinationOption[];
   showSpaceNumbers: boolean;
@@ -872,13 +934,14 @@ function Board({
   const destinationShape = selectedPieceId
     ? playerShapeVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
     : playerShapeVar("P1");
+  const activePlayerIds = boardDefinition.playerIds;
 
   return (
     <div className="board-wrap">
       <div className="board-toolbar">
         <div>
           <p className="eyebrow">The playing board</p>
-          <span>72 track spaces · four home lanes</span>
+          <span>{boardDefinition.trackSize} track spaces · {boardDefinition.playerCount} home lanes</span>
         </div>
         <button
           className="number-toggle"
@@ -890,12 +953,12 @@ function Board({
           Space numbers
         </button>
       </div>
-      <div className="board" aria-label="72-space Tock board">
+      <div className={`board board-${boardDefinition.playerCount}`} aria-label={`${boardDefinition.trackSize}-space Tock board`}>
         <div className="board-center">
           <span>TOCK</span>
-          <small>partners across</small>
+          <small>{teamMode ? "partners across" : "race home"}</small>
         </div>
-        {PLAYER_IDS.map((owner) => {
+        {activePlayerIds.map((owner) => {
           const reservePieces = pieces.filter(
             (piece) =>
               piece.owner === owner &&
@@ -913,6 +976,8 @@ function Board({
               style={{
                 "--reserve": playerColorVar(owner),
                 "--reserve-soft": playerSoftVar(owner),
+                left: `${getReservePoint(owner, boardDefinition).x}%`,
+                top: `${getReservePoint(owner, boardDefinition).y}%`,
               } as React.CSSProperties}
               aria-label={`${PLAYER_META[owner].name}'s reserve`}
             >
@@ -924,12 +989,12 @@ function Board({
                 {owner === dealer && (
                   <span
                     className="board-dealer"
-                    aria-label={`${PLAYER_META[owner].name} is the dealer, hand ${dealIndex + 1} of 3`}
+                    aria-label={`${PLAYER_META[owner].name} is the dealer, hand ${dealIndex + 1} of ${dealCount}`}
                   >
                     <DeckIcon />
                     <span>
                       <strong>Dealer</strong>
-                      <small>Hand {dealIndex + 1} of 3</small>
+                      <small>Hand {dealIndex + 1} of {dealCount}</small>
                     </span>
                   </span>
                 )}
@@ -962,16 +1027,16 @@ function Board({
             </div>
           );
         })}
-        {Array.from({ length: TRACK_SIZE }, (_, index) => {
-          const point = getCrossTrackPoint(index);
+        {Array.from({ length: boardDefinition.trackSize }, (_, index) => {
+          const point = getBoardTrackPoint(index, boardDefinition);
           const occupant = pieces.find(
             (piece) =>
               piece.position.zone === "track" &&
               piece.position.index === index &&
               !animatedPieceIds.has(piece.id),
           );
-          const owner = PLAYER_IDS[Math.floor(index / 18)];
-          const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
+          const owner = activePlayerIds[Math.floor(index / boardDefinition.sectionSize)];
+          const entryOwner = activePlayerIds.find((id) => getEntryIndex(id, boardDefinition) === index);
           const destinationMove = destinationMoves.find(
             (option) => option.move.destination.zone === "track" && option.move.destination.index === index,
           );
@@ -1002,9 +1067,9 @@ function Board({
             </div>
           );
         })}
-        {PLAYER_IDS.flatMap((owner) => {
-          return Array.from({ length: 4 }, (_, index) => {
-            const point = getHomeLanePoint(owner, index);
+        {activePlayerIds.flatMap((owner) => {
+          return Array.from({ length: boardDefinition.homeSize }, (_, index) => {
+            const point = getHomeLanePoint(owner, index, boardDefinition);
             const occupant = pieces.find(
               (piece) =>
                 piece.owner === owner &&
@@ -1045,8 +1110,8 @@ function Board({
         })}
         {hoppingPieces.map((animated) => {
           const point = animated.position.zone === "track"
-            ? getCrossTrackPoint(animated.position.index)
-            : getHomeLanePoint(animated.piece.owner, animated.position.index);
+            ? getBoardTrackPoint(animated.position.index, boardDefinition)
+            : getHomeLanePoint(animated.piece.owner, animated.position.index, boardDefinition);
           const animatedPiece = { ...animated.piece, position: animated.position };
 
           return (
@@ -1102,16 +1167,25 @@ function Board({
         ))}
       </div>
       <div className="team-key">
-        <span>
-          <i style={{ background: playerColorVar("P1"), "--player-shape": playerShapeVar("P1") } as React.CSSProperties} />
-          <i style={{ background: playerColorVar("P3"), "--player-shape": playerShapeVar("P3") } as React.CSSProperties} />
-          Poppy + Sunny
-        </span>
-        <span>
-          <i style={{ background: playerColorVar("P2"), "--player-shape": playerShapeVar("P2") } as React.CSSProperties} />
-          <i style={{ background: playerColorVar("P4"), "--player-shape": playerShapeVar("P4") } as React.CSSProperties} />
-          River + Fern
-        </span>
+        {teamMode ? (
+          <>
+            <span>
+              <i style={{ background: playerColorVar("P1"), "--player-shape": playerShapeVar("P1") } as React.CSSProperties} />
+              <i style={{ background: playerColorVar("P3"), "--player-shape": playerShapeVar("P3") } as React.CSSProperties} />
+              Poppy + Sunny
+            </span>
+            <span>
+              <i style={{ background: playerColorVar("P2"), "--player-shape": playerShapeVar("P2") } as React.CSSProperties} />
+              <i style={{ background: playerColorVar("P4"), "--player-shape": playerShapeVar("P4") } as React.CSSProperties} />
+              River + Fern
+            </span>
+          </>
+        ) : activePlayerIds.map((playerId) => (
+          <span key={playerId}>
+            <i style={{ background: playerColorVar(playerId), "--player-shape": playerShapeVar(playerId) } as React.CSSProperties} />
+            {PLAYER_META[playerId].name}
+          </span>
+        ))}
         <span className="protection-key"><b>✦</b> Protected entry</span>
       </div>
     </div>
@@ -1224,38 +1298,55 @@ function describeDestinationOption(option: DestinationOption) {
   return describeMove(option.move);
 }
 
-function getCrossTrackPoint(trackIndex: number) {
-  const quarter = Math.floor(trackIndex / 18);
-  const distance = trackIndex % 18 * 5;
-  let point = getFirstQuarterPoint(distance);
-
-  for (let rotation = 0; rotation < quarter; rotation += 1) {
-    point = { x: 100 - point.y, y: point.x };
-  }
-
-  return roundPoint(point);
+function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+  const vertices = getBoardVertices(board.playerCount);
+  const edgeProgress = trackIndex / board.trackSize * vertices.length;
+  const edgeIndex = Math.floor(edgeProgress) % vertices.length;
+  const edgeOffset = edgeProgress - Math.floor(edgeProgress);
+  const from = vertices[edgeIndex];
+  const to = vertices[(edgeIndex + 1) % vertices.length];
+  return roundPoint({
+    x: from.x + (to.x - from.x) * edgeOffset,
+    y: from.y + (to.y - from.y) * edgeOffset,
+  });
 }
 
-function getFirstQuarterPoint(distance: number) {
-  if (distance <= 24) return { x: 38 + distance, y: 5 };
-  if (distance <= 57) return { x: 62, y: 5 + distance - 24 };
-  return { x: 62 + distance - 57, y: 38 };
-}
-
-function getHomeLanePoint(owner: PlayerId, homeIndex: number) {
-  const gate = getCrossTrackPoint(getHomeEntranceIndex(owner));
-  const inwardDirection: Record<PlayerId, { x: number; y: number }> = {
-    P1: { x: 0, y: 1 },
-    P2: { x: -1, y: 0 },
-    P3: { x: 0, y: -1 },
-    P4: { x: 1, y: 0 },
-  };
-  const direction = inwardDirection[owner];
+function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
+  const gate = getBoardTrackPoint(getHomeEntranceIndex(owner, board), board);
+  const direction = unitVectorTowardCenter(gate);
   const distance = 5 + homeIndex * 4.7;
   return roundPoint({
     x: gate.x + direction.x * distance,
     y: gate.y + direction.y * distance,
   });
+}
+
+function getReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
+  const playerIndex = board.playerIds.indexOf(owner);
+  const sectionMidpoint = playerIndex * board.sectionSize + board.sectionSize / 2;
+  const edgePoint = getBoardTrackPoint(sectionMidpoint, board);
+  const direction = unitVectorTowardCenter(edgePoint);
+  return roundPoint({
+    x: edgePoint.x + direction.x * 5,
+    y: edgePoint.y + direction.y * 5,
+  });
+}
+
+function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {
+  if (playerCount === 2) {
+    return [{ x: 12, y: 18 }, { x: 88, y: 18 }, { x: 88, y: 82 }, { x: 12, y: 82 }];
+  }
+  if (playerCount === 3) {
+    return [{ x: 50, y: 6 }, { x: 94, y: 84 }, { x: 6, y: 84 }];
+  }
+  return [{ x: 12, y: 8 }, { x: 88, y: 8 }, { x: 92, y: 88 }, { x: 8, y: 88 }];
+}
+
+function unitVectorTowardCenter(point: BoardPoint): BoardPoint {
+  const dx = 50 - point.x;
+  const dy = 50 - point.y;
+  const length = Math.hypot(dx, dy) || 1;
+  return { x: dx / length, y: dy / length };
 }
 
 function roundPoint(point: { x: number; y: number }) {
@@ -1312,9 +1403,16 @@ function mapPlayerSelections<T>(values: readonly T[]): Record<PlayerId, T> {
 }
 
 function normalizeGameSettings(settings: GameSettings): GameSettings {
+  const playerCount = settings.playerCount ?? DEFAULT_SETTINGS.playerCount;
+  const dealer = settings.dealer !== "random" && PLAYER_IDS.indexOf(settings.dealer) >= playerCount
+    ? "random"
+    : settings.dealer;
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
+    playerCount,
+    teams: playerCount === 4 ? settings.teams : false,
+    dealer,
     playerColors: {
       ...DEFAULT_SETTINGS.playerColors,
       ...settings.playerColors,
@@ -1326,13 +1424,13 @@ function normalizeGameSettings(settings: GameSettings): GameSettings {
   };
 }
 
-function getPiecePoint(piece: Piece): BoardPoint {
+function getPiecePoint(piece: Piece, board: BoardDefinition): BoardPoint {
   if (piece.position.zone === "track") {
-    return getCrossTrackPoint(piece.position.index);
+    return getBoardTrackPoint(piece.position.index, board);
   }
 
   if (piece.position.zone === "home") {
-    return getHomeLanePoint(piece.owner, piece.position.index);
+    return getHomeLanePoint(piece.owner, piece.position.index, board);
   }
 
   throw new Error(`Cannot animate reserve piece ${piece.id} across the board.`);
