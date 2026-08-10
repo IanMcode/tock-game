@@ -1,6 +1,31 @@
 import type { CardMove } from "../game/turns";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
+import type { BoardPlayerCount } from "../game/definition";
+import type { CreateRoomOptions } from "./roomService";
+
+export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) throw new Error("Room options must be an object.");
+
+  const playerCount = value.playerCount ?? 4;
+  if (playerCount !== 2 && playerCount !== 3 && playerCount !== 4) {
+    throw new Error("Player count must be 2, 3, or 4.");
+  }
+  const teams = value.teams ?? playerCount === 4;
+  if (typeof teams !== "boolean") throw new Error("Teams must be true or false.");
+  if (teams && playerCount !== 4) throw new Error("Team play requires four players.");
+
+  const dealer = value.dealer ?? "random";
+  if (dealer !== "random") {
+    const playerId = parsePlayerId(dealer);
+    if (PLAYER_IDS.indexOf(playerId) >= playerCount) {
+      throw new Error(`${playerId} is not seated in a ${playerCount}-player room.`);
+    }
+  }
+
+  return { playerCount: playerCount as BoardPlayerCount, teams, dealer: dealer as PlayerId | "random" };
+}
 
 export function parseCommandEnvelope(value: unknown): CommandEnvelope {
   if (!isRecord(value)) throw new Error("The command envelope must be an object.");

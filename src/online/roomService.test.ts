@@ -67,6 +67,23 @@ describe("online room service", () => {
     expect(spectator.session.game.players.every((player) => player.hand === undefined)).toBe(true);
     expectRoomError(() => service.getRoomView("TOCK01", "bad-token"), "INVALID_TOKEN");
   });
+
+  it.each([2, 3] as const)("activates a configured %i-player free-for-all", (playerCount) => {
+    const service = createTestService();
+    const host = service.createRoom({ playerCount, teams: false, dealer: "P1" });
+    let latest = host.room;
+
+    for (let seat = 2; seat <= playerCount; seat += 1) {
+      latest = service.joinRoom("TOCK01").room;
+    }
+
+    expect(latest.requiredPlayers).toBe(playerCount);
+    expect(latest.connectedPlayers).toHaveLength(playerCount);
+    expect(latest.status).toBe("active");
+    expect(latest.session.game.rulesetId).toBe(`free-for-all-${playerCount}`);
+    expect(latest.session.game.dealer).toBe("P1");
+    expect(latest.session.game.phase).toBe("play");
+  });
 });
 
 function createTestService() {

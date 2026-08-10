@@ -69,6 +69,20 @@ describe("online room HTTP routes", () => {
     expect(response.status).toBe(401);
     expect(body.error.code).toBe("PLAYER_TOKEN_REQUIRED");
   });
+
+  it("creates a configured smaller room", async () => {
+    const response = await createRoom(new Request("http://localhost/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerCount: 2, teams: false, dealer: "P2" }),
+    }));
+    const created = await readJson<RoomJoinResult>(response);
+
+    expect(response.status).toBe(201);
+    expect(created.room.requiredPlayers).toBe(2);
+    expect(created.room.session.game.rulesetId).toBe("free-for-all-2");
+    expect(created.room.session.game.dealer).toBe("P2");
+  });
 });
 
 function context(roomId: string) {

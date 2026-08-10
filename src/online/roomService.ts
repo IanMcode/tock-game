@@ -1,5 +1,6 @@
 import { createRandomState } from "../game/cards";
 import { createGame } from "../game/createGame";
+import type { BoardPlayerCount } from "../game/definition";
 import {
   applySessionCommand,
   createGameSession,
@@ -34,6 +35,12 @@ export type RoomAccess = {
 export type RoomJoinResult = {
   access: RoomAccess;
   room: RoomView;
+};
+
+export type CreateRoomOptions = {
+  playerCount?: BoardPlayerCount;
+  teams?: boolean;
+  dealer?: PlayerId | "random";
 };
 
 export interface RoomStore {
@@ -87,11 +94,18 @@ export class RoomService {
     this.randomState = options.createRandomState ?? createRandomState;
   }
 
-  createRoom(): RoomJoinResult {
+  createRoom(options: CreateRoomOptions = {}): RoomJoinResult {
     const roomId = this.uniqueRoomId();
     const playerId = PLAYER_IDS[0];
     const playerToken = this.createPlayerToken();
-    const game = createGame({ randomState: this.randomState() });
+    const playerCount = options.playerCount ?? 4;
+    const teams = options.teams ?? playerCount === 4;
+    const game = createGame({
+      randomState: this.randomState(),
+      playerCount,
+      teams,
+      ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
+    });
     const room: OnlineRoom = {
       id: roomId,
       seats: { [playerId]: playerToken },
@@ -106,7 +120,9 @@ export class RoomService {
 
   joinRoom(roomId: string): RoomJoinResult {
     const room = this.getRoom(roomId);
-    const playerId = PLAYER_IDS.find((candidate) => !room.seats[candidate]);
+    const playerId = room.session.game.players
+      .map((player) => player.id)
+      .find((candidate) => !room.seats[candidate]);
     if (!playerId) throw new RoomError("ROOM_FULL", `Room ${room.id} is full.`);
 
     const playerToken = this.createPlayerToken();
@@ -162,14 +178,14 @@ export class RoomService {
       id: room.id,
       status: this.status(room),
       connectedPlayers: PLAYER_IDS.filter((playerId) => Boolean(room.seats[playerId])),
-      requiredPlayers: PLAYER_IDS.length,
+      requiredPlayers: room.session.game.players.length,
       session: createSessionView(room.session, viewer),
     };
   }
 
   private status(room: OnlineRoom): RoomStatus {
     if (room.session.game.winningTeam) return "complete";
-    return PLAYER_IDS.every((playerId) => Boolean(room.seats[playerId])) ? "active" : "waiting";
+    return room.session.game.players.every((player) => Boolean(room.seats[player.id])) ? "active" : "waiting";
   }
 
   private uniqueRoomId(): string {
