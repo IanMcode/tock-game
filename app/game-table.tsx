@@ -72,12 +72,13 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const playableIndexes = useMemo(() => getPlayableCardIndexes(game), [game]);
   const selectedCard =
     selectedCardIndex === null ? null : currentPlayer.hand[selectedCardIndex] ?? null;
+  const forcedDiscard = game.forcedDiscardPlayer === game.currentPlayer;
   const legalMoves = useMemo(
     () =>
-      selectedCard
+      selectedCard && !forcedDiscard
         ? getLegalBasicCardMoves(allPieces, game.currentPlayer, selectedCard)
         : [],
-    [allPieces, game.currentPlayer, selectedCard],
+    [allPieces, forcedDiscard, game.currentPlayer, selectedCard],
   );
   const isSplitSeven = selectedCard?.rank === "7";
   const previewPieces = useMemo(
@@ -112,7 +113,6 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     );
   }, [isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
 
-  const forcedDiscard = game.forcedDiscardPlayer === game.currentPlayer;
   const onlyFivesPlayable =
     playableIndexes.length > 0 &&
     playableIndexes.every((index) => currentPlayer.hand[index]?.rank === "5");

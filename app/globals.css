@@ -96,7 +96,7 @@ button { font: inherit; }
 .team-key i { width: 9px; height: 9px; border-radius: 50%; }
 .team-key .protection-key b { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: var(--green); background: #f5ce69; font-size: 9px; }
 
-.piece { position: relative; z-index: 4; width: 128%; aspect-ratio: 1; padding: 0; border: 2px solid rgba(255,255,255,.9); border-radius: 50%; color: white; background: var(--piece); box-shadow: 0 2px 5px rgba(18,42,33,.3); cursor: default; }
+.piece { position: relative; z-index: 4; width: 128%; aspect-ratio: 1; display: grid; place-items: center; padding: 0; border: 2px solid rgba(255,255,255,.9); border-radius: 50%; color: white; background: var(--piece); box-shadow: 0 2px 5px rgba(18,42,33,.3); cursor: default; }
 .piece[aria-disabled="true"] { pointer-events: none; }
 .piece .piece-pips { width: 48%; height: 48%; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); place-items: center; gap: 1px; }
 .piece-pips i { width: clamp(2px, .42vw, 4px); aspect-ratio: 1; border-radius: 50%; background: currentColor; box-shadow: 0 1px 1px rgba(20,45,37,.28); }
