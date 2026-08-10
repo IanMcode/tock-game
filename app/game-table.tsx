@@ -273,7 +273,6 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function exchangeCard(playerId: PlayerId, index: number) {
-    if (isAnimating) return;
     const next = selectExchangeCard(game, playerId, index);
     setGame(next);
     if (next.phase === "play") {
@@ -454,7 +453,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                       selected={isSelected}
                       playable={canSelect && isPlayable && !forcedDiscard}
                       dimmed={canSelect && !isPlayable && !forcedDiscard && playableIndexes.length > 0}
-                      disabled={isAnimating || (!canExchange && !canSelect)}
+                      disabled={game.phase === "exchange" ? !canExchange : isAnimating || !canSelect}
                       onClick={() => canExchange ? exchangeCard(player.id, index) : chooseCard(index)}
                     />
                   );
