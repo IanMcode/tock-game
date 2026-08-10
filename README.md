@@ -1,6 +1,8 @@
 # Tock
 
-A local four-player partner game of Tock, built with Next.js, TypeScript, and Tailwind CSS.
+A four-player partner game of Tock, built with Next.js and TypeScript. The current
+table runs locally, and the engine now includes the authoritative room foundations
+needed for guest online play.
 
 ## Play locally
 
@@ -9,7 +11,8 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Everything runs in one browser; there are no accounts, rooms, or network services.
+Open [http://localhost:3000](http://localhost:3000). The visible table remains the
+local test client; it does not yet connect to an online room.
 
 ## How to use the table
 
@@ -37,10 +40,25 @@ Reserve and eliminated pieces remain visible in the four colored trays around th
 
 The canonical rules are documented in [RULES.md](./RULES.md). Pure game logic lives in `src/game/`; the React interface only presents state and dispatches legal actions.
 
+## Online foundation
+
+The project now has a tested guest-room API beneath the local table:
+
+- deterministic shuffling and versioned game snapshots;
+- revisioned, idempotent commands validated by an authoritative game session;
+- private player views that expose only the viewer's hand;
+- room codes, four guest seats, reconnect tokens, and spectator-safe views;
+- create, join, read, and command Route Handlers under `/api/rooms`;
+- a replaceable `RoomStore` boundary for future durable storage.
+
+The bundled store is intentionally in-memory and suitable only for development or
+a single long-running Node process. See [ONLINE.md](./ONLINE.md) for the API,
+security model, production requirements, and 2–4-player roadmap.
+
 ## Verify
 
 ```bash
-npm test -- --run
+npm test
 npm run lint
 npm run build
 ```
