@@ -56,6 +56,13 @@ type HoppingPiece = AnimatedPiecePosition & {
   piece: Piece;
   frame: number;
 };
+type SwappingPiece = {
+  piece: Piece;
+  from: BoardPoint;
+  through: BoardPoint;
+  to: BoardPoint;
+};
+type BoardPoint = { x: number; y: number };
 type RecentPlay = {
   actor: string;
   card: Card;
@@ -70,6 +77,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
+  const [swappingPieces, setSwappingPieces] = useState<SwappingPiece[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
   const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
@@ -219,6 +227,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       }
     } finally {
       setHoppingPieces([]);
+      setSwappingPieces([]);
       setIsAnimating(false);
     }
   }
@@ -231,6 +240,38 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     let frameNumber = 0;
 
     for (const move of moves) {
+      if (move.kind === "swap") {
+        const movingPiece = pieces.find((piece) => piece.id === move.pieceId);
+        const targetPiece = pieces.find((piece) => piece.id === move.targetPieceId);
+
+        if (!movingPiece || !targetPiece) {
+          throw new Error("Cannot animate a Jack swap with a missing piece.");
+        }
+
+        const movingFrom = getPiecePoint(movingPiece);
+        const movingTo = getCrossTrackPoint(move.destination.index);
+        const targetFrom = getPiecePoint(targetPiece);
+        const targetTo = getCrossTrackPoint(move.targetDestination.index);
+        setSwappingPieces([
+          {
+            piece: movingPiece,
+            from: movingFrom,
+            through: getSwapControlPoint(movingFrom, movingTo),
+            to: movingTo,
+          },
+          {
+            piece: targetPiece,
+            from: targetFrom,
+            through: getSwapControlPoint(targetFrom, targetTo),
+            to: targetTo,
+          },
+        ]);
+        await waitForSwap();
+        setSwappingPieces([]);
+        pieces = applyAtomicMove(pieces, move);
+        continue;
+      }
+
       const frames = getMoveAnimationFrames(pieces, move);
 
       for (const frame of frames) {
@@ -346,6 +387,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           pieces={isSplitSeven ? previewPieces : allPieces}
           activePieceIds={activePieceIds}
           hoppingPieces={hoppingPieces}
+          swappingPieces={swappingPieces}
           players={game.players}
           dealer={game.dealer}
           dealIndex={game.dealIndex}
@@ -481,6 +523,7 @@ function Board({
   pieces,
   activePieceIds,
   hoppingPieces,
+  swappingPieces,
   players,
   dealer,
   dealIndex,
@@ -494,6 +537,7 @@ function Board({
   pieces: readonly Piece[];
   activePieceIds: ReadonlySet<string>;
   hoppingPieces: readonly HoppingPiece[];
+  swappingPieces: readonly SwappingPiece[];
   players: GameState["players"];
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
@@ -504,7 +548,10 @@ function Board({
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
 }) {
-  const hoppingPieceIds = new Set(hoppingPieces.map((animated) => animated.piece.id));
+  const animatedPieceIds = new Set([
+    ...hoppingPieces.map((animated) => animated.piece.id),
+    ...swappingPieces.map((animated) => animated.piece.id),
+  ]);
   const destinationColor = selectedPieceId
     ? PLAYER_META[pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1"].color
     : PLAYER_META.P1.color;
@@ -536,7 +583,7 @@ function Board({
             (piece) =>
               piece.owner === owner &&
               piece.position.zone === "reserve" &&
-              !hoppingPieceIds.has(piece.id),
+              !animatedPieceIds.has(piece.id),
           );
           const handCount = players.find((player) => player.id === owner)?.hand.length ?? 0;
           return (
@@ -597,7 +644,7 @@ function Board({
             (piece) =>
               piece.position.zone === "track" &&
               piece.position.index === index &&
-              !hoppingPieceIds.has(piece.id),
+              !animatedPieceIds.has(piece.id),
           );
           const owner = PLAYER_IDS[Math.floor(index / 18)];
           const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
@@ -638,7 +685,7 @@ function Board({
                 piece.owner === owner &&
                 piece.position.zone === "home" &&
                 piece.position.index === index &&
-                !hoppingPieceIds.has(piece.id),
+                !animatedPieceIds.has(piece.id),
             );
             const destinationMove = destinationMoves.find(
               (option) =>
@@ -704,6 +751,29 @@ function Board({
             </div>
           );
         })}
+        {swappingPieces.map((animated) => (
+          <div
+            className="swapping-piece-slot"
+            key={`swap-${animated.piece.id}`}
+            style={{
+              "--swap-from-x": `${animated.from.x}%`,
+              "--swap-from-y": `${animated.from.y}%`,
+              "--swap-through-x": `${animated.through.x}%`,
+              "--swap-through-y": `${animated.through.y}%`,
+              "--swap-to-x": `${animated.to.x}%`,
+              "--swap-to-y": `${animated.to.y}%`,
+            } as React.CSSProperties}
+            aria-hidden="true"
+          >
+            <PieceButton
+              piece={animated.piece}
+              active={false}
+              selected={false}
+              hopping
+              onClick={() => undefined}
+            />
+          </div>
+        ))}
       </div>
       <div className="team-key">
         <span><i style={{ background: PLAYER_META.P1.color }} /> Poppy + Sunny</span>
@@ -853,6 +923,30 @@ function roundPoint(point: { x: number; y: number }) {
   };
 }
 
+function getPiecePoint(piece: Piece): BoardPoint {
+  if (piece.position.zone === "track") {
+    return getCrossTrackPoint(piece.position.index);
+  }
+
+  if (piece.position.zone === "home") {
+    return getHomeLanePoint(piece.owner, piece.position.index);
+  }
+
+  throw new Error(`Cannot animate reserve piece ${piece.id} across the board.`);
+}
+
+function getSwapControlPoint(from: BoardPoint, to: BoardPoint): BoardPoint {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const arc = 5;
+
+  return roundPoint({
+    x: (from.x + to.x) / 2 - dy / distance * arc,
+    y: (from.y + to.y) / 2 + dx / distance * arc,
+  });
+}
+
 function uniqueMoves<T extends MoveChoice>(moves: readonly T[]): T[] {
   const seen = new Set<string>();
   return moves.filter((move) => {
@@ -908,4 +1002,8 @@ function cardHelp(card: Card) {
 
 function waitForHop() {
   return new Promise<void>((resolve) => window.setTimeout(resolve, 130));
+}
+
+function waitForSwap() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 720));
 }

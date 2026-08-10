@@ -111,6 +111,13 @@ button { font: inherit; }
 @keyframes piece-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--piece) 25%, transparent), 0 3px 8px rgba(18,42,33,.3); } }
 .piece.is-hopping { animation: marble-hop 130ms ease-in-out; }
 @keyframes marble-hop { 0% { transform: translateY(2px) scale(.9); } 48% { transform: translateY(-11px) scale(1.08); box-shadow: 0 9px 9px rgba(18,42,33,.2); } 100% { transform: translateY(0) scale(1); } }
+.swapping-piece-slot { position: absolute; left: var(--swap-from-x); top: var(--swap-from-y); z-index: 11; width: 4.25%; aspect-ratio: 1; display: grid; place-items: center; transform: translate(-50%,-50%); pointer-events: none; animation: jack-swap 720ms cubic-bezier(.45,0,.2,1) forwards; }
+.swapping-piece-slot .piece { width: 90%; animation: none; box-shadow: 0 8px 13px rgba(18,42,33,.28); }
+@keyframes jack-swap {
+  0% { left: var(--swap-from-x); top: var(--swap-from-y); transform: translate(-50%,-50%) scale(1); }
+  48%, 52% { left: var(--swap-through-x); top: var(--swap-through-y); transform: translate(-50%,-50%) scale(1.18); }
+  100% { left: var(--swap-to-x); top: var(--swap-to-y); transform: translate(-50%,-50%) scale(1); }
+}
 
 .action-panel { display: flex; flex-direction: column; min-height: 0; padding: 22px; border-radius: 24px; color: #f8f4e9; background: #173d33; box-shadow: 0 18px 50px rgba(23,61,51,.18); }
 .action-panel .eyebrow { color: rgba(255,255,255,.55); }
@@ -214,5 +221,6 @@ button { font: inherit; }
   .piece.active { animation: none; outline: 3px solid var(--piece); outline-offset: 3px; }
   .destination-button, .destination-helper span { animation: none; }
   .piece.is-hopping { animation: none; }
+  .swapping-piece-slot { left: var(--swap-to-x); top: var(--swap-to-y); animation: none; }
   .playing-card { transition: none; }
 }
