@@ -1,28 +1,28 @@
 # Tock Game Rules
 
-This document defines the default rules for the first complete version of the
-game engine. The initial implementation is a four-player partner game. Rules
-for other player counts and optional variants are intentionally deferred.
+This document defines the enabled two-to-four-player rulesets. Four-player
+opposite-seat teams remain the default; two- and three-player games are always
+free-for-all, and four players may also choose free-for-all.
 
 ## Players and teams
 
-- Four players sit in the board order P1, P2, P3, P4.
-- Partners sit opposite one another: P1 partners with P3, and P2 partners with
-  P4.
+- Players sit in board order using the first two, three, or four seats.
+- Two- and three-player games are free-for-all. Four-player games may be
+  free-for-all or use fixed opposite-seat teams: P1 with P3, and P2 with P4.
 - Play proceeds clockwise, to the player on the current player's left.
 - Each player has four pieces.
-- A team wins immediately when all eight pieces belonging to its two players
+- In free-for-all, the first player with all four pieces home wins immediately.
+- In team play, a team wins when all eight pieces belonging to its two players
   are in their respective home lanes.
 
-When all four of a player's pieces are home, that player uses their cards to
-play their partner's pieces. For card and movement rules, the partner's pieces
-then function as that player's own pieces. This includes introducing them with
-an Ace or King, splitting a 7 among them, and initiating a Jack swap with one
-of them.
+In team play, when all four of a player's pieces are home, that player uses
+their cards to play their partner's pieces. Free-for-all players never assume
+control of another player's pieces.
 
 ## Board
 
-- The shared main track has 72 spaces, divided into four sections of 18 spaces.
+- The shared main track has one 18-space section per player: 36 spaces for two
+  players, 54 for three, and 72 for four.
 - Movement on the main track is clockwise.
 - Each player's entry is space 18 of their section.
 - Each player's home entrance branches from the main track after space 16 of
@@ -39,10 +39,12 @@ a full circuit.
 ## Deck, deals, and dealer
 
 - The game uses one standard 52-card deck without jokers.
-- For four players, a complete deck is dealt over three hands: first 5 cards
-  per player, then 4 cards per player, then another 4 cards per player.
-- The first dealer is selected randomly by default. A future game setting may
-  allow the players to choose the first dealer.
+- Every hand contains at least four cards per player. The first hand increases
+  to five when doing so deals more of the 52-card deck:
+  - two players: 5/4/4/4/4/4;
+  - three players: 5/4/4/4;
+  - four players: 5/4/4.
+- The first dealer is selected randomly by default, or may be chosen in setup.
 - The player to the dealer's left leads every hand dealt from that deck.
 - The dealer remains the same until the deck has been exhausted.
 - After the final hand, all discarded cards are shuffled to form the new deck.
@@ -51,10 +53,9 @@ a full circuit.
 
 ### Blind partner exchange
 
-At the beginning of every deal, each player chooses one card to give their
-partner. All players choose without seeing the card being sent to them, and all
-four cards are exchanged simultaneously before play begins. A player's first
-submitted choice is final for that exchange.
+At the beginning of every team deal, each player chooses one card to give their
+partner. All four cards are exchanged simultaneously before play begins. There
+is no card exchange in free-for-all games.
 
 ### Engine invariants
 
@@ -220,18 +221,13 @@ Choose one action:
 
 ## End of game
 
-The game ends immediately when both players on one team have placed all four
-of their pieces in their respective home lanes. There is no tie or stalemate
-rule in the default game.
+The game ends immediately when the first free-for-all player has all four
+pieces home, or when both players on one team have all eight team pieces home.
+There is no tie or stalemate rule in the default game.
 
 ## Deferred rules and variants
 
-These are planned capabilities, not part of the current default rules:
+These are planned capabilities, not part of the current rules:
 
-- Generalized dealing and board/team arrangements for two- and three-player
-  games.
-- Free-for-all play for odd player counts and as an option for even player
-  counts.
-- User-selected initial dealer.
 - A Jack variant that permits ordinary forward movement, with its exact value
   to be chosen when variant rules are designed.

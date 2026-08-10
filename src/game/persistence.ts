@@ -1,7 +1,7 @@
 import type { GameState } from "./types";
 import { assertValidGameState } from "./validation";
 
-export const GAME_SNAPSHOT_VERSION = 1 as const;
+export const GAME_SNAPSHOT_VERSION = 2 as const;
 
 export type GameSnapshot = {
   version: typeof GAME_SNAPSHOT_VERSION;

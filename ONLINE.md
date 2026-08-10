@@ -46,7 +46,18 @@ All responses use `Cache-Control: no-store`. Player endpoints authenticate with
 `POST /api/rooms`
 
 Returns the room view plus the P1 seat and its reconnect token. The room begins in
-`waiting` status.
+`waiting` status. The optional JSON body selects the rules and dealer:
+
+```json
+{
+  "playerCount": 3,
+  "teams": false,
+  "dealer": "random"
+}
+```
+
+`dealer` may be `random` or an active player ID. Teams are accepted only for a
+four-player room.
 
 ### Join a room
 
@@ -122,9 +133,8 @@ Board topology is now data-driven for two, three, and four seats:
 | 3 | 54 spaces | 3 × 4 | 4 |
 | 4 | 72 spaces | 4 × 4 | 4 |
 
-Only `classic-partners-4` is currently enabled. Before enabling the smaller boards,
-their rulesets need explicit decisions and tests for teams versus free-for-all,
-card exchange, deal schedule, partner-piece control, and victory conditions. Once
-those rules are settled, the engine, room capacity, board renderer, and lobby can
-all consume the same selected ruleset definition rather than branching on player
-count throughout the codebase.
+All three free-for-all player counts and `classic-partners-4` are enabled and
+covered by complete-game simulations. The local setup, room capacity, deal
+schedule, movement geometry, and board renderer consume the selected ruleset.
+Four-player teams always sit opposite; exchange and teammate-piece control exist
+only in that ruleset.

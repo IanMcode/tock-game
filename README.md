@@ -1,6 +1,6 @@
 # Tock
 
-A four-player partner game of Tock, built with Next.js and TypeScript. The current
+A two-to-four-player game of Tock, built with Next.js and TypeScript. The current
 table runs locally, and the engine now includes the authoritative room foundations
 needed for guest online play.
 
@@ -30,13 +30,13 @@ Reserve and eliminated pieces remain visible in the four colored trays around th
 
 ## Included rules
 
-- Four players, four pieces each, and opposite-seat partners
-- 72-space shared track, reserve, protected entry, and four-space home lanes
-- Three-hand 5/4/4 deal schedule, dealer rotation, and simultaneous partner exchange
+- Two-, three-, or four-player free-for-all, plus opposite-seat teams for four players
+- 36-, 54-, or 72-space shared track, reserve, protected entry, and four-space home lanes
+- Deck-maximizing 5/4 deal schedules, dealer rotation, and team-only partner exchange
 - Entry, forward and backward movement, exact home entry, captures, and blockades
 - Ace and King entry, backward 4, universal 5, split 7, forced-discard 10, Jack swap, and face-card movement
-- Partner piece control after a player gets all four pieces home
-- Team win detection and automatic progression between hands and decks
+- Partner piece control after a player gets all four pieces home in team games
+- Individual or team win detection and automatic progression between hands and decks
 
 The canonical rules are documented in [RULES.md](./RULES.md). Pure game logic lives in `src/game/`; the React interface only presents state and dispatches legal actions.
 
