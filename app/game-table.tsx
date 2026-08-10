@@ -65,7 +65,7 @@ type SwappingPiece = {
 type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
-type PlayerColorId = "vermillion" | "blue" | "orange" | "green" | "purple" | "sky";
+type PlayerColorId = "crimson" | "cobalt" | "gold" | "teal" | "violet" | "cyan";
 type PlayerShapeId = "circle" | "square" | "triangle" | "hexagon";
 type GameSettings = {
   startWithPieceOnEntry: boolean;
@@ -89,13 +89,13 @@ const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> =
   off: { hop: 0, swap: 0 },
 };
 
-const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string }> = {
-  vermillion: { label: "Vermillion", color: "#D55E00", soft: "#FBE5D5" },
-  blue: { label: "Blue", color: "#0072B2", soft: "#DCECF5" },
-  orange: { label: "Orange", color: "#E69F00", soft: "#FFF0C9" },
-  green: { label: "Bluish green", color: "#009E73", soft: "#D9F1E9" },
-  purple: { label: "Reddish purple", color: "#CC79A7", soft: "#F6E3EE" },
-  sky: { label: "Sky blue", color: "#56B4E9", soft: "#DFF2FC" },
+const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string }> = {
+  crimson: { label: "Crimson", color: "#D81B60", soft: "#F8DCE8", ink: "#FFFFFF" },
+  cobalt: { label: "Cobalt blue", color: "#0057B8", soft: "#D9E7F7", ink: "#FFFFFF" },
+  gold: { label: "Sun gold", color: "#FFB000", soft: "#FFF0C2", ink: "#173D33" },
+  teal: { label: "Deep teal", color: "#00796B", soft: "#D7ECE8", ink: "#FFFFFF" },
+  violet: { label: "Violet", color: "#7B2CBF", soft: "#EADDF5", ink: "#FFFFFF" },
+  cyan: { label: "Bright cyan", color: "#00A6D6", soft: "#D8F1F8", ink: "#173D33" },
 };
 
 const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
@@ -115,10 +115,10 @@ const DEFAULT_SETTINGS: GameSettings = {
   animationSpeed: "standard",
   dealer: "random",
   playerColors: {
-    P1: "vermillion",
-    P2: "blue",
-    P3: "orange",
-    P4: "green",
+    P1: "crimson",
+    P2: "cobalt",
+    P3: "gold",
+    P4: "teal",
   },
   playerShapes: {
     P1: "circle",
@@ -447,6 +447,16 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     });
   }
 
+  function shuffleDraftAppearances() {
+    const colors = shuffleItems(PLAYER_COLOR_IDS).slice(0, PLAYER_IDS.length);
+    const shapes = shuffleItems(PLAYER_SHAPE_IDS);
+    setDraftSettings((current) => ({
+      ...current,
+      playerColors: mapPlayerSelections(colors),
+      playerShapes: mapPlayerSelections(shapes),
+    }));
+  }
+
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
 
   return (
@@ -617,7 +627,10 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
               <div className="player-heading">
                 <div
                   className="player-badge"
-                  style={{ "--player-shape": playerShapeVar(player.id) } as React.CSSProperties}
+                  style={{
+                    "--player-shape": playerShapeVar(player.id),
+                    "--player-ink": playerInkVar(player.id),
+                  } as React.CSSProperties}
                 >
                   {player.id.slice(1)}
                 </div>
@@ -735,9 +748,17 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                 ))}
               </fieldset>
 
+              <div className="appearance-randomizer">
+                <span>
+                  <strong>Player appearances</strong>
+                  <small>Give every player a unique random color and shape.</small>
+                </span>
+                <button type="button" onClick={shuffleDraftAppearances}>Shuffle colors &amp; shapes</button>
+              </div>
+
               <fieldset className="setup-colors">
                 <legend>Player colors</legend>
-                <p>Color-vision-safe palette · selecting a used color swaps it.</p>
+                <p>High-contrast palette · selecting a used color swaps it.</p>
                 {PLAYER_IDS.map((playerId) => (
                   <div className="setup-color-row" key={playerId}>
                     <strong>{PLAYER_META[playerId].name}</strong>
@@ -753,7 +774,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                             aria-pressed={selected}
                             title={color.label}
                             key={colorId}
-                            style={{ "--swatch": color.color } as React.CSSProperties}
+                            style={{ "--swatch": color.color, "--swatch-ink": color.ink } as React.CSSProperties}
                             onClick={() => chooseDraftColor(playerId, colorId)}
                           >
                             <span aria-hidden="true">{selected ? "✓" : ""}</span>
@@ -1155,7 +1176,12 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
   return (
     <button
       className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${capturing ? "is-captured" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
-      style={{ "--piece": playerColorVar(piece.owner), "--piece-shape": playerShapeVar(piece.owner), width: hopping ? "90%" : undefined } as React.CSSProperties}
+      style={{
+        "--piece": playerColorVar(piece.owner),
+        "--piece-ink": playerInkVar(piece.owner),
+        "--piece-shape": playerShapeVar(piece.owner),
+        width: hopping ? "90%" : undefined,
+      } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
       }}
@@ -1247,6 +1273,10 @@ function playerSoftVar(playerId: PlayerId) {
   return `var(--color-${playerId.toLowerCase()}-soft)`;
 }
 
+function playerInkVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()}-ink)`;
+}
+
 function playerShapeVar(playerId: PlayerId) {
   return `var(--shape-${playerId.toLowerCase()})`;
 }
@@ -1260,9 +1290,25 @@ function getPlayerAppearanceVariables(
     const shape = PLAYER_SHAPES[shapes?.[playerId] ?? DEFAULT_SETTINGS.playerShapes[playerId]];
     variables[`--color-${playerId.toLowerCase()}`] = color.color;
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
+    variables[`--color-${playerId.toLowerCase()}-ink`] = color.ink;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
     return variables;
   }, {}) as React.CSSProperties;
+}
+
+function shuffleItems<T>(items: readonly T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function mapPlayerSelections<T>(values: readonly T[]): Record<PlayerId, T> {
+  return Object.fromEntries(
+    PLAYER_IDS.map((playerId, index) => [playerId, values[index]]),
+  ) as Record<PlayerId, T>;
 }
 
 function normalizeGameSettings(settings: GameSettings): GameSettings {
