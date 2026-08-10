@@ -66,12 +66,14 @@ type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
 type PlayerColorId = "vermillion" | "blue" | "orange" | "green" | "purple" | "sky";
+type PlayerShapeId = "circle" | "square" | "triangle" | "hexagon";
 type GameSettings = {
   startWithPieceOnEntry: boolean;
   showSpaceNumbers: boolean;
   animationSpeed: AnimationSpeed;
   dealer: DealerChoice;
   playerColors: Record<PlayerId, PlayerColorId>;
+  playerShapes: Record<PlayerId, PlayerShapeId>;
 };
 type RecentPlay = {
   actor: string;
@@ -98,6 +100,15 @@ const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft:
 
 const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
 
+const PLAYER_SHAPES: Record<PlayerShapeId, { label: string; clipPath: string }> = {
+  circle: { label: "Circle", clipPath: "circle(49% at 50% 50%)" },
+  square: { label: "Rounded square", clipPath: "inset(2% round 24%)" },
+  triangle: { label: "Triangle", clipPath: "polygon(50% 1%, 98% 94%, 2% 94%)" },
+  hexagon: { label: "Hexagon", clipPath: "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)" },
+};
+
+const PLAYER_SHAPE_IDS = Object.keys(PLAYER_SHAPES) as PlayerShapeId[];
+
 const DEFAULT_SETTINGS: GameSettings = {
   startWithPieceOnEntry: true,
   showSpaceNumbers: true,
@@ -108,6 +119,12 @@ const DEFAULT_SETTINGS: GameSettings = {
     P2: "blue",
     P3: "orange",
     P4: "green",
+  },
+  playerShapes: {
+    P1: "circle",
+    P2: "square",
+    P3: "triangle",
+    P4: "hexagon",
   },
 };
 
@@ -417,6 +434,19 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     });
   }
 
+  function chooseDraftShape(playerId: PlayerId, shapeId: PlayerShapeId) {
+    setDraftSettings((current) => {
+      const currentShapes = current.playerShapes ?? DEFAULT_SETTINGS.playerShapes;
+      const previousShape = currentShapes[playerId];
+      const otherPlayer = PLAYER_IDS.find(
+        (candidate) => candidate !== playerId && currentShapes[candidate] === shapeId,
+      );
+      const playerShapes = { ...currentShapes, [playerId]: shapeId };
+      if (otherPlayer) playerShapes[otherPlayer] = previousShape;
+      return { ...current, playerShapes };
+    });
+  }
+
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
 
   return (
@@ -424,7 +454,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       className={`game-shell ${isAnimating ? "is-animating" : ""}`}
       aria-busy={isAnimating}
       style={{
-        ...getPlayerColorVariables(settings.playerColors),
+        ...getPlayerAppearanceVariables(settings.playerColors, settings.playerShapes),
         "--hop-duration": `${animationTimings.hop}ms`,
         "--swap-duration": `${animationTimings.swap}ms`,
       } as React.CSSProperties}
@@ -585,7 +615,12 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
               style={{ "--player": playerColorVar(player.id), "--player-soft": playerSoftVar(player.id) } as React.CSSProperties}
             >
               <div className="player-heading">
-                <div className="player-badge">{player.id.slice(1)}</div>
+                <div
+                  className="player-badge"
+                  style={{ "--player-shape": playerShapeVar(player.id) } as React.CSSProperties}
+                >
+                  {player.id.slice(1)}
+                </div>
                 <div>
                   <h3>{meta.name}</h3>
                   <p>{meta.team} · partner {PLAYER_META[getPartner(player.id)].name}</p>
@@ -729,6 +764,39 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                   </div>
                 ))}
               </fieldset>
+
+              <fieldset className="setup-shapes">
+                <legend>Player shapes</legend>
+                <p>Shapes remain identifiable without color · selecting a used shape swaps it.</p>
+                {PLAYER_IDS.map((playerId) => (
+                  <div className="setup-shape-row" key={playerId}>
+                    <strong>{PLAYER_META[playerId].name}</strong>
+                    <div>
+                      {PLAYER_SHAPE_IDS.map((shapeId) => {
+                        const shape = PLAYER_SHAPES[shapeId];
+                        const selected = (draftSettings.playerShapes ?? DEFAULT_SETTINGS.playerShapes)[playerId] === shapeId;
+                        return (
+                          <button
+                            type="button"
+                            className={selected ? "is-selected" : ""}
+                            aria-label={`${PLAYER_META[playerId].name}: ${shape.label}`}
+                            aria-pressed={selected}
+                            title={shape.label}
+                            key={shapeId}
+                            style={{
+                              "--shape-preview": shape.clipPath,
+                              "--shape-color": PLAYER_COLORS[(draftSettings.playerColors ?? DEFAULT_SETTINGS.playerColors)[playerId]].color,
+                            } as React.CSSProperties}
+                            onClick={() => chooseDraftShape(playerId, shapeId)}
+                          >
+                            <span aria-hidden="true" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </fieldset>
             </div>
 
             <div className="setup-actions">
@@ -780,6 +848,9 @@ function Board({
   const destinationColor = selectedPieceId
     ? playerColorVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
     : playerColorVar("P1");
+  const destinationShape = selectedPieceId
+    ? playerShapeVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
+    : playerShapeVar("P1");
 
   return (
     <div className="board-wrap">
@@ -825,7 +896,10 @@ function Board({
               aria-label={`${PLAYER_META[owner].name}'s reserve`}
             >
               <div className="reserve-heading">
-                <span>{PLAYER_META[owner].name}</span>
+                <span className="reserve-player-label">
+                  <i style={{ "--player-shape": playerShapeVar(owner) } as React.CSSProperties} aria-hidden="true" />
+                  {PLAYER_META[owner].name}
+                </span>
                 {owner === dealer && (
                   <span
                     className="board-dealer"
@@ -884,7 +958,7 @@ function Board({
             <div
               className={`track-space ${entryOwner ? "entry-space" : ""} ${destinationMove ? "possible-destination" : ""}`}
               key={index}
-              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": playerSoftVar(owner), "--entry": entryOwner ? playerColorVar(entryOwner) : undefined, "--destination": destinationColor } as React.CSSProperties}
+              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": playerSoftVar(owner), "--entry": entryOwner ? playerColorVar(entryOwner) : undefined, "--destination": destinationColor, "--destination-shape": destinationShape } as React.CSSProperties}
             >
               <span className="space-number" aria-hidden="true">
                 {showSpaceNumbers ? index % 18 + 1 : ""}
@@ -927,7 +1001,7 @@ function Board({
               <div
                 className={`home-space ${destinationMove ? "possible-destination" : ""}`}
                 key={`${owner}-home-${index}`}
-                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": playerSoftVar(owner), "--destination": destinationColor } as React.CSSProperties}
+                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": playerSoftVar(owner), "--destination": destinationColor, "--destination-shape": destinationShape } as React.CSSProperties}
               >
                 {occupant && (
                   <PieceButton
@@ -1007,8 +1081,16 @@ function Board({
         ))}
       </div>
       <div className="team-key">
-        <span><i style={{ background: playerColorVar("P1") }} /> Poppy + Sunny</span>
-        <span><i style={{ background: playerColorVar("P2") }} /> River + Fern</span>
+        <span>
+          <i style={{ background: playerColorVar("P1"), "--player-shape": playerShapeVar("P1") } as React.CSSProperties} />
+          <i style={{ background: playerColorVar("P3"), "--player-shape": playerShapeVar("P3") } as React.CSSProperties} />
+          Poppy + Sunny
+        </span>
+        <span>
+          <i style={{ background: playerColorVar("P2"), "--player-shape": playerShapeVar("P2") } as React.CSSProperties} />
+          <i style={{ background: playerColorVar("P4"), "--player-shape": playerShapeVar("P4") } as React.CSSProperties} />
+          River + Fern
+        </span>
         <span className="protection-key"><b>✦</b> Protected entry</span>
       </div>
     </div>
@@ -1073,7 +1155,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
   return (
     <button
       className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${capturing ? "is-captured" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
-      style={{ "--piece": playerColorVar(piece.owner), width: hopping ? "90%" : undefined } as React.CSSProperties}
+      style={{ "--piece": playerColorVar(piece.owner), "--piece-shape": playerShapeVar(piece.owner), width: hopping ? "90%" : undefined } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
       }}
@@ -1081,6 +1163,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
       tabIndex={active ? 0 : -1}
       aria-label={`${PLAYER_META[piece.owner].name} piece ${pieceNumber}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
     >
+      <span className="piece-shape" aria-hidden="true" />
       <span className={`piece-pips pips-${pieceNumber}`} aria-hidden="true">
         {Array.from({ length: pieceNumber }, (_, index) => <i key={index} />)}
       </span>
@@ -1164,13 +1247,20 @@ function playerSoftVar(playerId: PlayerId) {
   return `var(--color-${playerId.toLowerCase()}-soft)`;
 }
 
-function getPlayerColorVariables(
+function playerShapeVar(playerId: PlayerId) {
+  return `var(--shape-${playerId.toLowerCase()})`;
+}
+
+function getPlayerAppearanceVariables(
   selections: Record<PlayerId, PlayerColorId> | undefined,
+  shapes: Record<PlayerId, PlayerShapeId> | undefined,
 ): React.CSSProperties {
   return PLAYER_IDS.reduce<Record<string, string>>((variables, playerId) => {
     const color = PLAYER_COLORS[selections?.[playerId] ?? DEFAULT_SETTINGS.playerColors[playerId]];
+    const shape = PLAYER_SHAPES[shapes?.[playerId] ?? DEFAULT_SETTINGS.playerShapes[playerId]];
     variables[`--color-${playerId.toLowerCase()}`] = color.color;
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
+    variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
     return variables;
   }, {}) as React.CSSProperties;
 }
@@ -1182,6 +1272,10 @@ function normalizeGameSettings(settings: GameSettings): GameSettings {
     playerColors: {
       ...DEFAULT_SETTINGS.playerColors,
       ...settings.playerColors,
+    },
+    playerShapes: {
+      ...DEFAULT_SETTINGS.playerShapes,
+      ...settings.playerShapes,
     },
   };
 }
