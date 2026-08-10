@@ -1,4 +1,9 @@
-import { createStandardDeck, shuffleDeck } from "./cards";
+import {
+  createRandomState,
+  createStandardDeck,
+  nextSeededRandom,
+  shuffleDeckWithState,
+} from "./cards";
 import { getEntryIndex } from "./board";
 import { dealHand, FOUR_PLAYER_DEAL_SCHEDULE } from "./deals";
 import { getNextPlayer } from "./rules";
@@ -9,6 +14,7 @@ export type CreateGameOptions = {
   shuffle?: boolean;
   dealer?: Player["id"];
   startWithPieceOnEntry?: boolean;
+  randomState?: number;
 };
 
 function createPiecesForPlayer(
@@ -31,18 +37,28 @@ function createPiecesForPlayer(
 export function createGame(options: CreateGameOptions = {}): GameState {
   const shouldShuffle = options.shuffle ?? true;
   const startWithPieceOnEntry = options.startWithPieceOnEntry ?? true;
-  const deck = shouldShuffle ? shuffleDeck(createStandardDeck()) : createStandardDeck();
-  const dealer =
-    options.dealer ?? PLAYER_IDS[Math.floor(Math.random() * PLAYER_IDS.length)];
+  let randomState = options.randomState ?? createRandomState();
+  const shuffled = shouldShuffle
+    ? shuffleDeckWithState(createStandardDeck(), randomState)
+    : { cards: createStandardDeck(), state: randomState };
+  randomState = shuffled.state;
+  let dealer = options.dealer;
+  if (!dealer) {
+    const randomDealer = nextSeededRandom(randomState);
+    randomState = randomDealer.state;
+    dealer = PLAYER_IDS[Math.floor(randomDealer.value * PLAYER_IDS.length)];
+  }
   const players: Player[] = PLAYER_IDS.map((id) => ({
     id,
     hand: [],
     pieces: createPiecesForPlayer(id, startWithPieceOnEntry),
   }));
-  const dealt = dealHand(players, deck, FOUR_PLAYER_DEAL_SCHEDULE[0]);
+  const dealt = dealHand(players, shuffled.cards, FOUR_PLAYER_DEAL_SCHEDULE[0]);
 
   return {
     ...dealt,
+    rulesetId: "classic-partners-4",
+    randomState,
     currentPlayer: getNextPlayer(dealer),
     discardPile: [],
     forcedDiscardPlayer: null,

@@ -1,4 +1,4 @@
-import { shuffleDeck } from "./cards";
+import { shuffleDeckWithState } from "./cards";
 import { getNextPlayer } from "./rules";
 import { getPartner } from "./teams";
 import { PLAYER_IDS, type GameState, type Player, type PlayerId } from "./types";
@@ -114,10 +114,10 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
   }
 
   const dealer = getNextPlayer(game.dealer);
-  const shuffledDeck = shuffleDeck(game.discardPile);
+  const shuffled = shuffleDeckWithState(game.discardPile, game.randomState);
   const dealt = dealHand(
     game.players,
-    shuffledDeck,
+    shuffled.cards,
     FOUR_PLAYER_DEAL_SCHEDULE[0],
   );
 
@@ -127,6 +127,7 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
     dealer,
     dealIndex: 0,
     discardPile: [],
+    randomState: shuffled.state,
   });
 }
 

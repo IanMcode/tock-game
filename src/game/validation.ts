@@ -4,6 +4,14 @@ import { PLAYER_IDS, type Card, type GameState } from "./types";
 
 export function getGameStateProblems(game: GameState): string[] {
   const problems: string[] = [];
+
+  if (game.rulesetId !== "classic-partners-4") {
+    problems.push("The game has an unsupported ruleset.");
+  }
+
+  if (!Number.isInteger(game.randomState) || game.randomState < 0 || game.randomState > 0xFFFFFFFF) {
+    problems.push("The game has an invalid random state.");
+  }
   const playerIds = game.players.map((player) => player.id);
 
   if (

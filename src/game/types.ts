@@ -54,6 +54,8 @@ export type Player = {
 };
 
 export type GameState = {
+  rulesetId: "classic-partners-4";
+  randomState: number;
   players: Player[];
   currentPlayer: PlayerId;
   drawPile: Card[];
