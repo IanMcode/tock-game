@@ -293,6 +293,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         <Board
           pieces={isSplitSeven ? previewPieces : allPieces}
           activePieceIds={activePieceIds}
+          players={game.players}
           dealer={game.dealer}
           dealIndex={game.dealIndex}
           selectedPieceId={selectedPieceId}
@@ -420,6 +421,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 function Board({
   pieces,
   activePieceIds,
+  players,
   dealer,
   dealIndex,
   selectedPieceId,
@@ -429,6 +431,7 @@ function Board({
 }: {
   pieces: readonly Piece[];
   activePieceIds: ReadonlySet<string>;
+  players: GameState["players"];
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
   selectedPieceId: string | null;
@@ -462,6 +465,7 @@ function Board({
           const reservePieces = pieces.filter(
             (piece) => piece.owner === owner && piece.position.zone === "reserve",
           );
+          const handCount = players.find((player) => player.id === owner)?.hand.length ?? 0;
           return (
             <div
               className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""}`}
@@ -487,7 +491,20 @@ function Board({
                   </span>
                 )}
               </div>
-              <div>
+              <div
+                className="board-hand-count"
+                aria-label={`${PLAYER_META[owner].name} has ${handCount} ${handCount === 1 ? "card" : "cards"} remaining`}
+              >
+                {handCount > 0 ? (
+                  <span className="face-down-cards" aria-hidden="true">
+                    {Array.from({ length: handCount }, (_, index) => <i key={index} />)}
+                  </span>
+                ) : (
+                  <span className="empty-card-count">No cards</span>
+                )}
+                <small>{handCount} left</small>
+              </div>
+              <div className="reserve-pieces">
                 {reservePieces.length > 0 ? reservePieces.map((piece) => (
                   <PieceButton
                     key={piece.id}

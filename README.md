@@ -21,7 +21,7 @@ Open [http://localhost:3000](http://localhost:3000). Everything runs in one brow
 
 Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The move desk keeps the most recent card visible and records the latest turns in its play log.
 
-Reserve and eliminated pieces remain visible in the four colored trays around the board. A newly entered protected piece carries an outer gold ring and a gold ✦ badge until it moves. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
+Reserve and eliminated pieces remain visible in the four colored trays around the board. Each tray also shows one face-down card for every card remaining in that player's hand. A newly entered protected piece carries an outer gold ring and a gold ✦ badge until it moves. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
 
 ## Included rules
 

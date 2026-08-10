@@ -58,7 +58,7 @@ button { font: inherit; }
 .board-center > * { rotate: -45deg; }
 .board-center span { font-family: Georgia, serif; font-size: clamp(20px, 4vw, 40px); letter-spacing: .05em; }
 .board-center small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; opacity: .66; }
-.board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 9%; display: grid; align-content: center; gap: 5px; padding: 7px 8px; transform: translate(-50%,-50%); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
+.board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 13%; display: grid; align-content: center; gap: 3px; padding: 7px 8px; transform: translate(-50%,-50%); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
 .reserve-heading { min-height: 25px; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .reserve-heading > span:first-child { color: var(--reserve); font-size: clamp(7px, .8vw, 10px); font-weight: 900; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
 .board-dealer { display: inline-flex; align-items: center; gap: 4px; padding-left: 6px; border-left: 1px solid color-mix(in srgb, var(--reserve) 30%, transparent); }
@@ -67,6 +67,12 @@ button { font: inherit; }
 .board-dealer small { color: var(--muted); font-size: clamp(6px, .6vw, 8px); line-height: 1.1; white-space: nowrap; }
 .board-reserve > div { min-height: 27px; display: flex; align-items: center; justify-content: center; gap: 5px; }
 .board-reserve > .reserve-heading { min-height: 25px; }
+.board-reserve > .board-hand-count { min-height: 15px; gap: 5px; }
+.face-down-cards { display: inline-flex; gap: 2px; }
+.face-down-cards i { width: clamp(7px, 1vw, 10px); aspect-ratio: .7; border: 1px solid rgba(255,255,255,.9); border-radius: 2px; background: repeating-linear-gradient(135deg, rgba(255,255,255,.2) 0 1px, transparent 1px 3px), var(--reserve); box-shadow: 0 0 0 1px color-mix(in srgb, var(--reserve) 55%, #253c34), 0 1px 2px rgba(23,48,39,.2); }
+.board-hand-count small { white-space: nowrap; }
+.empty-card-count { color: color-mix(in srgb, var(--reserve) 65%, #64756f); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.board-reserve > .reserve-pieces { min-height: 25px; }
 .board-reserve .piece { width: clamp(18px, 3.3vw, 27px); }
 .board-reserve small { color: color-mix(in srgb, var(--reserve) 70%, #64756f); font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .reserve-p1 { left: 82%; top: 18%; }
@@ -175,10 +181,14 @@ button { font: inherit; }
   .number-toggle { padding: 7px 9px; }
   .track-space { width: 4.6%; }
   .home-space { width: 4%; }
-  .board-reserve { width: 25%; padding: 5px 4px; }
+  .board-reserve { width: 26%; min-height: 15%; padding: 4px; }
   .board-reserve.is-dealer { width: 31%; }
   .board-reserve > div { min-height: 20px; gap: 2px; }
   .board-reserve > .reserve-heading { min-height: 22px; gap: 3px; }
+  .board-reserve > .board-hand-count { min-height: 12px; gap: 3px; }
+  .face-down-cards { gap: 1px; }
+  .face-down-cards i { width: 7px; }
+  .board-reserve > .reserve-pieces { min-height: 20px; }
   .board-dealer { gap: 2px; padding-left: 3px; }
   .deck-icon { width: 16px; height: 18px; }
   .deck-icon i { width: 11px; height: 15px; }
