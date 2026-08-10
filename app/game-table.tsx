@@ -43,6 +43,12 @@ const SUIT_SYMBOL: Record<Card["suit"], string> = {
 };
 
 type MoveChoice = AtomicMove | SplitSevenMove;
+type RecentPlay = {
+  actor: string;
+  card: Card;
+  summary: string;
+  verb: "played" | "discarded";
+};
 
 export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [game, setGame] = useState(initialGame);
@@ -50,6 +56,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
   const [choiceMoves, setChoiceMoves] = useState<MoveChoice[]>([]);
+  const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
+  const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
   const [history, setHistory] = useState<string[]>([
     `${PLAYER_META[game.dealer].name} dealt the first hand.`,
   ]);
@@ -126,12 +134,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   function commitMove(move: CardMove) {
     if (selectedCardIndex === null || !selectedCard) return;
     const actor = PLAYER_META[game.currentPlayer].name;
+    const summary = describeMove(move);
     const next = playCardForTurn(game, selectedCardIndex, move);
     setGame(next);
+    setRecentPlay({ actor, card: selectedCard, summary, verb: "played" });
     setHistory((items) => [
-      `${actor} played ${selectedCard.rank}${SUIT_SYMBOL[selectedCard.suit]} — ${describeMove(move)}.`,
+      `${actor} played ${selectedCard.rank}${SUIT_SYMBOL[selectedCard.suit]} — ${summary}.`,
       ...items,
-    ].slice(0, 8));
+    ].slice(0, 12));
     resetSelection();
   }
 
@@ -191,17 +201,23 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     const actor = PLAYER_META[game.currentPlayer].name;
     const next = discardCardForTurn(game, selectedCardIndex);
     setGame(next);
+    setRecentPlay({
+      actor,
+      card: selectedCard,
+      summary: "No piece moved.",
+      verb: "discarded",
+    });
     setHistory((items) => [
       `${actor} discarded ${selectedCard.rank}${SUIT_SYMBOL[selectedCard.suit]}.`,
       ...items,
-    ].slice(0, 8));
+    ].slice(0, 12));
     resetSelection();
   }
 
   function passEmptyForcedTurn() {
     const actor = PLAYER_META[game.currentPlayer].name;
     setGame(discardCardForTurn(game, null));
-    setHistory((items) => [`${actor} had no card to discard.`, ...items].slice(0, 8));
+    setHistory((items) => [`${actor} had no card to discard.`, ...items].slice(0, 12));
     resetSelection();
   }
 
@@ -209,13 +225,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     const next = selectExchangeCard(game, playerId, index);
     setGame(next);
     if (next.phase === "play") {
-      setHistory((items) => ["Partners exchanged cards. Play begins.", ...items].slice(0, 8));
+      setHistory((items) => ["Partners exchanged cards. Play begins.", ...items].slice(0, 12));
     }
   }
 
   function newGame() {
     const next = createGame();
     setGame(next);
+    setRecentPlay(null);
     setHistory([`${PLAYER_META[next.dealer].name} dealt a new game.`]);
     resetSelection();
   }
@@ -276,7 +293,11 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         <Board
           pieces={isSplitSeven ? previewPieces : allPieces}
           activePieceIds={activePieceIds}
+          dealer={game.dealer}
+          dealIndex={game.dealIndex}
           selectedPieceId={selectedPieceId}
+          showSpaceNumbers={showSpaceNumbers}
+          onToggleSpaceNumbers={() => setShowSpaceNumbers((shown) => !shown)}
           onPieceClick={choosePiece}
         />
 
@@ -318,9 +339,29 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             </button>
           )}
 
+          <div className="recent-play" aria-live="polite">
+            <p className="eyebrow">Most recent card</p>
+            {recentPlay ? (
+              <div className="recent-play-content">
+                <CardFace card={recentPlay.card} className="recent-card" />
+                <div>
+                  <strong>{recentPlay.actor} {recentPlay.verb}</strong>
+                  <span>{recentPlay.summary}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="recent-empty">The first played or discarded card will stay here.</p>
+            )}
+          </div>
+
           <div className="history">
-            <p className="eyebrow">Table notes</p>
-            {history.map((item, index) => <p key={`${item}-${index}`}>{item}</p>)}
+            <div className="history-heading">
+              <p className="eyebrow">Play log</p>
+              <span>Newest first</span>
+            </div>
+            <div className="history-window">
+              {history.map((item, index) => <p key={`${item}-${index}`}>{item}</p>)}
+            </div>
           </div>
         </aside>
       </section>
@@ -368,17 +409,6 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                 {player.hand.length === 0 && <div className="empty-hand">No cards</div>}
                 {choseExchange && <div className="exchange-chosen">Card chosen ✓</div>}
               </div>
-              <div className="reserves" aria-label={`${meta.name}'s reserve pieces`}>
-                {player.pieces.filter((piece) => piece.position.zone === "reserve").map((piece) => (
-                  <PieceButton
-                    key={piece.id}
-                    piece={piece}
-                    active={activePieceIds.has(piece.id)}
-                    selected={selectedPieceId === piece.id}
-                    onClick={() => choosePiece(piece.id)}
-                  />
-                ))}
-              </div>
             </article>
           );
         })}
@@ -390,48 +420,115 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 function Board({
   pieces,
   activePieceIds,
+  dealer,
+  dealIndex,
   selectedPieceId,
+  showSpaceNumbers,
+  onToggleSpaceNumbers,
   onPieceClick,
 }: {
   pieces: readonly Piece[];
   activePieceIds: ReadonlySet<string>;
+  dealer: PlayerId;
+  dealIndex: GameState["dealIndex"];
   selectedPieceId: string | null;
+  showSpaceNumbers: boolean;
+  onToggleSpaceNumbers: () => void;
   onPieceClick: (pieceId: string) => void;
 }) {
   return (
     <div className="board-wrap">
+      <div className="board-toolbar">
+        <div>
+          <p className="eyebrow">The playing board</p>
+          <span>72 track spaces · four home lanes</span>
+        </div>
+        <button
+          className="number-toggle"
+          type="button"
+          aria-pressed={showSpaceNumbers}
+          onClick={onToggleSpaceNumbers}
+        >
+          <i aria-hidden="true"><span /></i>
+          Space numbers
+        </button>
+      </div>
       <div className="board" aria-label="72-space Tock board">
         <div className="board-center">
           <span>TOCK</span>
           <small>partners across</small>
         </div>
+        {PLAYER_IDS.map((owner) => {
+          const reservePieces = pieces.filter(
+            (piece) => piece.owner === owner && piece.position.zone === "reserve",
+          );
+          return (
+            <div
+              className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""}`}
+              key={`${owner}-reserve`}
+              style={{
+                "--reserve": PLAYER_META[owner].color,
+                "--reserve-soft": PLAYER_META[owner].soft,
+              } as React.CSSProperties}
+              aria-label={`${PLAYER_META[owner].name}'s reserve`}
+            >
+              <div className="reserve-heading">
+                <span>{PLAYER_META[owner].name}</span>
+                {owner === dealer && (
+                  <span
+                    className="board-dealer"
+                    aria-label={`${PLAYER_META[owner].name} is the dealer, hand ${dealIndex + 1} of 3`}
+                  >
+                    <DeckIcon />
+                    <span>
+                      <strong>Dealer</strong>
+                      <small>Hand {dealIndex + 1} of 3</small>
+                    </span>
+                  </span>
+                )}
+              </div>
+              <div>
+                {reservePieces.length > 0 ? reservePieces.map((piece) => (
+                  <PieceButton
+                    key={piece.id}
+                    piece={piece}
+                    active={activePieceIds.has(piece.id)}
+                    selected={selectedPieceId === piece.id}
+                    onClick={() => onPieceClick(piece.id)}
+                  />
+                )) : <small>All in play</small>}
+              </div>
+            </div>
+          );
+        })}
         {Array.from({ length: TRACK_SIZE }, (_, index) => {
-          const point = polarPoint(index / TRACK_SIZE * 360 - 90, 45);
+          const point = getCrossTrackPoint(index);
           const occupant = pieces.find((piece) => piece.position.zone === "track" && piece.position.index === index);
           const owner = PLAYER_IDS[Math.floor(index / 18)];
           const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
-          const homeEntranceOwner = PLAYER_IDS.find((id) => getHomeEntranceIndex(id) === index);
           return (
             <div
-              className={`track-space ${entryOwner ? "entry-space" : ""} ${homeEntranceOwner ? "home-gate" : ""}`}
+              className={`track-space ${entryOwner ? "entry-space" : ""}`}
               key={index}
               style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": PLAYER_META[owner].soft, "--entry": entryOwner ? PLAYER_META[entryOwner].color : undefined } as React.CSSProperties}
             >
-              {occupant ? (
+              <span className="space-number" aria-hidden="true">
+                {showSpaceNumbers ? index % 18 + 1 : ""}
+              </span>
+              {occupant && (
                 <PieceButton
                   piece={occupant}
                   active={activePieceIds.has(occupant.id)}
                   selected={selectedPieceId === occupant.id}
                   onClick={() => onPieceClick(occupant.id)}
                 />
-              ) : <span />}
+              )}
             </div>
           );
         })}
         {PLAYER_IDS.flatMap((owner) => {
-          const gateAngle = getHomeEntranceIndex(owner) / TRACK_SIZE * 360 - 90;
           return Array.from({ length: 4 }, (_, index) => {
-            const point = polarPoint(gateAngle, 35 - index * 7);
+            const point = getHomeLanePoint(owner, index);
             const occupant = pieces.find((piece) => piece.owner === owner && piece.position.zone === "home" && piece.position.index === index);
             return (
               <div
@@ -455,6 +552,7 @@ function Board({
       <div className="team-key">
         <span><i style={{ background: PLAYER_META.P1.color }} /> Poppy + Sunny</span>
         <span><i style={{ background: PLAYER_META.P2.color }} /> River + Fern</span>
+        <span className="protection-key"><b>✦</b> Protected entry</span>
       </div>
     </div>
   );
@@ -477,10 +575,29 @@ function CardButton({ card, selected, playable, dimmed, disabled, onClick }: {
       aria-label={`${card.rank} of ${card.suit}`}
       aria-pressed={selected}
     >
+      <CardFace card={card} />
+    </button>
+  );
+}
+
+function CardFace({ card, className = "" }: { card: Card; className?: string }) {
+  const red = card.suit === "hearts" || card.suit === "diamonds";
+  return (
+    <span className={`card-face ${red ? "red" : "black"} ${className}`}>
       <span>{card.rank}</span>
       <strong>{SUIT_SYMBOL[card.suit]}</strong>
       <small>{card.rank}</small>
-    </button>
+    </span>
+  );
+}
+
+function DeckIcon() {
+  return (
+    <span className="deck-icon" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
   );
 }
 
@@ -494,20 +611,56 @@ function PieceButton({ piece, active, selected, onClick }: {
     <button
       className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
       style={{ "--piece": PLAYER_META[piece.owner].color } as React.CSSProperties}
-      onClick={onClick}
-      disabled={!active}
-      aria-label={`${PLAYER_META[piece.owner].name} piece ${piece.id.split("-")[1]}`}
+      onClick={() => {
+        if (active) onClick();
+      }}
+      aria-disabled={!active}
+      tabIndex={active ? 0 : -1}
+      aria-label={`${PLAYER_META[piece.owner].name} piece ${piece.id.split("-")[1]}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
     >
       <span>{piece.id.split("-")[1]}</span>
     </button>
   );
 }
 
-function polarPoint(angle: number, radius: number) {
-  const radians = angle * Math.PI / 180;
+function getCrossTrackPoint(trackIndex: number) {
+  const quarter = Math.floor(trackIndex / 18);
+  const distance = trackIndex % 18 * 5;
+  let point = getFirstQuarterPoint(distance);
+
+  for (let rotation = 0; rotation < quarter; rotation += 1) {
+    point = { x: 100 - point.y, y: point.x };
+  }
+
+  return roundPoint(point);
+}
+
+function getFirstQuarterPoint(distance: number) {
+  if (distance <= 24) return { x: 38 + distance, y: 5 };
+  if (distance <= 57) return { x: 62, y: 5 + distance - 24 };
+  return { x: 62 + distance - 57, y: 38 };
+}
+
+function getHomeLanePoint(owner: PlayerId, homeIndex: number) {
+  const gate = getCrossTrackPoint(getHomeEntranceIndex(owner));
+  const inwardDirection: Record<PlayerId, { x: number; y: number }> = {
+    P1: { x: 0, y: 1 },
+    P2: { x: -1, y: 0 },
+    P3: { x: 0, y: -1 },
+    P4: { x: 1, y: 0 },
+  };
+  const direction = inwardDirection[owner];
+  const distance = 5 + homeIndex * 4.7;
+  return roundPoint({
+    x: gate.x + direction.x * distance,
+    y: gate.y + direction.y * distance,
+  });
+}
+
+function roundPoint(point: { x: number; y: number }) {
   return {
-    x: Number((50 + Math.cos(radians) * radius).toFixed(4)),
-    y: Number((50 + Math.sin(radians) * radius).toFixed(4)),
+    x: Number(point.x.toFixed(4)),
+    y: Number(point.y.toFixed(4)),
   };
 }
 

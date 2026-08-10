@@ -19,7 +19,9 @@ Open [http://localhost:3000](http://localhost:3000). Everything runs in one brow
 4. For a 7, assign the seven legal steps one at a time. For a Jack, choose the initiating piece and then its swap.
 5. When no card can move—or a 10 forces the turn—choose a card and use **Discard selected card**.
 
-The board marks protected entries with an outer gold ring. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
+Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The move desk keeps the most recent card visible and records the latest turns in its play log.
+
+Reserve and eliminated pieces remain visible in the four colored trays around the board. A newly entered protected piece carries an outer gold ring and a gold ✦ badge until it moves. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
 
 ## Included rules
 
