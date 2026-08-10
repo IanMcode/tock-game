@@ -2,12 +2,16 @@
 
 import { useMemo, useState } from "react";
 
-import { applyPieceMove, type AtomicMove } from "../src/game/actions";
+import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../src/game/actions";
 import { getEntryIndex, getHomeEntranceIndex, TRACK_SIZE } from "../src/game/board";
 import { getLegalBasicCardMoves } from "../src/game/cardMoves";
 import { createGame } from "../src/game/createGame";
 import { selectExchangeCard } from "../src/game/deals";
 import { getAllPieces } from "../src/game/occupancy";
+import {
+  getMoveAnimationFrames,
+  type AnimatedPiecePosition,
+} from "../src/game/moveAnimation";
 import type { ForwardMove } from "../src/game/moves";
 import type { SplitSevenMove } from "../src/game/specialMoves";
 import { getSplitSevenDestinationOptions } from "../src/game/splitSelection";
@@ -48,6 +52,10 @@ type DestinationOption = {
   move: AtomicMove;
   splitSteps?: ForwardMove[];
 };
+type HoppingPiece = AnimatedPiecePosition & {
+  piece: Piece;
+  frame: number;
+};
 type RecentPlay = {
   actor: string;
   card: Card;
@@ -61,6 +69,8 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
+  const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
+  const [isAnimating, setIsAnimating] = useState(false);
   const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
   const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
   const [history, setHistory] = useState<string[]>([
@@ -98,7 +108,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     );
   }, [isSplitSeven, legalMoves, splitSteps]);
   const activePieceIds = useMemo(() => {
-    if (!selectedCard) return new Set<string>();
+    if (!selectedCard || isAnimating) return new Set<string>();
     if (isSplitSeven) {
       return new Set(
         matchingSplitMoves
@@ -111,7 +121,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         .filter((move): move is AtomicMove => move.kind !== "split7")
         .map((move) => move.pieceId),
     );
-  }, [isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
+  }, [isAnimating, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
 
   const onlyFivesPlayable =
     playableIndexes.length > 0 &&
@@ -130,6 +140,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function chooseCard(index: number) {
+    if (isAnimating) return;
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -151,7 +162,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function choosePiece(pieceId: string) {
-    if (!selectedCard || !activePieceIds.has(pieceId)) return;
+    if (isAnimating || !selectedCard || !activePieceIds.has(pieceId)) return;
     setSelectedPieceId(pieceId);
 
     if (isSplitSeven) {
@@ -190,16 +201,53 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     setDestinationMoves([]);
   }
 
-  function chooseDestination(option: DestinationOption) {
-    if (isSplitSeven && option.splitSteps) {
-      advanceSplit(option.splitSteps);
-    } else {
-      commitMove(option.move);
+  async function chooseDestination(option: DestinationOption) {
+    if (isAnimating) return;
+
+    const animationMoves = option.splitSteps ?? [option.move];
+    const animationStart = isSplitSeven ? previewPieces : allPieces;
+    setIsAnimating(true);
+    setDestinationMoves([]);
+
+    try {
+      await animateMoves(animationStart, animationMoves);
+
+      if (isSplitSeven && option.splitSteps) {
+        advanceSplit(option.splitSteps);
+      } else {
+        commitMove(option.move);
+      }
+    } finally {
+      setHoppingPieces([]);
+      setIsAnimating(false);
+    }
+  }
+
+  async function animateMoves(
+    startingPieces: readonly Piece[],
+    moves: readonly AtomicMove[],
+  ) {
+    let pieces = [...startingPieces];
+    let frameNumber = 0;
+
+    for (const move of moves) {
+      const frames = getMoveAnimationFrames(pieces, move);
+
+      for (const frame of frames) {
+        frameNumber += 1;
+        setHoppingPieces(frame.flatMap((animated) => {
+          const piece = pieces.find((candidate) => candidate.id === animated.pieceId);
+          return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
+        }));
+        await waitForHop();
+      }
+
+      pieces = applyAtomicMove(pieces, move);
     }
   }
 
   function discardSelected() {
-    if (selectedCardIndex === null || !selectedCard) return;
+    if (isAnimating || selectedCardIndex === null || !selectedCard) return;
     const actor = PLAYER_META[game.currentPlayer].name;
     const next = discardCardForTurn(game, selectedCardIndex);
     setGame(next);
@@ -217,6 +265,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function passEmptyForcedTurn() {
+    if (isAnimating) return;
     const actor = PLAYER_META[game.currentPlayer].name;
     setGame(discardCardForTurn(game, null));
     setHistory((items) => [`${actor} had no card to discard.`, ...items].slice(0, 12));
@@ -224,6 +273,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function exchangeCard(playerId: PlayerId, index: number) {
+    if (isAnimating) return;
     const next = selectExchangeCard(game, playerId, index);
     setGame(next);
     if (next.phase === "play") {
@@ -232,6 +282,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   }
 
   function newGame() {
+    if (isAnimating) return;
     const next = createGame();
     setGame(next);
     setRecentPlay(null);
@@ -242,7 +293,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const controlledPlayer = getControlledPlayer(allPieces, game.currentPlayer);
 
   return (
-    <main className="game-shell">
+    <main className={`game-shell ${isAnimating ? "is-animating" : ""}`} aria-busy={isAnimating}>
       <header className="topbar">
         <div>
           <p className="eyebrow">A local partner game</p>
@@ -254,7 +305,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <strong>{PLAYER_META[game.dealer].name}</strong>
             <small>hand {game.dealIndex + 1} of 3</small>
           </div>
-          <button className="quiet-button" onClick={newGame}>New game</button>
+          <button className="quiet-button" disabled={isAnimating} onClick={newGame}>New game</button>
         </div>
       </header>
 
@@ -295,6 +346,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         <Board
           pieces={isSplitSeven ? previewPieces : allPieces}
           activePieceIds={activePieceIds}
+          hoppingPieces={hoppingPieces}
           players={game.players}
           dealer={game.dealer}
           dealIndex={game.dealIndex}
@@ -323,7 +375,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <div className="seven-counter">
               <strong>{splitSteps.length}</strong>
               <span>of 7 steps assigned</span>
-              <button onClick={() => { setSplitSteps([]); setSelectedPieceId(null); setDestinationMoves([]); }}>Start the split again</button>
+              <button disabled={isAnimating} onClick={() => { setSplitSteps([]); setSelectedPieceId(null); setDestinationMoves([]); }}>Start the split again</button>
             </div>
           ) : (
             <div className="helper-card">
@@ -335,7 +387,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           {forcedDiscard && currentPlayer.hand.length === 0 ? (
             <button className="primary-button" onClick={passEmptyForcedTurn}>Continue</button>
           ) : (
-            <button className="discard-button" disabled={!selectedCanDiscard} onClick={discardSelected}>
+            <button className="discard-button" disabled={isAnimating || !selectedCanDiscard} onClick={discardSelected}>
               {forcedDiscard ? "Discard selected card" : "Discard selected card"}
             </button>
           )}
@@ -402,7 +454,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
                       selected={isSelected}
                       playable={canSelect && isPlayable && !forcedDiscard}
                       dimmed={canSelect && !isPlayable && !forcedDiscard && playableIndexes.length > 0}
-                      disabled={!canExchange && !canSelect}
+                      disabled={isAnimating || (!canExchange && !canSelect)}
                       onClick={() => canExchange ? exchangeCard(player.id, index) : chooseCard(index)}
                     />
                   );
@@ -421,6 +473,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
 function Board({
   pieces,
   activePieceIds,
+  hoppingPieces,
   players,
   dealer,
   dealIndex,
@@ -433,6 +486,7 @@ function Board({
 }: {
   pieces: readonly Piece[];
   activePieceIds: ReadonlySet<string>;
+  hoppingPieces: readonly HoppingPiece[];
   players: GameState["players"];
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
@@ -443,6 +497,7 @@ function Board({
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
 }) {
+  const hoppingPieceIds = new Set(hoppingPieces.map((animated) => animated.piece.id));
   const destinationColor = selectedPieceId
     ? PLAYER_META[pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1"].color
     : PLAYER_META.P1.color;
@@ -471,7 +526,10 @@ function Board({
         </div>
         {PLAYER_IDS.map((owner) => {
           const reservePieces = pieces.filter(
-            (piece) => piece.owner === owner && piece.position.zone === "reserve",
+            (piece) =>
+              piece.owner === owner &&
+              piece.position.zone === "reserve" &&
+              !hoppingPieceIds.has(piece.id),
           );
           const handCount = players.find((player) => player.id === owner)?.hand.length ?? 0;
           return (
@@ -528,7 +586,12 @@ function Board({
         })}
         {Array.from({ length: TRACK_SIZE }, (_, index) => {
           const point = getCrossTrackPoint(index);
-          const occupant = pieces.find((piece) => piece.position.zone === "track" && piece.position.index === index);
+          const occupant = pieces.find(
+            (piece) =>
+              piece.position.zone === "track" &&
+              piece.position.index === index &&
+              !hoppingPieceIds.has(piece.id),
+          );
           const owner = PLAYER_IDS[Math.floor(index / 18)];
           const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
           const destinationMove = destinationMoves.find(
@@ -563,7 +626,13 @@ function Board({
         {PLAYER_IDS.flatMap((owner) => {
           return Array.from({ length: 4 }, (_, index) => {
             const point = getHomeLanePoint(owner, index);
-            const occupant = pieces.find((piece) => piece.owner === owner && piece.position.zone === "home" && piece.position.index === index);
+            const occupant = pieces.find(
+              (piece) =>
+                piece.owner === owner &&
+                piece.position.zone === "home" &&
+                piece.position.index === index &&
+                !hoppingPieceIds.has(piece.id),
+            );
             const destinationMove = destinationMoves.find(
               (option) =>
                 option.move.destination.zone === "home" &&
@@ -593,6 +662,40 @@ function Board({
               </div>
             );
           });
+        })}
+        {hoppingPieces.map((animated) => {
+          const point = animated.position.zone === "track"
+            ? getCrossTrackPoint(animated.position.index)
+            : getHomeLanePoint(animated.piece.owner, animated.position.index);
+          const animatedPiece = { ...animated.piece, position: animated.position };
+
+          return (
+            <div
+              className={`hopping-piece-slot ${animated.position.zone === "home" ? "is-home" : "is-track"}`}
+              key={`${animated.piece.id}-${animated.frame}`}
+              style={{
+                left: `${point.x}%`,
+                top: `${point.y}%`,
+                position: "absolute",
+                zIndex: 10,
+                width: animated.position.zone === "home" ? "3.7%" : "4.25%",
+                aspectRatio: "1",
+                transform: "translate(-50%,-50%)",
+                display: "grid",
+                placeItems: "center",
+                pointerEvents: "none",
+              }}
+              aria-hidden="true"
+            >
+              <PieceButton
+                piece={animatedPiece}
+                active={false}
+                selected={false}
+                hopping
+                onClick={() => undefined}
+              />
+            </div>
+          );
         })}
       </div>
       <div className="team-key">
@@ -647,18 +750,19 @@ function DeckIcon() {
   );
 }
 
-function PieceButton({ piece, active, selected, onClick }: {
+function PieceButton({ piece, active, selected, hopping = false, onClick }: {
   piece: Piece;
   active: boolean;
   selected: boolean;
+  hopping?: boolean;
   onClick: () => void;
 }) {
   const pieceNumber = Number(piece.id.split("-")[1]);
 
   return (
     <button
-      className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
-      style={{ "--piece": PLAYER_META[piece.owner].color } as React.CSSProperties}
+      className={`piece ${active ? "active" : ""} ${selected ? "selected" : ""} ${hopping ? "is-hopping" : ""} ${piece.position.zone === "track" && piece.position.isEntryProtected ? "protected" : ""}`}
+      style={{ "--piece": PLAYER_META[piece.owner].color, width: hopping ? "90%" : undefined } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
       }}
@@ -792,4 +896,8 @@ function cardHelp(card: Card) {
     case "Q": return "Move one piece forward 12.";
     default: return `Move one piece forward ${card.rank}.`;
   }
+}
+
+function waitForHop() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 130));
 }
