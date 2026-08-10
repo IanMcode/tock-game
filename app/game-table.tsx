@@ -55,7 +55,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
-  const [choiceMoves, setChoiceMoves] = useState<MoveChoice[]>([]);
+  const [destinationMoves, setDestinationMoves] = useState<AtomicMove[]>([]);
   const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
   const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
   const [history, setHistory] = useState<string[]>([
@@ -121,14 +121,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     setSelectedCardIndex(null);
     setSelectedPieceId(null);
     setSplitSteps([]);
-    setChoiceMoves([]);
+    setDestinationMoves([]);
   }
 
   function chooseCard(index: number) {
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
-    setChoiceMoves([]);
+    setDestinationMoves([]);
   }
 
   function commitMove(move: CardMove) {
@@ -155,11 +155,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           .map((move) => move.steps[splitSteps.length])
           .filter((step): step is ForwardMove => step?.pieceId === pieceId),
       );
-      if (nextSteps.length === 1) {
-        advanceSplit(nextSteps[0]);
-      } else {
-        setChoiceMoves(nextSteps);
-      }
+      setDestinationMoves(nextSteps);
       return;
     }
 
@@ -167,11 +163,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       (move): move is AtomicMove =>
         move.kind !== "split7" && move.pieceId === pieceId,
     );
-    if (matches.length === 1) {
-      commitMove(matches[0]);
-    } else {
-      setChoiceMoves(matches);
-    }
+    setDestinationMoves(uniqueMoves(matches));
   }
 
   function advanceSplit(step: ForwardMove) {
@@ -185,12 +177,12 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     }
     setSplitSteps(nextSteps);
     setSelectedPieceId(null);
-    setChoiceMoves([]);
+    setDestinationMoves([]);
   }
 
-  function chooseMove(move: MoveChoice) {
-    if (isSplitSeven && move.kind !== "split7") {
-      advanceSplit(move as ForwardMove);
+  function chooseDestination(move: AtomicMove) {
+    if (isSplitSeven && move.kind === "forward") {
+      advanceSplit(move);
     } else {
       commitMove(move);
     }
@@ -283,7 +275,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
               : controlledPlayer !== game.currentPlayer
                 ? `All pieces are home. Playing ${PLAYER_META[controlledPlayer].name}’s pieces.`
                 : selectedCard
-                  ? actionPrompt(selectedCard, splitSteps.length)
+                  ? actionPrompt(selectedCard, splitSteps.length, selectedPieceId !== null)
                   : "Choose a card, then choose a glowing piece."}
           </p>
         </section>
@@ -297,9 +289,11 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           dealer={game.dealer}
           dealIndex={game.dealIndex}
           selectedPieceId={selectedPieceId}
+          destinationMoves={destinationMoves}
           showSpaceNumbers={showSpaceNumbers}
           onToggleSpaceNumbers={() => setShowSpaceNumbers((shown) => !shown)}
           onPieceClick={choosePiece}
+          onDestinationClick={chooseDestination}
         />
 
         <aside className="action-panel">
@@ -308,14 +302,10 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <h2>{selectedCard ? `${selectedCard.rank}${SUIT_SYMBOL[selectedCard.suit]} selected` : "Ready when you are"}</h2>
           </div>
 
-          {choiceMoves.length > 0 ? (
-            <div className="move-choices">
-              <p>Choose how to use this piece</p>
-              {choiceMoves.map((move, index) => (
-                <button key={`${JSON.stringify(move)}-${index}`} onClick={() => chooseMove(move)}>
-                  {describeMove(move)}
-                </button>
-              ))}
+          {destinationMoves.length > 0 ? (
+            <div className="helper-card destination-helper">
+              <span>◎</span>
+              <p>Choose one of the glowing destinations on the board.</p>
             </div>
           ) : selectedCard && legalMoves.length === 0 && !forcedDiscard ? (
             <div className="empty-note">This card has no legal move right now.</div>
@@ -323,7 +313,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <div className="seven-counter">
               <strong>{splitSteps.length}</strong>
               <span>of 7 steps assigned</span>
-              <button onClick={() => { setSplitSteps([]); setChoiceMoves([]); }}>Start the split again</button>
+              <button onClick={() => { setSplitSteps([]); setSelectedPieceId(null); setDestinationMoves([]); }}>Start the split again</button>
             </div>
           ) : (
             <div className="helper-card">
@@ -425,9 +415,11 @@ function Board({
   dealer,
   dealIndex,
   selectedPieceId,
+  destinationMoves,
   showSpaceNumbers,
   onToggleSpaceNumbers,
   onPieceClick,
+  onDestinationClick,
 }: {
   pieces: readonly Piece[];
   activePieceIds: ReadonlySet<string>;
@@ -435,10 +427,16 @@ function Board({
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
   selectedPieceId: string | null;
+  destinationMoves: readonly AtomicMove[];
   showSpaceNumbers: boolean;
   onToggleSpaceNumbers: () => void;
   onPieceClick: (pieceId: string) => void;
+  onDestinationClick: (move: AtomicMove) => void;
 }) {
+  const destinationColor = selectedPieceId
+    ? PLAYER_META[pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1"].color
+    : PLAYER_META.P1.color;
+
   return (
     <div className="board-wrap">
       <div className="board-toolbar">
@@ -523,11 +521,14 @@ function Board({
           const occupant = pieces.find((piece) => piece.position.zone === "track" && piece.position.index === index);
           const owner = PLAYER_IDS[Math.floor(index / 18)];
           const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
+          const destinationMove = destinationMoves.find(
+            (move) => move.destination.zone === "track" && move.destination.index === index,
+          );
           return (
             <div
-              className={`track-space ${entryOwner ? "entry-space" : ""}`}
+              className={`track-space ${entryOwner ? "entry-space" : ""} ${destinationMove ? "possible-destination" : ""}`}
               key={index}
-              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": PLAYER_META[owner].soft, "--entry": entryOwner ? PLAYER_META[entryOwner].color : undefined } as React.CSSProperties}
+              style={{ left: `${point.x}%`, top: `${point.y}%`, "--section": PLAYER_META[owner].soft, "--entry": entryOwner ? PLAYER_META[entryOwner].color : undefined, "--destination": destinationColor } as React.CSSProperties}
             >
               <span className="space-number" aria-hidden="true">
                 {showSpaceNumbers ? index % 18 + 1 : ""}
@@ -540,6 +541,12 @@ function Board({
                   onClick={() => onPieceClick(occupant.id)}
                 />
               )}
+              {destinationMove && (
+                <DestinationButton
+                  move={destinationMove}
+                  onClick={() => onDestinationClick(destinationMove)}
+                />
+              )}
             </div>
           );
         })}
@@ -547,11 +554,17 @@ function Board({
           return Array.from({ length: 4 }, (_, index) => {
             const point = getHomeLanePoint(owner, index);
             const occupant = pieces.find((piece) => piece.owner === owner && piece.position.zone === "home" && piece.position.index === index);
+            const destinationMove = destinationMoves.find(
+              (move) =>
+                move.destination.zone === "home" &&
+                move.destination.index === index &&
+                pieces.find((piece) => piece.id === move.pieceId)?.owner === owner,
+            );
             return (
               <div
-                className="home-space"
+                className={`home-space ${destinationMove ? "possible-destination" : ""}`}
                 key={`${owner}-home-${index}`}
-                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": PLAYER_META[owner].soft } as React.CSSProperties}
+                style={{ left: `${point.x}%`, top: `${point.y}%`, "--home": PLAYER_META[owner].soft, "--destination": destinationColor } as React.CSSProperties}
               >
                 {occupant && (
                   <PieceButton
@@ -559,6 +572,12 @@ function Board({
                     active={activePieceIds.has(occupant.id)}
                     selected={selectedPieceId === occupant.id}
                     onClick={() => onPieceClick(occupant.id)}
+                  />
+                )}
+                {destinationMove && (
+                  <DestinationButton
+                    move={destinationMove}
+                    onClick={() => onDestinationClick(destinationMove)}
                   />
                 )}
               </div>
@@ -640,6 +659,22 @@ function PieceButton({ piece, active, selected, onClick }: {
   );
 }
 
+function DestinationButton({ move, onClick }: {
+  move: AtomicMove;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="destination-button"
+      type="button"
+      aria-label={`Choose destination: ${describeMove(move)}`}
+      onClick={onClick}
+    >
+      <span aria-hidden="true" />
+    </button>
+  );
+}
+
 function getCrossTrackPoint(trackIndex: number) {
   const quarter = Math.floor(trackIndex / 18);
   const distance = trackIndex % 18 * 5;
@@ -709,7 +744,12 @@ function shortPiece(pieceId: string) {
   return `${PLAYER_META[owner as PlayerId].name} ${number}`;
 }
 
-function actionPrompt(card: Card, assignedSteps: number) {
+function actionPrompt(card: Card, assignedSteps: number, hasSelectedPiece: boolean) {
+  if (hasSelectedPiece) {
+    return card.rank === "7"
+      ? `Choose the glowing destination for step ${assignedSteps + 1} of 7.`
+      : "Choose a glowing destination to complete the move.";
+  }
   if (card.rank === "7" && assignedSteps > 0) return `Choose the piece for step ${assignedSteps + 1} of 7.`;
   if (card.rank === "J") return "Choose a piece, then choose its swap target.";
   if (card.rank === "5") return "The 5 may move any piece on the track.";

@@ -86,6 +86,11 @@ button { font: inherit; }
 .track-space.entry-space { width: 4.8%; border: 2px solid var(--entry); border-radius: 6px; transform: translate(-50%,-50%) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--entry) 14%, transparent), inset 0 1px 2px rgba(255,255,255,.8); }
 .track-space.entry-space > * { rotate: -45deg; }
 .home-space { width: 3.7%; background: var(--home); border: 2px solid rgba(34,67,54,.18); }
+.destination-button { position: absolute; inset: -5px; z-index: 7; display: grid; place-items: center; padding: 0; border: 3px solid var(--destination); border-radius: 50%; background: color-mix(in srgb, var(--destination) 14%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--destination) 16%, transparent); cursor: pointer; animation: destination-pulse 1s ease-in-out infinite; }
+.destination-button span { width: 28%; aspect-ratio: 1; border-radius: 50%; background: var(--destination); box-shadow: 0 0 0 3px color-mix(in srgb, var(--destination) 20%, transparent); }
+.track-space.entry-space .destination-button { rotate: 0deg; border-radius: 7px; }
+.destination-button:hover, .destination-button:focus-visible { background: color-mix(in srgb, var(--destination) 28%, white); outline: 3px solid white; outline-offset: 2px; }
+@keyframes destination-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--destination) 8%, transparent); } }
 .team-key { display: flex; gap: 22px; color: var(--muted); font-size: 12px; }
 .team-key span { display: inline-flex; align-items: center; gap: 7px; }
 .team-key i { width: 9px; height: 9px; border-radius: 50%; }
@@ -105,11 +110,10 @@ button { font: inherit; }
 .panel-heading h2 { margin: 6px 0 20px; font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
 .helper-card, .empty-note, .seven-counter { min-height: 130px; display: grid; place-items: center; align-content: center; gap: 10px; padding: 18px; border-radius: 16px; text-align: center; background: rgba(255,255,255,.08); color: rgba(255,255,255,.76); }
 .helper-card span { font-family: Georgia, serif; font-size: 42px; color: #f5ce69; }
+.destination-helper span { animation: destination-symbol-pulse 1s ease-in-out infinite; }
+@keyframes destination-symbol-pulse { 50% { opacity: .45; transform: scale(.88); } }
 .helper-card p, .empty-note { margin: 0; font-size: 13px; line-height: 1.5; }
-.move-choices { display: grid; gap: 8px; max-height: 230px; overflow: auto; padding-right: 4px; }
-.move-choices p { margin: 0 0 4px; color: rgba(255,255,255,.62); font-size: 12px; }
-.move-choices button, .seven-counter button { padding: 11px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; color: white; background: rgba(255,255,255,.08); cursor: pointer; text-align: left; font-size: 12px; }
-.move-choices button:hover { background: rgba(255,255,255,.16); }
+.seven-counter button { padding: 11px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; color: white; background: rgba(255,255,255,.08); cursor: pointer; text-align: left; font-size: 12px; }
 .seven-counter strong { font-family: Georgia, serif; color: #f5ce69; font-size: 45px; }
 .seven-counter span { font-size: 12px; }
 .discard-button, .primary-button { width: 100%; margin-top: 14px; padding: 13px; color: #173d33; background: #f5ce69; }
@@ -199,5 +203,6 @@ button { font: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .piece.active { animation: none; outline: 3px solid var(--piece); outline-offset: 3px; }
+  .destination-button, .destination-helper span { animation: none; }
   .playing-card { transition: none; }
 }
