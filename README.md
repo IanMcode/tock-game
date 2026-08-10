@@ -16,7 +16,7 @@ Open [http://localhost:3000](http://localhost:3000). Everything runs in one brow
 1. At the start of each hand, choose one card from every player's hand for the blind partner exchange.
 2. On a turn, choose a card in the current player's hand.
 3. Legal pieces glow. Choose one, then choose one of its glowing destinations on the board to complete the move.
-4. For a 7, assign the seven legal steps one at a time. For a Jack, choose the initiating piece and then its swap.
+4. For a 7, choose any highlighted distance for the selected piece, then assign any remaining steps. For a Jack, choose the initiating piece and then its swap destination.
 5. When no card can move—or a 10 forces the turn—choose a card and use **Discard selected card**.
 
 Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The move desk keeps the most recent card visible and records the latest turns in its play log.

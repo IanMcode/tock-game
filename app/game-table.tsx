@@ -10,6 +10,7 @@ import { selectExchangeCard } from "../src/game/deals";
 import { getAllPieces } from "../src/game/occupancy";
 import type { ForwardMove } from "../src/game/moves";
 import type { SplitSevenMove } from "../src/game/specialMoves";
+import { getSplitSevenDestinationOptions } from "../src/game/splitSelection";
 import { getControlledPlayer, getPartner } from "../src/game/teams";
 import {
   discardCardForTurn,
@@ -43,6 +44,10 @@ const SUIT_SYMBOL: Record<Card["suit"], string> = {
 };
 
 type MoveChoice = AtomicMove | SplitSevenMove;
+type DestinationOption = {
+  move: AtomicMove;
+  splitSteps?: ForwardMove[];
+};
 type RecentPlay = {
   actor: string;
   card: Card;
@@ -55,7 +60,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
-  const [destinationMoves, setDestinationMoves] = useState<AtomicMove[]>([]);
+  const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [showSpaceNumbers, setShowSpaceNumbers] = useState(true);
   const [recentPlay, setRecentPlay] = useState<RecentPlay | null>(null);
   const [history, setHistory] = useState<string[]>([
@@ -150,12 +155,15 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     setSelectedPieceId(pieceId);
 
     if (isSplitSeven) {
-      const nextSteps = uniqueMoves(
-        matchingSplitMoves
-          .map((move) => move.steps[splitSteps.length])
-          .filter((step): step is ForwardMove => step?.pieceId === pieceId),
+      const options = getSplitSevenDestinationOptions(
+        matchingSplitMoves,
+        splitSteps.length,
+        pieceId,
       );
-      setDestinationMoves(nextSteps);
+      setDestinationMoves(options.map((option) => ({
+        move: option.steps[option.steps.length - 1],
+        splitSteps: option.steps,
+      })));
       return;
     }
 
@@ -163,14 +171,16 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
       (move): move is AtomicMove =>
         move.kind !== "split7" && move.pieceId === pieceId,
     );
-    setDestinationMoves(uniqueMoves(matches));
+    setDestinationMoves(uniqueMoves(matches).map((move) => ({ move })));
   }
 
-  function advanceSplit(step: ForwardMove) {
-    const nextSteps = [...splitSteps, step];
+  function advanceSplit(steps: readonly ForwardMove[]) {
+    const nextSteps = [...splitSteps, ...steps];
     if (nextSteps.length === 7) {
       const complete = matchingSplitMoves.find(
-        (move) => JSON.stringify(move.steps[splitSteps.length]) === JSON.stringify(step),
+        (move) => nextSteps.every(
+          (step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step),
+        ),
       );
       if (complete) commitMove(complete);
       return;
@@ -180,11 +190,11 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     setDestinationMoves([]);
   }
 
-  function chooseDestination(move: AtomicMove) {
-    if (isSplitSeven && move.kind === "forward") {
-      advanceSplit(move);
+  function chooseDestination(option: DestinationOption) {
+    if (isSplitSeven && option.splitSteps) {
+      advanceSplit(option.splitSteps);
     } else {
-      commitMove(move);
+      commitMove(option.move);
     }
   }
 
@@ -427,11 +437,11 @@ function Board({
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
   selectedPieceId: string | null;
-  destinationMoves: readonly AtomicMove[];
+  destinationMoves: readonly DestinationOption[];
   showSpaceNumbers: boolean;
   onToggleSpaceNumbers: () => void;
   onPieceClick: (pieceId: string) => void;
-  onDestinationClick: (move: AtomicMove) => void;
+  onDestinationClick: (option: DestinationOption) => void;
 }) {
   const destinationColor = selectedPieceId
     ? PLAYER_META[pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1"].color
@@ -522,7 +532,7 @@ function Board({
           const owner = PLAYER_IDS[Math.floor(index / 18)];
           const entryOwner = PLAYER_IDS.find((id) => getEntryIndex(id) === index);
           const destinationMove = destinationMoves.find(
-            (move) => move.destination.zone === "track" && move.destination.index === index,
+            (option) => option.move.destination.zone === "track" && option.move.destination.index === index,
           );
           return (
             <div
@@ -543,7 +553,7 @@ function Board({
               )}
               {destinationMove && (
                 <DestinationButton
-                  move={destinationMove}
+                  option={destinationMove}
                   onClick={() => onDestinationClick(destinationMove)}
                 />
               )}
@@ -555,10 +565,10 @@ function Board({
             const point = getHomeLanePoint(owner, index);
             const occupant = pieces.find((piece) => piece.owner === owner && piece.position.zone === "home" && piece.position.index === index);
             const destinationMove = destinationMoves.find(
-              (move) =>
-                move.destination.zone === "home" &&
-                move.destination.index === index &&
-                pieces.find((piece) => piece.id === move.pieceId)?.owner === owner,
+              (option) =>
+                option.move.destination.zone === "home" &&
+                option.move.destination.index === index &&
+                pieces.find((piece) => piece.id === option.move.pieceId)?.owner === owner,
             );
             return (
               <div
@@ -576,7 +586,7 @@ function Board({
                 )}
                 {destinationMove && (
                   <DestinationButton
-                    move={destinationMove}
+                    option={destinationMove}
                     onClick={() => onDestinationClick(destinationMove)}
                   />
                 )}
@@ -663,20 +673,31 @@ function PieceButton({ piece, active, selected, onClick }: {
   );
 }
 
-function DestinationButton({ move, onClick }: {
-  move: AtomicMove;
+function DestinationButton({ option, onClick }: {
+  option: DestinationOption;
   onClick: () => void;
 }) {
   return (
     <button
       className="destination-button"
       type="button"
-      aria-label={`Choose destination: ${describeMove(move)}`}
+      aria-label={`Choose destination: ${describeDestinationOption(option)}`}
       onClick={onClick}
     >
       <span aria-hidden="true" />
     </button>
   );
+}
+
+function describeDestinationOption(option: DestinationOption) {
+  if (option.splitSteps && option.splitSteps.length > 1) {
+    const destination = option.move.destination.zone === "home"
+      ? `home ${option.move.destination.index + 1}`
+      : `track ${option.move.destination.index + 1}`;
+    return `move ${shortPiece(option.move.pieceId)} ${option.splitSteps.length} spaces to ${destination}`;
+  }
+
+  return describeMove(option.move);
 }
 
 function getCrossTrackPoint(trackIndex: number) {
