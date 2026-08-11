@@ -1,4 +1,5 @@
 import type { GameSession } from "./session";
+import type { CardMove } from "./turns";
 import type {
   Card,
   GameState,
@@ -34,6 +35,15 @@ export type GameSessionView = {
   revision: number;
   viewer: PlayerId | null;
   game: GamePublicView;
+  events: PublicGameEvent[];
+};
+
+export type PublicGameEvent = {
+  revision: number;
+  actor: PlayerId;
+  type: "exchange" | "play" | "discard";
+  card: Card | null;
+  move?: CardMove;
 };
 
 export function createSessionView(
@@ -49,6 +59,31 @@ export function createSessionView(
     id: session.id,
     revision: session.revision,
     viewer,
+    events: session.events.map((event) => {
+      if (event.command.type === "select-exchange-card") {
+        return {
+          revision: event.revision,
+          actor: event.command.actor,
+          type: "exchange" as const,
+          card: null,
+        };
+      }
+      if (event.command.type === "play-card") {
+        return {
+          revision: event.revision,
+          actor: event.command.actor,
+          type: "play" as const,
+          card: event.card ?? null,
+          move: cloneCardMove(event.command.move),
+        };
+      }
+      return {
+        revision: event.revision,
+        actor: event.command.actor,
+        type: "discard" as const,
+        card: event.card ?? null,
+      };
+    }),
     game: {
       rulesetId: game.rulesetId,
       players: game.players.map((player) => ({
@@ -73,4 +108,8 @@ export function createSessionView(
       ),
     },
   };
+}
+
+function cloneCardMove(move: CardMove): CardMove {
+  return JSON.parse(JSON.stringify(move)) as CardMove;
 }

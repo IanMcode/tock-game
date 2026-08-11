@@ -577,6 +577,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           onToggleSpaceNumbers={() => setShowSpaceNumbers((shown) => !shown)}
           onPieceClick={choosePiece}
           onDestinationClick={chooseDestination}
+          recentCard={recentPlay?.card}
         />
 
         <aside className="action-panel">
@@ -908,6 +909,7 @@ export function Board({
   onToggleSpaceNumbers,
   onPieceClick,
   onDestinationClick,
+  recentCard,
 }: {
   pieces: readonly Piece[];
   boardDefinition: BoardDefinition;
@@ -927,6 +929,7 @@ export function Board({
   onToggleSpaceNumbers: () => void;
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
+  recentCard?: Card | null;
 }) {
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
@@ -958,9 +961,15 @@ export function Board({
         </button>
       </div>
       <div className={`board board-${boardDefinition.playerCount}`} aria-label={`${boardDefinition.trackSize}-space Tock board`}>
-        <div className="board-center">
-          <span>TOCK</span>
-          <small>{teamMode ? "partners across" : "race home"}</small>
+        <div className={`board-center ${recentCard ? "has-recent-card" : ""}`}>
+          {recentCard ? (
+            <CardFace card={recentCard} className="center-recent-card" />
+          ) : (
+            <>
+              <span>TOCK</span>
+              <small>{teamMode ? "partners across" : "race home"}</small>
+            </>
+          )}
         </div>
         {activePlayerIds.map((owner) => {
           const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
@@ -1131,7 +1140,7 @@ export function Board({
                 top: `${point.y}%`,
                 position: "absolute",
                 zIndex: 10,
-                width: animated.position.zone === "home" ? "3.7%" : "4.25%",
+                width: `${getBoardSpaceSize(boardDefinition)}%`,
                 aspectRatio: "1",
                 transform: "translate(-50%,-50%)",
                 display: "grid",
@@ -1226,7 +1235,7 @@ function CardButton({ card, selected, exchangeSelected, committing, playable, di
   );
 }
 
-function CardFace({ card, className = "" }: { card: Card; className?: string }) {
+export function CardFace({ card, className = "" }: { card: Card; className?: string }) {
   const red = card.suit === "hearts" || card.suit === "diamonds";
   return (
     <span className={`card-face ${red ? "red" : "black"} ${className}`}>
@@ -1324,12 +1333,35 @@ export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): 
 
 export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
   const gate = getBoardTrackPoint(getHomeEntranceIndex(owner, board), board);
-  const direction = unitVectorTowardCenter(gate);
-  const distance = 5 + homeIndex * 4.7;
+  const direction = getInwardTrackNormal(getHomeEntranceIndex(owner, board), board, gate);
+  const distance = getBoardSpaceSize(board) * 1.08 * (homeIndex + 1);
   return roundPoint({
     x: gate.x + direction.x * distance,
     y: gate.y + direction.y * distance,
   });
+}
+
+function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point: BoardPoint): BoardPoint {
+  const vertices = getBoardVertices(board.playerCount);
+  const edgeProgress = trackIndex / board.trackSize * vertices.length;
+  const edgeIndex = Math.floor(edgeProgress) % vertices.length;
+  const from = vertices[edgeIndex];
+  const to = vertices[(edgeIndex + 1) % vertices.length];
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  let normal = { x: -dy / length, y: dx / length };
+  const towardCenter = { x: 50 - point.x, y: 50 - point.y };
+  if (normal.x * towardCenter.x + normal.y * towardCenter.y < 0) {
+    normal = { x: -normal.x, y: -normal.y };
+  }
+  return normal;
+}
+
+function getBoardSpaceSize(board: BoardDefinition): number {
+  if (board.playerCount === 2) return 5.8;
+  if (board.playerCount === 3) return 4.7;
+  return 4.25;
 }
 
 function getReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
@@ -1350,13 +1382,6 @@ function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] 
     return [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }];
   }
   return [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }];
-}
-
-function unitVectorTowardCenter(point: BoardPoint): BoardPoint {
-  const dx = 50 - point.x;
-  const dy = 50 - point.y;
-  const length = Math.hypot(dx, dy) || 1;
-  return { x: dx / length, y: dy / length };
 }
 
 function roundPoint(point: { x: number; y: number }) {

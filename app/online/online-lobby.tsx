@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -14,6 +14,7 @@ import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
 import {
   Board,
+  CardFace,
   getBoardTrackPoint,
   getPiecePoint,
   getSwapControlPoint,
@@ -31,6 +32,7 @@ import type { SplitSevenMove } from "../../src/game/specialMoves";
 import type { Card, Piece } from "../../src/game/types";
 import type { GameCommand } from "../../src/game/session";
 import type { CardMove } from "../../src/game/turns";
+import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAYER_NAMES: Record<PlayerId, string> = {
@@ -266,6 +268,7 @@ function OnlineRoomTable({
   const [swappingPieces, setSwappingPieces] = useState<SwappingPiece[]>([]);
   const [capturingPieceIds, setCapturingPieceIds] = useState<string[]>([]);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [isDealing, setIsDealing] = useState(false);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -274,6 +277,22 @@ function OnlineRoomTable({
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
+  const dealKey = `${game.dealer}-${game.dealIndex}`;
+  const previousDealKey = useRef(dealKey);
+  const recentEvents = useMemo(
+    () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-6).reverse(),
+    [room.session.events],
+  );
+  const latestEvent = recentEvents[0];
+  const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
+
+  useEffect(() => {
+    if (previousDealKey.current === dealKey) return;
+    previousDealKey.current = dealKey;
+    setIsDealing(true);
+    const timeout = window.setTimeout(() => setIsDealing(false), ONLINE_DEAL_DURATION);
+    return () => window.clearTimeout(timeout);
+  }, [dealKey]);
   const legalMoves = useMemo(() =>
     selectedCard && isMyTurn && !forcedDiscard
       ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
@@ -293,14 +312,14 @@ function OnlineRoomTable({
     (move) => splitSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
   ), [isSplitSeven, legalMoves, splitSteps]);
   const activePieceIds = useMemo(() => {
-    if (!selectedCard || busy || isAnimating) return new Set<string>();
+    if (!selectedCard || busy || isAnimating || isDealing) return new Set<string>();
     if (isSplitSeven) {
       return new Set(matchingSplitMoves
         .map((move) => move.steps[splitSteps.length]?.pieceId)
         .filter((pieceId): pieceId is string => Boolean(pieceId)));
     }
     return new Set(legalMoves.filter((move): move is AtomicMove => move.kind !== "split7").map((move) => move.pieceId));
-  }, [busy, isAnimating, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
+  }, [busy, isAnimating, isDealing, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
   const boardPlayers = game.players.map((player) => ({
     id: player.id,
     pieces: player.pieces,
@@ -320,7 +339,7 @@ function OnlineRoomTable({
   }
 
   function chooseCard(index: number) {
-    if (busy || isAnimating) return;
+    if (busy || isAnimating || isDealing) return;
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -328,7 +347,7 @@ function OnlineRoomTable({
   }
 
   function choosePiece(pieceId: string) {
-    if (busy || isAnimating || !selectedCard || !activePieceIds.has(pieceId)) return;
+    if (busy || isAnimating || isDealing || !selectedCard || !activePieceIds.has(pieceId)) return;
     setSelectedPieceId(pieceId);
     if (isSplitSeven) {
       const options = getSplitSevenDestinationOptions(matchingSplitMoves, splitSteps.length, pieceId);
@@ -344,7 +363,7 @@ function OnlineRoomTable({
   }
 
   async function chooseDestination(option: DestinationOption) {
-    if (busy || isAnimating) return;
+    if (busy || isAnimating || isDealing) return;
     const animationMoves = option.splitSteps ?? [option.move];
     setIsAnimating(true);
     setDestinationMoves([]);
@@ -444,7 +463,7 @@ function OnlineRoomTable({
   }
 
   return (
-    <section className={`online-table ${isAnimating ? "is-animating" : ""}`} style={{
+    <section className={`online-table ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
       ...ONLINE_APPEARANCE,
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
@@ -457,26 +476,51 @@ function OnlineRoomTable({
         {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
       </div>
 
-      <Board
-        pieces={isSplitSeven ? previewPieces : pieces}
-        boardDefinition={ruleset.board}
-        teamMode={ruleset.exchange === "partners"}
-        activePieceIds={activePieceIds}
-        hoppingPieces={hoppingPieces}
-        swappingPieces={swappingPieces}
-        capturingPieceIds={capturingPieceIds}
-        players={boardPlayers}
-        playerNames={room.playerNames}
-        dealer={game.dealer}
-        dealIndex={game.dealIndex}
-        dealCount={ruleset.dealSchedule.length}
-        selectedPieceId={selectedPieceId}
-        destinationMoves={destinationMoves}
-        showSpaceNumbers={showNumbers}
-        onToggleSpaceNumbers={() => setShowNumbers((shown) => !shown)}
-        onPieceClick={choosePiece}
-        onDestinationClick={(option) => void chooseDestination(option)}
-      />
+      <div className="online-board-stage">
+        <Board
+          pieces={isSplitSeven ? previewPieces : pieces}
+          boardDefinition={ruleset.board}
+          teamMode={ruleset.exchange === "partners"}
+          activePieceIds={activePieceIds}
+          hoppingPieces={hoppingPieces}
+          swappingPieces={swappingPieces}
+          capturingPieceIds={capturingPieceIds}
+          players={boardPlayers}
+          playerNames={room.playerNames}
+          dealer={game.dealer}
+          dealIndex={game.dealIndex}
+          dealCount={ruleset.dealSchedule.length}
+          selectedPieceId={selectedPieceId}
+          destinationMoves={destinationMoves}
+          showSpaceNumbers={showNumbers}
+          onToggleSpaceNumbers={() => setShowNumbers((shown) => !shown)}
+          onPieceClick={choosePiece}
+          onDestinationClick={(option) => void chooseDestination(option)}
+          recentCard={latestCard}
+        />
+        {isDealing && (
+          <div className="online-deal-overlay" role="status" aria-live="polite">
+            <span className="online-deal-deck" aria-hidden="true"><i /><i /><i /></span>
+            <strong>Dealing a new hand…</strong>
+          </div>
+        )}
+      </div>
+
+      <section className="online-play-log" aria-label="Play log">
+        <div className="online-log-heading">
+          <div>
+            <p className="eyebrow">Play log</p>
+            <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
+          </div>
+          {latestCard && <CardFace card={latestCard} className="online-log-card" />}
+        </div>
+        <div className="online-log-window">
+          {recentEvents.map((event) => (
+            <p key={event.revision}>{describeOnlineEvent(event, room.playerNames)}</p>
+          ))}
+          {recentEvents.length === 0 && <p>Played and discarded cards will appear here for everyone.</p>}
+        </div>
+      </section>
 
       <div className="online-hand-panel">
         <div>
@@ -488,7 +532,8 @@ function OnlineRoomTable({
             <button
               type="button"
               className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
-              disabled={busy || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+              disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+              style={{ "--deal-card-index": index } as React.CSSProperties}
               onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
               key={`${card.rank}-${card.suit}-${index}`}
             >
@@ -503,7 +548,7 @@ function OnlineRoomTable({
           <button
             className="online-discard"
             type="button"
-            disabled={busy || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+            disabled={busy || isDealing || (!canDiscard && !(forcedDiscard && hand.length === 0))}
             onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
           >
             {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
@@ -525,9 +570,25 @@ const ONLINE_APPEARANCE = {
 
 const ONLINE_HOP_DURATION = 130;
 const ONLINE_SWAP_DURATION = 720;
+const ONLINE_DEAL_DURATION = 1_050;
 
 function waitForOnlineAnimation(duration: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
+}
+
+function describeOnlineEvent(
+  event: PublicGameEvent,
+  playerNames: Partial<Record<PlayerId, string>>,
+): string {
+  const actor = playerNames[event.actor] ?? PLAYER_NAMES[event.actor];
+  const card = event.card ? `${event.card.rank}${cardSymbol(event.card)}` : "a card";
+  if (event.type === "discard") return `${actor} discarded ${card}.`;
+  if (!event.move) return `${actor} played ${card}.`;
+  if (event.move.kind === "split7") return `${actor} played ${card} and split seven steps.`;
+  if (event.move.kind === "enter") return `${actor} played ${card} and entered a piece.`;
+  if (event.move.kind === "swap") return `${actor} played ${card} and swapped two pieces.`;
+  const direction = event.move.kind === "backward" ? "backward" : "forward";
+  return `${actor} played ${card} and moved ${direction}${event.move.capturedPieceId ? ", bumping a piece" : ""}.`;
 }
 
 function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {

@@ -90,6 +90,15 @@ function validateEvent(value: unknown, expectedRevision: number): asserts value 
     expectedRevision: expectedRevision - 1,
     command: value.command,
   });
+  if ("card" in value && value.card !== null) {
+    if (
+      !isRecord(value.card) ||
+      typeof value.card.rank !== "string" ||
+      typeof value.card.suit !== "string"
+    ) {
+      throw new Error("The stored room has an invalid played card.");
+    }
+  }
 }
 
 function parseJson(value: string): unknown {

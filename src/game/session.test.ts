@@ -20,6 +20,23 @@ describe("authoritative game sessions", () => {
     expect(session.revision).toBe(0);
   });
 
+  it("records the public card used for a turn without changing the command", () => {
+    const game = {
+      ...createGame({ playerCount: 2, teams: false, shuffle: false, dealer: "P2" }),
+      forcedDiscardPlayer: "P1" as const,
+    };
+    const session = createGameSession("ROOM01", game);
+    const card = game.players[0].hand[0];
+    const next = applySessionCommand(session, {
+      commandId: "discard-1",
+      expectedRevision: 0,
+      command: { type: "discard-card", actor: "P1", cardIndex: 0 },
+    });
+
+    expect(next.events[0].card).toEqual(card);
+    expect(next.events[0].command).toEqual({ type: "discard-card", actor: "P1", cardIndex: 0 });
+  });
+
   it("returns the existing session when the same command is retried", () => {
     const session = createGameSession("ROOM01", createGame({ shuffle: false, dealer: "P4" }));
     const command = exchange("cmd-1", 0, "P1", 0);

@@ -37,6 +37,8 @@ A spectator view contains no private hand. Player tokens are credentials and mus
 never be included in logs, URLs, public room state, or another player's response.
 Player-chosen display names are public room metadata, limited to 24 characters,
 and retained with the room across reconnects.
+Played and discarded cards are public room history. Client views never include
+the private hand index used to submit a command.
 
 ## Guest room API
 

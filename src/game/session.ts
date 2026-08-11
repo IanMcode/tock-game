@@ -1,6 +1,6 @@
 import { selectExchangeCard } from "./deals";
 import { discardCardForTurn, playCardForTurn, type CardMove } from "./turns";
-import type { GameState, PlayerId } from "./types";
+import type { Card, GameState, PlayerId } from "./types";
 import { assertValidGameState } from "./validation";
 
 export type GameCommand =
@@ -18,6 +18,7 @@ export type GameEvent = {
   commandId: string;
   revision: number;
   command: GameCommand;
+  card?: Card | null;
 };
 
 export type GameSession = {
@@ -78,6 +79,7 @@ export function applySessionCommand(
   assertActorCanIssueCommand(session.game, envelope.command);
 
   let game: GameState;
+  const card = getCommandCard(session.game, envelope.command);
   try {
     game = applyGameCommand(session.game, envelope.command);
     assertValidGameState(game);
@@ -99,8 +101,14 @@ export function applySessionCommand(
       commandId: envelope.commandId,
       revision,
       command: envelope.command,
+      ...(envelope.command.type === "select-exchange-card" ? {} : { card }),
     }],
   };
+}
+
+function getCommandCard(game: GameState, command: GameCommand): Card | null {
+  if (command.type === "select-exchange-card" || command.cardIndex === null) return null;
+  return game.players.find((player) => player.id === command.actor)?.hand[command.cardIndex] ?? null;
 }
 
 function applyGameCommand(game: GameState, command: GameCommand): GameState {

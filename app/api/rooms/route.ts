@@ -4,9 +4,9 @@ import { parseCreateRoomOptions } from "../../../src/online/protocol";
 
 export const runtime = "nodejs";
 
-export async function POST(request?: Request): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   try {
-    const text = request ? await request.text() : "";
+    const text = await request.text();
     const options = parseCreateRoomOptions(text ? JSON.parse(text) : undefined);
     return jsonResponse(await serverRoomService.createRoom(options), { status: 201 });
   } catch (error) {

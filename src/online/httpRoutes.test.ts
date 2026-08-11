@@ -8,7 +8,7 @@ import type { RoomJoinResult, RoomView } from "./roomService";
 
 describe("online room HTTP routes", () => {
   it("creates, joins, reads, and updates a room through HTTP requests", async () => {
-    const createdResponse = await createRoom();
+    const createdResponse = await createRoom(emptyCreateRequest());
     const created = await readJson<RoomJoinResult>(createdResponse);
     const roomId = created.access.roomId;
 
@@ -55,7 +55,7 @@ describe("online room HTTP routes", () => {
   });
 
   it("requires a player token for commands", async () => {
-    const created = await readJson<RoomJoinResult>(await createRoom());
+    const created = await readJson<RoomJoinResult>(await createRoom(emptyCreateRequest()));
     const response = await submitCommand(
       new Request(`http://localhost/api/rooms/${created.access.roomId}/commands`, {
         method: "POST",
@@ -105,6 +105,10 @@ describe("online room HTTP routes", () => {
 
 function context(roomId: string) {
   return { params: Promise.resolve({ roomId }) };
+}
+
+function emptyCreateRequest() {
+  return new Request("http://localhost/api/rooms", { method: "POST" });
 }
 
 async function readJson<T>(response: Response): Promise<T> {

@@ -51,4 +51,26 @@ describe("player-specific session views", () => {
     expect(session.game.players[0].pieces[0].position.zone).toBe("track");
     expect(session.game.players[0].hand).toHaveLength(5);
   });
+
+  it("exposes a public play log without private card indexes", () => {
+    const initial = createGameSession("ROOM01", {
+      ...createGame({ playerCount: 2, teams: false, shuffle: false, dealer: "P2" }),
+      forcedDiscardPlayer: "P1",
+    });
+    const card = initial.game.players[0].hand[0];
+    const session = applySessionCommand(initial, {
+      commandId: "discard-p1",
+      expectedRevision: 0,
+      command: { type: "discard-card", actor: "P1", cardIndex: 0 },
+    });
+    const view = createSessionView(session, "P2");
+
+    expect(view.events).toEqual([{
+      revision: 1,
+      actor: "P1",
+      type: "discard",
+      card,
+    }]);
+    expect(JSON.stringify(view.events)).not.toContain("cardIndex");
+  });
 });
