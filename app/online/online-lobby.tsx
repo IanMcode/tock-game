@@ -7,6 +7,7 @@ import {
   createOnlineRoom,
   joinOnlineRoom,
   readOnlineRoom,
+  sendOnlineChat,
   sendOnlineCommand,
 } from "../../src/online/client";
 import type { BoardPlayerCount } from "../../src/game/definition";
@@ -281,6 +282,8 @@ function OnlineRoomTable({
   const [capturingPieceIds, setCapturingPieceIds] = useState<string[]>([]);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [isDealing, setIsDealing] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -297,8 +300,8 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const recentEvents = useMemo(
-    () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-6).reverse(),
-    [room.session.events],
+    () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-ruleset.board.playerCount).reverse(),
+    [room.session.events, ruleset.board.playerCount],
   );
   const latestEvent = recentEvents[0];
   const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
@@ -514,6 +517,63 @@ function OnlineRoomTable({
     }
   }
 
+  async function submitChat(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = chatDraft.trim();
+    if (!text || chatBusy) return;
+    setChatBusy(true);
+    setCommandError(null);
+    try {
+      const next = await sendOnlineChat(access.roomId, access.playerToken, {
+        messageId: crypto.randomUUID(),
+        text,
+      });
+      onRoom(next);
+      setChatDraft("");
+    } catch (chatError) {
+      setCommandError(messageFrom(chatError));
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  const handPanel = (
+    <div className="online-hand-panel">
+      <div>
+        <p className="eyebrow">Your hand</p>
+        <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
+      </div>
+      <div className="online-hand">
+        {hand.map((card, index) => (
+          <button
+            type="button"
+            className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
+            disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+            style={{ "--deal-card-index": index } as React.CSSProperties}
+            onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
+            key={`${card.rank}-${card.suit}-${index}`}
+          >
+            <span>{card.rank}</span>
+            <strong>{cardSymbol(card)}</strong>
+          </button>
+        ))}
+        {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
+      </div>
+      {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
+      {isMyTurn && game.phase === "play" && (
+        <button
+          className="online-discard"
+          type="button"
+          disabled={busy || isDealing || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+          onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
+        >
+          {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
+        </button>
+      )}
+      {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
+    </div>
+  );
+
   return (
     <section className={`online-table ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
       ...ONLINE_APPEARANCE,
@@ -551,6 +611,8 @@ function OnlineRoomTable({
           onDestinationClick={(option) => void chooseDestination(option)}
           recentCard={latestCard}
           perspectivePlayerId={access.playerId}
+          reserveDockPlayerId={access.playerId}
+          reserveDockContent={handPanel}
         />
         {isDealing && (
           <div className="online-deal-overlay" role="status" aria-live="polite">
@@ -560,43 +622,7 @@ function OnlineRoomTable({
         )}
         </div>
 
-        <div className="online-hand-panel">
-        <div>
-          <p className="eyebrow">Your hand</p>
-          <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
-        </div>
-        <div className="online-hand">
-          {hand.map((card, index) => (
-            <button
-              type="button"
-              className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
-              disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
-              style={{ "--deal-card-index": index } as React.CSSProperties}
-              onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
-              key={`${card.rank}-${card.suit}-${index}`}
-            >
-              <span>{card.rank}</span>
-              <strong>{cardSymbol(card)}</strong>
-            </button>
-          ))}
-          {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
-        </div>
-        {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
-        {isMyTurn && game.phase === "play" && (
-          <button
-            className="online-discard"
-            type="button"
-            disabled={busy || isDealing || (!canDiscard && !(forcedDiscard && hand.length === 0))}
-            onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
-          >
-            {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
-          </button>
-        )}
-        {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
-        </div>
-      </div>
-
-      <section className="online-play-log" aria-label="Play log">
+        <section className="online-play-log" aria-label="Play log">
         <div className="online-log-heading">
           <div>
             <p className="eyebrow">Play log</p>
@@ -610,7 +636,36 @@ function OnlineRoomTable({
           ))}
           {recentEvents.length === 0 && <p>Played and discarded cards will appear here for everyone.</p>}
         </div>
-      </section>
+        </section>
+
+        <section className="online-chat" aria-label="Table chat">
+          <div className="online-chat-heading">
+            <div>
+              <p className="eyebrow">Table chat</p>
+              <strong>Players in this room</strong>
+            </div>
+          </div>
+          <div className="online-chat-window" aria-live="polite">
+            {room.chatMessages.slice(-12).map((message) => (
+              <p key={message.id}>
+                <strong>{room.playerNames[message.playerId] ?? PLAYER_NAMES[message.playerId]}</strong>
+                <span>{message.text}</span>
+              </p>
+            ))}
+            {room.chatMessages.length === 0 && <p className="online-chat-empty">No messages yet.</p>}
+          </div>
+          <form className="online-chat-form" onSubmit={(event) => void submitChat(event)}>
+            <input
+              aria-label="Chat message"
+              maxLength={200}
+              placeholder="Message the table…"
+              value={chatDraft}
+              onChange={(event) => setChatDraft(event.target.value)}
+            />
+            <button type="submit" disabled={chatBusy || !chatDraft.trim()}>Send</button>
+          </form>
+        </section>
+      </div>
       {commandError && <p className="online-error" role="alert">{commandError}</p>}
     </section>
   );

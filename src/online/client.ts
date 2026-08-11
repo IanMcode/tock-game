@@ -52,6 +52,22 @@ export async function sendOnlineCommand(
   });
 }
 
+export async function sendOnlineChat(
+  roomId: string,
+  playerToken: string,
+  message: { messageId: string; text: string },
+  request: OnlineFetch = fetch,
+): Promise<RoomView> {
+  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/chat`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${playerToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(message),
+  });
+}
+
 async function requestJson<T>(request: OnlineFetch, input: string, init?: RequestInit): Promise<T> {
   const response = await request(input, init);
   const body: unknown = await response.json();

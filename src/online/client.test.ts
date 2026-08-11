@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createOnlineRoom, joinOnlineRoom, readOnlineRoom } from "./client";
+import { createOnlineRoom, joinOnlineRoom, readOnlineRoom, sendOnlineChat } from "./client";
 
 describe("online browser client", () => {
   it("sends room configuration as JSON", async () => {
@@ -29,6 +29,17 @@ describe("online browser client", () => {
     expect(request).toHaveBeenCalledWith("/api/rooms/TOCK01/join", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({ playerName: "Omi" }),
+    }));
+  });
+
+  it("sends authenticated table chat", async () => {
+    const request = vi.fn(async () => Response.json({}));
+    await sendOnlineChat("TOCK01", "secret", { messageId: "message-1", text: "Hello" }, request as typeof fetch);
+
+    expect(request).toHaveBeenCalledWith("/api/rooms/TOCK01/chat", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ authorization: "Bearer secret" }),
+      body: JSON.stringify({ messageId: "message-1", text: "Hello" }),
     }));
   });
 

@@ -108,6 +108,21 @@ describe("online room service", () => {
     expect(second.room.playerNames).toEqual({ P1: "Ian", P2: "Omi" });
   });
 
+  it("shares authenticated chat messages with the room", async () => {
+    const service = createTestService();
+    const host = await service.createRoom({ playerCount: 2, teams: false, playerName: "Ian" });
+    const second = await service.joinRoom(host.access.roomId, "Omi");
+
+    const updated = await service.submitChatMessage("TOCK01", second.access.playerToken, "message-1", "  Good luck!  ");
+
+    expect(updated.chatMessages).toEqual([expect.objectContaining({
+      id: "message-1",
+      playerId: "P2",
+      text: "Good luck!",
+    })]);
+    expect((await service.getRoomView("TOCK01", host.access.playerToken)).chatMessages).toEqual(updated.chatMessages);
+  });
+
   it("rejects a stale atomic store update", async () => {
     const store = new InMemoryRoomStore();
     const service = new RoomService(store, {

@@ -25,6 +25,7 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
   const storedRoom = record.room as OnlineRoom;
   const room = {
     ...storedRoom,
+    chatMessages: Array.isArray(storedRoom.chatMessages) ? storedRoom.chatMessages : [],
     playerNames: isRecord(storedRoom.playerNames)
       ? storedRoom.playerNames
       : Object.fromEntries(
@@ -42,6 +43,9 @@ function validateRoom(room: OnlineRoom): void {
   }
   if (!isRecord(room.seats)) throw new Error("The stored room has invalid seats.");
   if (!isRecord(room.playerNames)) throw new Error("The stored room has invalid player names.");
+  if (!Array.isArray(room.chatMessages) || room.chatMessages.length > 50) {
+    throw new Error("The stored room has invalid chat history.");
+  }
 
   for (const [playerId, tokenHash] of Object.entries(room.seats)) {
     if (!PLAYER_IDS.includes(playerId as PlayerId) || typeof tokenHash !== "string" || !/^[0-9a-f]{64}$/.test(tokenHash)) {
@@ -58,6 +62,24 @@ function validateRoom(room: OnlineRoom): void {
       playerName.length > 24
     ) {
       throw new Error("The stored room has an invalid player name.");
+    }
+  }
+
+  for (const message of room.chatMessages) {
+    if (
+      !isRecord(message) ||
+      typeof message.id !== "string" ||
+      !message.id ||
+      message.id.length > 64 ||
+      !PLAYER_IDS.includes(message.playerId as PlayerId) ||
+      !room.seats[message.playerId as PlayerId] ||
+      typeof message.text !== "string" ||
+      !message.text.trim() ||
+      message.text.length > 200 ||
+      !Number.isSafeInteger(message.sentAt) ||
+      (message.sentAt as number) < 0
+    ) {
+      throw new Error("The stored room has an invalid chat message.");
     }
   }
 

@@ -13,10 +13,18 @@ import { createSessionView, type GameSessionView } from "../game/view";
 
 export type RoomStatus = "waiting" | "active" | "complete";
 
+export type ChatMessage = {
+  id: string;
+  playerId: PlayerId;
+  text: string;
+  sentAt: number;
+};
+
 export type OnlineRoom = {
   id: string;
   seats: Partial<Record<PlayerId, string>>;
   playerNames: Partial<Record<PlayerId, string>>;
+  chatMessages: ChatMessage[];
   session: GameSession;
 };
 
@@ -30,6 +38,7 @@ export type RoomView = {
   status: RoomStatus;
   connectedPlayers: PlayerId[];
   playerNames: Partial<Record<PlayerId, string>>;
+  chatMessages: ChatMessage[];
   requiredPlayers: number;
   session: GameSessionView;
 };
@@ -140,6 +149,7 @@ export class RoomService {
         id: roomId,
         seats: { [playerId]: playerTokenHash },
         playerNames: { [playerId]: normalizePlayerName(options.playerName, playerId) },
+        chatMessages: [],
         session: createGameSession(roomId, game),
       };
       if (await this.store.create(room)) {
@@ -212,6 +222,37 @@ export class RoomService {
     return this.view(next, playerId);
   }
 
+  async submitChatMessage(
+    roomId: string,
+    playerToken: string,
+    messageId: string,
+    text: string,
+  ): Promise<RoomView> {
+    const normalizedText = normalizeChatText(text);
+    if (!messageId.trim() || messageId.length > 64) {
+      throw new Error("The chat message ID is invalid.");
+    }
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const stored = await this.getRoom(roomId);
+      const playerId = await this.playerForToken(stored.room, playerToken);
+      if (stored.room.chatMessages.some((message) => message.id === messageId)) {
+        return this.view(stored.room, playerId);
+      }
+      const next: OnlineRoom = {
+        ...stored.room,
+        chatMessages: [...stored.room.chatMessages, {
+          id: messageId,
+          playerId,
+          text: normalizedText,
+          sentAt: Date.now(),
+        }].slice(-50),
+      };
+      if (await this.store.save(next, stored.version)) return this.view(next, playerId);
+    }
+    throw new RoomError("ROOM_CONFLICT", "The room changed before the chat message was saved. Please try again.");
+  }
+
   private async getRoom(roomId: string): Promise<StoredRoom> {
     const normalizedId = roomId.trim().toUpperCase();
     const stored = await this.store.get(normalizedId);
@@ -232,6 +273,7 @@ export class RoomService {
       status: this.status(room),
       connectedPlayers: PLAYER_IDS.filter((playerId) => Boolean(room.seats[playerId])),
       playerNames: { ...room.playerNames },
+      chatMessages: room.chatMessages.map((message) => ({ ...message })),
       requiredPlayers: room.session.game.players.length,
       session: createSessionView(room.session, viewer),
     };
@@ -254,6 +296,14 @@ export function normalizePlayerName(name: string | undefined, playerId: PlayerId
   const normalized = name.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (normalized.length > 24) throw new Error("Player names must be 24 characters or fewer.");
   if (/\p{Cc}/u.test(normalized)) throw new Error("Player names cannot contain control characters.");
+  return normalized;
+}
+
+export function normalizeChatText(text: string): string {
+  const normalized = text.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!normalized) throw new Error("Enter a chat message.");
+  if (normalized.length > 200) throw new Error("Chat messages must be 200 characters or fewer.");
+  if (/\p{Cc}/u.test(normalized)) throw new Error("Chat messages cannot contain control characters.");
   return normalized;
 }
 

@@ -911,6 +911,8 @@ export function Board({
   onDestinationClick,
   recentCard,
   perspectivePlayerId,
+  reserveDockPlayerId,
+  reserveDockContent,
 }: {
   pieces: readonly Piece[];
   boardDefinition: BoardDefinition;
@@ -932,6 +934,8 @@ export function Board({
   onDestinationClick: (option: DestinationOption) => void;
   recentCard?: Card | null;
   perspectivePlayerId?: PlayerId;
+  reserveDockPlayerId?: PlayerId;
+  reserveDockContent?: React.ReactNode;
 }) {
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
@@ -995,15 +999,18 @@ export function Board({
           const homeComplete = pieces.filter((piece) => piece.owner === owner).every(
             (piece) => piece.position.zone === "home",
           );
-          return (
+          const reservePoint = getBoardReservePoint(owner, boardDefinition);
+          const reserveCard = (
             <div
               className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""}`}
-              key={`${owner}-reserve`}
+              key={`${owner}-reserve-card`}
               style={{
                 "--reserve": playerColorVar(owner),
                 "--reserve-soft": playerSoftVar(owner),
-                left: `${getBoardReservePoint(owner, boardDefinition).x}%`,
-                top: `${getBoardReservePoint(owner, boardDefinition).y}%`,
+                ...(owner === reserveDockPlayerId ? {} : {
+                  left: `${reservePoint.x}%`,
+                  top: `${reservePoint.y}%`,
+                }),
               } as React.CSSProperties}
               aria-label={`${playerName}'s reserve`}
             >
@@ -1050,6 +1057,24 @@ export function Board({
                     onClick={() => onPieceClick(piece.id)}
                   />
                 )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
+              </div>
+            </div>
+          );
+          if (owner !== reserveDockPlayerId || !reserveDockContent) {
+            return reserveCard;
+          }
+
+          const screenReservePoint = rotateBoardPoint(reservePoint, perspectiveRotation);
+          const dockSide = screenReservePoint.x > 50 ? "left" : "right";
+          return (
+            <div
+              className="board-player-dock-anchor"
+              key={`${owner}-reserve-dock`}
+              style={{ left: `${reservePoint.x}%`, top: `${reservePoint.y}%` }}
+            >
+              <div className={`board-player-dock dock-${dockSide}`}>
+                {reserveCard}
+                {reserveDockContent}
               </div>
             </div>
           );
@@ -1357,7 +1382,7 @@ export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): 
 export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
   const gate = getBoardTrackPoint(getHomeEntranceIndex(owner, board), board);
   const direction = getInwardTrackNormal(getHomeEntranceIndex(owner, board), board, gate);
-  const distance = getBoardSpaceSize(board) * 1.08 * (homeIndex + 1);
+  const distance = getBoardSpaceSize(board) * (homeIndex + 1);
   return roundPoint({
     x: gate.x + direction.x * distance,
     y: gate.y + direction.y * distance,
@@ -1382,9 +1407,9 @@ function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point:
 }
 
 function getBoardSpaceSize(board: BoardDefinition): number {
-  if (board.playerCount === 2) return 5.8;
-  if (board.playerCount === 3) return 4.7;
-  return 4.25;
+  if (board.playerCount === 2) return 4.5;
+  if (board.playerCount === 3) return 4;
+  return 3.3;
 }
 
 export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
@@ -1435,6 +1460,16 @@ function roundPoint(point: { x: number; y: number }) {
   return {
     x: Number(point.x.toFixed(4)),
     y: Number(point.y.toFixed(4)),
+  };
+}
+
+function rotateBoardPoint(point: BoardPoint, degrees: number): BoardPoint {
+  const radians = degrees * Math.PI / 180;
+  const x = point.x - 50;
+  const y = point.y - 50;
+  return {
+    x: 50 + x * Math.cos(radians) - y * Math.sin(radians),
+    y: 50 + x * Math.sin(radians) + y * Math.cos(radians),
   };
 }
 

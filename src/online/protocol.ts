@@ -38,6 +38,15 @@ export function parseJoinRoomOptions(value: unknown): { playerName?: string } {
   return value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) };
 }
 
+export function parseChatMessage(value: unknown): { messageId: string; text: string } {
+  if (!isRecord(value)) throw new Error("The chat message must be an object.");
+  if (typeof value.messageId !== "string" || !value.messageId.trim() || value.messageId.length > 64) {
+    throw new Error("The chat message ID is invalid.");
+  }
+  if (typeof value.text !== "string") throw new Error("The chat message must be text.");
+  return { messageId: value.messageId, text: value.text };
+}
+
 function parsePlayerName(value: unknown): string {
   if (typeof value !== "string") throw new Error("The player name must be text.");
   const name = value.normalize("NFKC").replace(/\s+/g, " ").trim();
