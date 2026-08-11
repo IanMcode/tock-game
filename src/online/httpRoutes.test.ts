@@ -83,6 +83,24 @@ describe("online room HTTP routes", () => {
     expect(created.room.session.game.rulesetId).toBe("free-for-all-2");
     expect(created.room.session.game.dealer).toBe("P2");
   });
+
+  it("accepts player names when creating and joining", async () => {
+    const created = await readJson<RoomJoinResult>(await createRoom(new Request("http://localhost/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerCount: 2, teams: false, playerName: "Ian" }),
+    })));
+    const joined = await readJson<RoomJoinResult>(await joinRoom(
+      new Request(`http://localhost/api/rooms/${created.access.roomId}/join`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ playerName: "Omi" }),
+      }),
+      context(created.access.roomId),
+    ));
+
+    expect(joined.room.playerNames).toEqual({ P1: "Ian", P2: "Omi" });
+  });
 });
 
 function context(roomId: string) {

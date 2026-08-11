@@ -21,6 +21,14 @@ describe("online room persistence", () => {
       room: { ...room, seats: { P1: "raw-secret" } },
     })).toThrow(/credential/i);
   });
+
+  it("adds default names when loading rooms created before custom names", async () => {
+    const room = await createRoom();
+    const legacyRoom = { ...room } as Partial<OnlineRoom>;
+    delete legacyRoom.playerNames;
+
+    expect(deserializeOnlineRoom({ version: 1, room: legacyRoom }).playerNames).toEqual({ P1: "Poppy" });
+  });
 });
 
 async function createRoom(): Promise<OnlineRoom> {
@@ -28,6 +36,7 @@ async function createRoom(): Promise<OnlineRoom> {
   return {
     id,
     seats: { P1: await hashPlayerToken("private-token") },
+    playerNames: { P1: "Ian" },
     session: createGameSession(id, createGame({ randomState: 12_345 })),
   };
 }

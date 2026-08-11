@@ -12,11 +12,20 @@ import {
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
-import { Board, type DestinationOption } from "../game-table";
-import { applyPieceMove, type AtomicMove } from "../../src/game/actions";
+import {
+  Board,
+  getBoardTrackPoint,
+  getPiecePoint,
+  getSwapControlPoint,
+  type DestinationOption,
+  type HoppingPiece,
+  type SwappingPiece,
+} from "../game-table";
+import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../../src/game/actions";
 import { getLegalBasicCardMoves } from "../../src/game/cardMoves";
 import { getRulesetDefinition } from "../../src/game/definition";
 import type { ForwardMove } from "../../src/game/moves";
+import { getMoveAnimationFrames } from "../../src/game/moveAnimation";
 import { getSplitSevenDestinationOptions } from "../../src/game/splitSelection";
 import type { SplitSevenMove } from "../../src/game/specialMoves";
 import type { Card, Piece } from "../../src/game/types";
@@ -35,6 +44,8 @@ export default function OnlineLobby() {
   const [playerCount, setPlayerCount] = useState<BoardPlayerCount>(4);
   const [teams, setTeams] = useState(true);
   const [dealer, setDealer] = useState<PlayerId | "random">("random");
+  const [hostName, setHostName] = useState("");
+  const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [access, setAccess] = useState<RoomAccess | null>(null);
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -80,7 +91,12 @@ export default function OnlineLobby() {
     setBusy(true);
     setError(null);
     try {
-      remember((await createOnlineRoom({ playerCount, teams, dealer })).access);
+      remember((await createOnlineRoom({
+        playerCount,
+        teams,
+        dealer,
+        ...(hostName.trim() ? { playerName: hostName.trim() } : {}),
+      })).access);
     } catch (createError) {
       setError(messageFrom(createError));
     } finally {
@@ -93,7 +109,7 @@ export default function OnlineLobby() {
     setBusy(true);
     setError(null);
     try {
-      remember((await joinOnlineRoom(joinCode.trim().toUpperCase())).access);
+      remember((await joinOnlineRoom(joinCode.trim().toUpperCase(), joinName.trim() || undefined)).access);
     } catch (joinError) {
       setError(messageFrom(joinError));
     } finally {
@@ -132,7 +148,7 @@ export default function OnlineLobby() {
           </div>
           <div className="room-status-copy">
             <p className="eyebrow">Your seat</p>
-            <h2>{PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
+            <h2>{room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
             <p>{room?.status === "active" ? "The table is ready." : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
           </div>
         </section>
@@ -144,7 +160,7 @@ export default function OnlineLobby() {
             return (
               <article className={connected ? "seat-card is-connected" : "seat-card"} key={playerId}>
                 <span>{playerId}</span>
-                <strong>{PLAYER_NAMES[playerId]}</strong>
+                <strong>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</strong>
                 <small>{connected ? "Connected" : "Open seat"}</small>
               </article>
             );
@@ -176,6 +192,10 @@ export default function OnlineLobby() {
           <p className="eyebrow">Host a table</p>
           <h2>Create room</h2>
           <label>
+            <span>Your name</span>
+            <input value={hostName} maxLength={24} autoComplete="nickname" onChange={(event) => setHostName(event.target.value)} placeholder="Poppy" />
+          </label>
+          <label>
             <span>Players</span>
             <select value={playerCount} onChange={(event) => {
               const count = Number(event.target.value) as BoardPlayerCount;
@@ -205,6 +225,10 @@ export default function OnlineLobby() {
         <section className="online-panel">
           <p className="eyebrow">Have a code?</p>
           <h2>Join room</h2>
+          <label>
+            <span>Your name</span>
+            <input value={joinName} maxLength={24} autoComplete="nickname" onChange={(event) => setJoinName(event.target.value)} placeholder="River" />
+          </label>
           <label>
             <span>Six-character room code</span>
             <input value={joinCode} maxLength={6} autoCapitalize="characters" onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="TOCK42" />
@@ -237,6 +261,10 @@ function OnlineRoomTable({
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [showNumbers, setShowNumbers] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
+  const [swappingPieces, setSwappingPieces] = useState<SwappingPiece[]>([]);
+  const [capturingPieceIds, setCapturingPieceIds] = useState<string[]>([]);
   const [commandError, setCommandError] = useState<string | null>(null);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
@@ -265,14 +293,14 @@ function OnlineRoomTable({
     (move) => splitSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
   ), [isSplitSeven, legalMoves, splitSteps]);
   const activePieceIds = useMemo(() => {
-    if (!selectedCard || busy) return new Set<string>();
+    if (!selectedCard || busy || isAnimating) return new Set<string>();
     if (isSplitSeven) {
       return new Set(matchingSplitMoves
         .map((move) => move.steps[splitSteps.length]?.pieceId)
         .filter((pieceId): pieceId is string => Boolean(pieceId)));
     }
     return new Set(legalMoves.filter((move): move is AtomicMove => move.kind !== "split7").map((move) => move.pieceId));
-  }, [busy, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
+  }, [busy, isAnimating, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
   const boardPlayers = game.players.map((player) => ({
     id: player.id,
     pieces: player.pieces,
@@ -292,6 +320,7 @@ function OnlineRoomTable({
   }
 
   function chooseCard(index: number) {
+    if (busy || isAnimating) return;
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -299,7 +328,7 @@ function OnlineRoomTable({
   }
 
   function choosePiece(pieceId: string) {
-    if (!selectedCard || !activePieceIds.has(pieceId)) return;
+    if (busy || isAnimating || !selectedCard || !activePieceIds.has(pieceId)) return;
     setSelectedPieceId(pieceId);
     if (isSplitSeven) {
       const options = getSplitSevenDestinationOptions(matchingSplitMoves, splitSteps.length, pieceId);
@@ -315,21 +344,75 @@ function OnlineRoomTable({
   }
 
   async function chooseDestination(option: DestinationOption) {
-    if (isSplitSeven && option.splitSteps) {
-      const nextSteps = [...splitSteps, ...option.splitSteps];
-      if (nextSteps.length < 7) {
-        setSplitSteps(nextSteps);
-        setSelectedPieceId(null);
-        setDestinationMoves([]);
+    if (busy || isAnimating) return;
+    const animationMoves = option.splitSteps ?? [option.move];
+    setIsAnimating(true);
+    setDestinationMoves([]);
+
+    try {
+      await animateMoves(isSplitSeven ? previewPieces : pieces, animationMoves);
+
+      if (isSplitSeven && option.splitSteps) {
+        const nextSteps = [...splitSteps, ...option.splitSteps];
+        if (nextSteps.length < 7) {
+          setSplitSteps(nextSteps);
+          setSelectedPieceId(null);
+          return;
+        }
+        const complete = matchingSplitMoves.find((move) =>
+          nextSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
+        );
+        if (complete) await playMove(complete);
         return;
       }
-      const complete = matchingSplitMoves.find((move) =>
-        nextSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
-      );
-      if (complete) await playMove(complete);
-      return;
+      await playMove(option.move);
+    } finally {
+      setHoppingPieces([]);
+      setSwappingPieces([]);
+      setCapturingPieceIds([]);
+      setIsAnimating(false);
     }
-    await playMove(option.move);
+  }
+
+  async function animateMoves(startingPieces: readonly Piece[], moves: readonly AtomicMove[]) {
+    let currentPieces = [...startingPieces];
+    let frameNumber = 0;
+
+    for (const move of moves) {
+      if (move.kind === "swap") {
+        const movingPiece = currentPieces.find((piece) => piece.id === move.pieceId);
+        const targetPiece = currentPieces.find((piece) => piece.id === move.targetPieceId);
+        if (!movingPiece || !targetPiece) throw new Error("Cannot animate a Jack swap with a missing piece.");
+
+        const movingFrom = getPiecePoint(movingPiece, ruleset.board);
+        const movingTo = getBoardTrackPoint(move.destination.index, ruleset.board);
+        const targetFrom = getPiecePoint(targetPiece, ruleset.board);
+        const targetTo = getBoardTrackPoint(move.targetDestination.index, ruleset.board);
+        setSwappingPieces([
+          { piece: movingPiece, from: movingFrom, through: getSwapControlPoint(movingFrom, movingTo), to: movingTo },
+          { piece: targetPiece, from: targetFrom, through: getSwapControlPoint(targetFrom, targetTo), to: targetTo },
+        ]);
+        await waitForOnlineAnimation(ONLINE_SWAP_DURATION);
+        setSwappingPieces([]);
+        currentPieces = applyAtomicMove(currentPieces, move);
+        continue;
+      }
+
+      const frames = getMoveAnimationFrames(currentPieces, move, ruleset.board);
+      for (const [frameIndex, frame] of frames.entries()) {
+        frameNumber += 1;
+        if (frameIndex === frames.length - 1 && move.capturedPieceId) {
+          setCapturingPieceIds([move.capturedPieceId]);
+        }
+        setHoppingPieces(frame.flatMap((animated) => {
+          const piece = currentPieces.find((candidate) => candidate.id === animated.pieceId);
+          return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
+        }));
+        await waitForOnlineAnimation(ONLINE_HOP_DURATION);
+      }
+      currentPieces = applyAtomicMove(currentPieces, move);
+      setCapturingPieceIds([]);
+    }
   }
 
   async function playMove(move: CardMove) {
@@ -361,11 +444,15 @@ function OnlineRoomTable({
   }
 
   return (
-    <section className="online-table" style={ONLINE_APPEARANCE as React.CSSProperties}>
+    <section className={`online-table ${isAnimating ? "is-animating" : ""}`} style={{
+      ...ONLINE_APPEARANCE,
+      "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
+      "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
+    } as React.CSSProperties}>
       <div className="online-turn-heading">
         <div>
           <p className="eyebrow">Remote table · revision {room.session.revision}</p>
-          <h2>{game.winningTeam ? `${PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
+          <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
         </div>
         {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
       </div>
@@ -375,10 +462,11 @@ function OnlineRoomTable({
         boardDefinition={ruleset.board}
         teamMode={ruleset.exchange === "partners"}
         activePieceIds={activePieceIds}
-        hoppingPieces={[]}
-        swappingPieces={[]}
-        capturingPieceIds={[]}
+        hoppingPieces={hoppingPieces}
+        swappingPieces={swappingPieces}
+        capturingPieceIds={capturingPieceIds}
         players={boardPlayers}
+        playerNames={room.playerNames}
         dealer={game.dealer}
         dealIndex={game.dealIndex}
         dealCount={ruleset.dealSchedule.length}
@@ -393,7 +481,7 @@ function OnlineRoomTable({
       <div className="online-hand-panel">
         <div>
           <p className="eyebrow">Your hand</p>
-          <strong>{PLAYER_NAMES[access.playerId]}</strong>
+          <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
         </div>
         <div className="online-hand">
           {hand.map((card, index) => (
@@ -434,6 +522,13 @@ const ONLINE_APPEARANCE = {
   "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)",
   "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)",
 };
+
+const ONLINE_HOP_DURATION = 130;
+const ONLINE_SWAP_DURATION = 720;
+
+function waitForOnlineAnimation(duration: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
+}
 
 function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {
   const seen = new Set<string>();

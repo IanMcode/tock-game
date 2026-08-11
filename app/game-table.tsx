@@ -58,17 +58,17 @@ export type DestinationOption = {
   move: AtomicMove;
   splitSteps?: ForwardMove[];
 };
-type HoppingPiece = AnimatedPiecePosition & {
+export type HoppingPiece = AnimatedPiecePosition & {
   piece: Piece;
   frame: number;
 };
-type SwappingPiece = {
+export type SwappingPiece = {
   piece: Piece;
   from: BoardPoint;
   through: BoardPoint;
   to: BoardPoint;
 };
-type BoardPoint = { x: number; y: number };
+export type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
 type PlayerColorId = "crimson" | "cobalt" | "gold" | "teal" | "violet" | "cyan";
@@ -898,6 +898,7 @@ export function Board({
   swappingPieces,
   capturingPieceIds,
   players,
+  playerNames,
   dealer,
   dealIndex,
   dealCount,
@@ -916,6 +917,7 @@ export function Board({
   swappingPieces: readonly SwappingPiece[];
   capturingPieceIds: readonly string[];
   players: GameState["players"];
+  playerNames?: Partial<Record<PlayerId, string>>;
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
   dealCount: number;
@@ -961,6 +963,7 @@ export function Board({
           <small>{teamMode ? "partners across" : "race home"}</small>
         </div>
         {activePlayerIds.map((owner) => {
+          const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
           const reservePieces = pieces.filter(
             (piece) =>
               piece.owner === owner &&
@@ -981,17 +984,17 @@ export function Board({
                 left: `${getReservePoint(owner, boardDefinition).x}%`,
                 top: `${getReservePoint(owner, boardDefinition).y}%`,
               } as React.CSSProperties}
-              aria-label={`${PLAYER_META[owner].name}'s reserve`}
+              aria-label={`${playerName}'s reserve`}
             >
               <div className="reserve-heading">
                 <span className="reserve-player-label">
                   <i style={{ "--player-shape": playerShapeVar(owner) } as React.CSSProperties} aria-hidden="true" />
-                  {PLAYER_META[owner].name}
+                  {playerName}
                 </span>
                 {owner === dealer && (
                   <span
                     className="board-dealer"
-                    aria-label={`${PLAYER_META[owner].name} is the dealer, hand ${dealIndex + 1} of ${dealCount}`}
+                    aria-label={`${playerName} is the dealer, hand ${dealIndex + 1} of ${dealCount}`}
                   >
                     <DeckIcon />
                     <span>
@@ -1003,7 +1006,7 @@ export function Board({
               </div>
               <div
                 className="board-hand-count"
-                aria-label={`${PLAYER_META[owner].name} has ${handCount} ${handCount === 1 ? "card" : "cards"} remaining`}
+                aria-label={`${playerName} has ${handCount} ${handCount === 1 ? "card" : "cards"} remaining`}
               >
                 {handCount > 0 ? (
                   <span className="face-down-cards" aria-hidden="true">
@@ -1022,6 +1025,7 @@ export function Board({
                     active={activePieceIds.has(piece.id)}
                     selected={selectedPieceId === piece.id}
                     capturing={capturingPieceIds.includes(piece.id)}
+                    playerName={playerName}
                     onClick={() => onPieceClick(piece.id)}
                   />
                 )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
@@ -1057,6 +1061,7 @@ export function Board({
                   active={activePieceIds.has(occupant.id)}
                   selected={selectedPieceId === occupant.id}
                   capturing={capturingPieceIds.includes(occupant.id)}
+                  playerName={playerNames?.[occupant.owner]}
                   onClick={() => onPieceClick(occupant.id)}
                 />
               )}
@@ -1097,6 +1102,7 @@ export function Board({
                     active={activePieceIds.has(occupant.id)}
                     selected={selectedPieceId === occupant.id}
                     capturing={capturingPieceIds.includes(occupant.id)}
+                    playerName={playerNames?.[occupant.owner]}
                     onClick={() => onPieceClick(occupant.id)}
                   />
                 )}
@@ -1139,6 +1145,7 @@ export function Board({
                 active={false}
                 selected={false}
                 hopping
+                playerName={playerNames?.[animated.piece.owner]}
                 onClick={() => undefined}
               />
             </div>
@@ -1163,6 +1170,7 @@ export function Board({
               active={false}
               selected={false}
               hopping
+              playerName={playerNames?.[animated.piece.owner]}
               onClick={() => undefined}
             />
           </div>
@@ -1174,18 +1182,18 @@ export function Board({
             <span>
               <i style={{ background: playerColorVar("P1"), "--player-shape": playerShapeVar("P1") } as React.CSSProperties} />
               <i style={{ background: playerColorVar("P3"), "--player-shape": playerShapeVar("P3") } as React.CSSProperties} />
-              Poppy + Sunny
+              {(playerNames?.P1 ?? PLAYER_META.P1.name)} + {(playerNames?.P3 ?? PLAYER_META.P3.name)}
             </span>
             <span>
               <i style={{ background: playerColorVar("P2"), "--player-shape": playerShapeVar("P2") } as React.CSSProperties} />
               <i style={{ background: playerColorVar("P4"), "--player-shape": playerShapeVar("P4") } as React.CSSProperties} />
-              River + Fern
+              {(playerNames?.P2 ?? PLAYER_META.P2.name)} + {(playerNames?.P4 ?? PLAYER_META.P4.name)}
             </span>
           </>
         ) : activePlayerIds.map((playerId) => (
           <span key={playerId}>
             <i style={{ background: playerColorVar(playerId), "--player-shape": playerShapeVar(playerId) } as React.CSSProperties} />
-            {PLAYER_META[playerId].name}
+            {playerNames?.[playerId] ?? PLAYER_META[playerId].name}
           </span>
         ))}
         <span className="protection-key"><b>✦</b> Protected entry</span>
@@ -1239,12 +1247,13 @@ function DeckIcon() {
   );
 }
 
-function PieceButton({ piece, active, selected, capturing = false, hopping = false, onClick }: {
+function PieceButton({ piece, active, selected, capturing = false, hopping = false, playerName, onClick }: {
   piece: Piece;
   active: boolean;
   selected: boolean;
   capturing?: boolean;
   hopping?: boolean;
+  playerName?: string;
   onClick: () => void;
 }) {
   const pieceNumber = Number(piece.id.split("-")[1]);
@@ -1263,7 +1272,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
       }}
       aria-disabled={!active}
       tabIndex={active ? 0 : -1}
-      aria-label={`${PLAYER_META[piece.owner].name} piece ${pieceNumber}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
+      aria-label={`${playerName ?? PLAYER_META[piece.owner].name} piece ${pieceNumber}${piece.position.zone === "track" && piece.position.isEntryProtected ? ", protected entry" : ""}`}
     >
       <span className="piece-shape" aria-hidden="true" />
       <span className={`piece-pips pips-${pieceNumber}`} aria-hidden="true">
@@ -1300,7 +1309,7 @@ function describeDestinationOption(option: DestinationOption) {
   return describeMove(option.move);
 }
 
-function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
   const vertices = getBoardVertices(board.playerCount);
   const edgeProgress = trackIndex / board.trackSize * vertices.length;
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
@@ -1313,7 +1322,7 @@ function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPo
   });
 }
 
-function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
+export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
   const gate = getBoardTrackPoint(getHomeEntranceIndex(owner, board), board);
   const direction = unitVectorTowardCenter(gate);
   const distance = 5 + homeIndex * 4.7;
@@ -1325,23 +1334,22 @@ function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefini
 
 function getReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
   const playerIndex = board.playerIds.indexOf(owner);
-  const sectionMidpoint = playerIndex * board.sectionSize + board.sectionSize / 2;
-  const edgePoint = getBoardTrackPoint(sectionMidpoint, board);
-  const direction = unitVectorTowardCenter(edgePoint);
-  return roundPoint({
-    x: edgePoint.x + direction.x * 5,
-    y: edgePoint.y + direction.y * 5,
-  });
+  const points: Readonly<Record<BoardPlayerCount, readonly BoardPoint[]>> = {
+    2: [{ x: 50, y: 7 }, { x: 50, y: 93 }],
+    3: [{ x: 82, y: 10 }, { x: 50, y: 94 }, { x: 18, y: 10 }],
+    4: [{ x: 50, y: 6 }, { x: 94, y: 50 }, { x: 50, y: 94 }, { x: 6, y: 50 }],
+  };
+  return points[board.playerCount][playerIndex];
 }
 
 function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {
   if (playerCount === 2) {
-    return [{ x: 12, y: 18 }, { x: 88, y: 18 }, { x: 88, y: 82 }, { x: 12, y: 82 }];
+    return [{ x: 16, y: 20 }, { x: 84, y: 20 }, { x: 84, y: 80 }, { x: 16, y: 80 }];
   }
   if (playerCount === 3) {
-    return [{ x: 50, y: 6 }, { x: 94, y: 84 }, { x: 6, y: 84 }];
+    return [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }];
   }
-  return [{ x: 12, y: 8 }, { x: 88, y: 8 }, { x: 92, y: 88 }, { x: 8, y: 88 }];
+  return [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }];
 }
 
 function unitVectorTowardCenter(point: BoardPoint): BoardPoint {
@@ -1426,7 +1434,7 @@ function normalizeGameSettings(settings: GameSettings): GameSettings {
   };
 }
 
-function getPiecePoint(piece: Piece, board: BoardDefinition): BoardPoint {
+export function getPiecePoint(piece: Piece, board: BoardDefinition): BoardPoint {
   if (piece.position.zone === "track") {
     return getBoardTrackPoint(piece.position.index, board);
   }
@@ -1438,7 +1446,7 @@ function getPiecePoint(piece: Piece, board: BoardDefinition): BoardPoint {
   throw new Error(`Cannot animate reserve piece ${piece.id} across the board.`);
 }
 
-function getSwapControlPoint(from: BoardPoint, to: BoardPoint): BoardPoint {
+export function getSwapControlPoint(from: BoardPoint, to: BoardPoint): BoardPoint {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const distance = Math.hypot(dx, dy) || 1;

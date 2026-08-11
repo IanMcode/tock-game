@@ -51,7 +51,8 @@ The online lobby and remote table use a tested guest-room API:
 - room codes, two-to-four guest seats, tab-scoped reconnect tokens, and spectator-safe views;
 - create, join, read, and command Route Handlers under `/api/rooms`;
 - private hands, partner exchange, legal destination selection, split-seven moves,
-  discards, polling, and revision-conflict recovery in the remote table;
+  discards, player-chosen names, movement animations, polling, and revision-conflict
+  recovery in the remote table;
 - durable Neon PostgreSQL rooms with atomic updates, hashed player tokens, and
   seven-day expiry when `DATABASE_URL` is configured;
 - an in-memory fallback for local development and automated tests.

@@ -2,7 +2,7 @@ import { deserializeGameSnapshot, GAME_SNAPSHOT_VERSION } from "../game/persiste
 import type { GameEvent, GameSession } from "../game/session";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import { parseCommandEnvelope } from "./protocol";
-import type { OnlineRoom } from "./roomService";
+import { DEFAULT_PLAYER_NAMES, type OnlineRoom } from "./roomService";
 
 export const ROOM_RECORD_VERSION = 1 as const;
 
@@ -22,7 +22,16 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
     throw new Error("The stored room record version is not supported.");
   }
 
-  const room = record.room as OnlineRoom;
+  const storedRoom = record.room as OnlineRoom;
+  const room = {
+    ...storedRoom,
+    playerNames: isRecord(storedRoom.playerNames)
+      ? storedRoom.playerNames
+      : Object.fromEntries(
+          PLAYER_IDS.filter((playerId) => Boolean(storedRoom.seats?.[playerId]))
+            .map((playerId) => [playerId, DEFAULT_PLAYER_NAMES[playerId]]),
+        ),
+  } as OnlineRoom;
   validateRoom(room);
   return room;
 }
@@ -32,10 +41,23 @@ function validateRoom(room: OnlineRoom): void {
     throw new Error("The stored room has an invalid ID.");
   }
   if (!isRecord(room.seats)) throw new Error("The stored room has invalid seats.");
+  if (!isRecord(room.playerNames)) throw new Error("The stored room has invalid player names.");
 
   for (const [playerId, tokenHash] of Object.entries(room.seats)) {
     if (!PLAYER_IDS.includes(playerId as PlayerId) || typeof tokenHash !== "string" || !/^[0-9a-f]{64}$/.test(tokenHash)) {
       throw new Error("The stored room has an invalid seat credential.");
+    }
+  }
+
+  for (const [playerId, playerName] of Object.entries(room.playerNames)) {
+    if (
+      !PLAYER_IDS.includes(playerId as PlayerId) ||
+      !room.seats[playerId as PlayerId] ||
+      typeof playerName !== "string" ||
+      !playerName.trim() ||
+      playerName.length > 24
+    ) {
+      throw new Error("The stored room has an invalid player name.");
     }
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCommandEnvelope, parseCreateRoomOptions } from "./protocol";
+import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions } from "./protocol";
 
 describe("online command protocol", () => {
   it("parses room rules and dealer selection", () => {
@@ -15,6 +15,13 @@ describe("online command protocol", () => {
   it("rejects invalid room combinations", () => {
     expect(() => parseCreateRoomOptions({ playerCount: 2, teams: true })).toThrow("requires four players");
     expect(() => parseCreateRoomOptions({ playerCount: 2, dealer: "P3" })).toThrow("not seated");
+  });
+
+  it("normalizes player names at the network boundary", () => {
+    expect(parseCreateRoomOptions({ playerName: "  Omi   Friend  " }).playerName).toBe("Omi Friend");
+    expect(parseJoinRoomOptions({ playerName: "Ian" })).toEqual({ playerName: "Ian" });
+    expect(() => parseJoinRoomOptions({ playerName: "" })).toThrow("Enter a player name");
+    expect(() => parseJoinRoomOptions({ playerName: "x".repeat(25) })).toThrow("24 characters");
   });
 
   it("parses supported command envelopes", () => {

@@ -16,6 +16,7 @@ export type RoomStatus = "waiting" | "active" | "complete";
 export type OnlineRoom = {
   id: string;
   seats: Partial<Record<PlayerId, string>>;
+  playerNames: Partial<Record<PlayerId, string>>;
   session: GameSession;
 };
 
@@ -28,6 +29,7 @@ export type RoomView = {
   id: string;
   status: RoomStatus;
   connectedPlayers: PlayerId[];
+  playerNames: Partial<Record<PlayerId, string>>;
   requiredPlayers: number;
   session: GameSessionView;
 };
@@ -47,6 +49,14 @@ export type CreateRoomOptions = {
   playerCount?: BoardPlayerCount;
   teams?: boolean;
   dealer?: PlayerId | "random";
+  playerName?: string;
+};
+
+export const DEFAULT_PLAYER_NAMES: Record<PlayerId, string> = {
+  P1: "Poppy",
+  P2: "River",
+  P3: "Sunny",
+  P4: "Fern",
 };
 
 export interface RoomStore {
@@ -129,6 +139,7 @@ export class RoomService {
       const room: OnlineRoom = {
         id: roomId,
         seats: { [playerId]: playerTokenHash },
+        playerNames: { [playerId]: normalizePlayerName(options.playerName, playerId) },
         session: createGameSession(roomId, game),
       };
       if (await this.store.create(room)) {
@@ -141,7 +152,7 @@ export class RoomService {
     throw new Error("Unable to allocate a unique room ID.");
   }
 
-  async joinRoom(roomId: string): Promise<RoomJoinResult> {
+  async joinRoom(roomId: string, playerName?: string): Promise<RoomJoinResult> {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const stored = await this.getRoom(roomId);
       const playerId = stored.room.session.game.players
@@ -154,6 +165,10 @@ export class RoomService {
       const next = {
         ...stored.room,
         seats: { ...stored.room.seats, [playerId]: playerTokenHash },
+        playerNames: {
+          ...stored.room.playerNames,
+          [playerId]: normalizePlayerName(playerName, playerId),
+        },
       };
       if (await this.store.save(next, stored.version)) {
         return {
@@ -216,6 +231,7 @@ export class RoomService {
       id: room.id,
       status: this.status(room),
       connectedPlayers: PLAYER_IDS.filter((playerId) => Boolean(room.seats[playerId])),
+      playerNames: { ...room.playerNames },
       requiredPlayers: room.session.game.players.length,
       session: createSessionView(room.session, viewer),
     };
@@ -231,6 +247,14 @@ export async function hashPlayerToken(token: string): Promise<string> {
   const bytes = new TextEncoder().encode(token);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function normalizePlayerName(name: string | undefined, playerId: PlayerId): string {
+  if (name === undefined || !name.trim()) return DEFAULT_PLAYER_NAMES[playerId];
+  const normalized = name.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (normalized.length > 24) throw new Error("Player names must be 24 characters or fewer.");
+  if (/\p{Cc}/u.test(normalized)) throw new Error("Player names cannot contain control characters.");
+  return normalized;
 }
 
 function defaultRoomId(): string {

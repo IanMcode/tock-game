@@ -16,9 +16,14 @@ export async function createOnlineRoom(
 
 export async function joinOnlineRoom(
   roomId: string,
+  playerName?: string,
   request: OnlineFetch = fetch,
 ): Promise<RoomJoinResult> {
-  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/join`, { method: "POST" });
+  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/join`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(playerName ? { playerName } : {}),
+  });
 }
 
 export async function readOnlineRoom(

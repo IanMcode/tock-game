@@ -35,6 +35,8 @@ The server never sends a raw `GameState` to clients. A player view contains:
 
 A spectator view contains no private hand. Player tokens are credentials and must
 never be included in logs, URLs, public room state, or another player's response.
+Player-chosen display names are public room metadata, limited to 24 characters,
+and retained with the room across reconnects.
 
 ## Guest room API
 

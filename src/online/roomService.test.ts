@@ -100,6 +100,14 @@ describe("online room service", () => {
     expect(stored?.room.seats.P1).not.toBe("private-token");
   });
 
+  it("stores custom names for the host and joining players", async () => {
+    const service = createTestService();
+    const host = await service.createRoom({ playerCount: 2, teams: false, playerName: "Ian" });
+    const second = await service.joinRoom(host.access.roomId, "Omi");
+
+    expect(second.room.playerNames).toEqual({ P1: "Ian", P2: "Omi" });
+  });
+
   it("rejects a stale atomic store update", async () => {
     const store = new InMemoryRoomStore();
     const service = new RoomService(store, {

@@ -24,7 +24,27 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     }
   }
 
-  return { playerCount: playerCount as BoardPlayerCount, teams, dealer: dealer as PlayerId | "random" };
+  return {
+    playerCount: playerCount as BoardPlayerCount,
+    teams,
+    dealer: dealer as PlayerId | "random",
+    ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
+  };
+}
+
+export function parseJoinRoomOptions(value: unknown): { playerName?: string } {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) throw new Error("Join options must be an object.");
+  return value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) };
+}
+
+function parsePlayerName(value: unknown): string {
+  if (typeof value !== "string") throw new Error("The player name must be text.");
+  const name = value.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!name) throw new Error("Enter a player name.");
+  if (name.length > 24) throw new Error("Player names must be 24 characters or fewer.");
+  if (/\p{Cc}/u.test(name)) throw new Error("Player names cannot contain control characters.");
+  return name;
 }
 
 export function parseCommandEnvelope(value: unknown): CommandEnvelope {
