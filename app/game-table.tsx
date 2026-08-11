@@ -1464,7 +1464,7 @@ export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): B
   const entryIndex = getEntryIndex(owner, board);
   const entry = getBoardTrackPoint(entryIndex, board);
   if (board.playerCount === 2) {
-    return { x: entry.x, y: entry.y < 50 ? -3 : 103 };
+    return { x: entry.x, y: entry.y < 50 ? -14 : 114 };
   }
   const inward = getInwardTrackNormal(entryIndex, board, entry);
   const outward = { x: -inward.x, y: -inward.y };

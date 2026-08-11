@@ -357,6 +357,9 @@ button { font: inherit; }
 .online-board-stage .board-wrap { width: 100%; }
 .online-table .board { width: min(100%, 1040px); }
 .online-table .board-reserve { width: 18%; min-height: 10%; }
+.online-table .board-2 > .board-reserve { width: 24cqw; min-width: 170px; min-height: 12cqw; padding: 9px 11px; }
+.online-table .board-2 > .board-reserve .reserve-heading { min-height: 29px; }
+.online-table .board-2 > .board-reserve .reserve-pieces { min-height: 32px; }
 .board-footer-dock { position: relative; z-index: 15; width: min(100%, 900px); margin-top: 8px; --piece-diameter: 34px; }
 .online-local-player-dock { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); grid-template-areas: "reserve hand"; align-items: stretch; column-gap: 12px; width: 100%; }
 .online-local-player-dock .board-reserve { position: relative; left: auto; top: auto; grid-area: reserve; width: 100%; min-width: 0; max-width: 210px; min-height: 86px; transform: none; }
