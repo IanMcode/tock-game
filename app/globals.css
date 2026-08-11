@@ -67,7 +67,7 @@ button { font: inherit; }
 .board-2 { --space-diameter: 6cqw; --piece-diameter: 5.4cqw; --center-field: 13%; width: min(100%, 720px); aspect-ratio: .9; }
 .board-3 { --space-diameter: 4cqw; --piece-diameter: 3.6cqw; }
 .board::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.86) 0 var(--center-field), transparent calc(var(--center-field) + .5%)), repeating-linear-gradient(25deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px), linear-gradient(145deg, #dce7dc, #b8cabd); }
-.board-2::before { clip-path: polygon(12% 4%, 88% 4%, 88% 96%, 12% 96%); }
+.board-2::before { clip-path: inset(0 round 24px); }
 .board-3::before { clip-path: polygon(50% 1%, 99% 88%, 1% 88%); }
 .board-4::before { clip-path: polygon(8% 4%, 92% 4%, 96% 92%, 4% 92%); }
 .board-center { position: absolute; left: 50%; top: 50%; width: 18%; aspect-ratio: 1; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); z-index: 1; display: grid; place-content: center; text-align: center; border-radius: 22%; color: #f8f0da; background: var(--green); box-shadow: 0 8px 24px rgba(20,55,44,.24); transform-origin: center; }
@@ -358,9 +358,9 @@ button { font: inherit; }
 .online-table .board { width: min(100%, 1040px); }
 .online-table .board-reserve { width: 18%; min-height: 10%; }
 .board-footer-dock { position: relative; z-index: 15; width: min(100%, 900px); margin-top: 8px; --piece-diameter: 34px; }
-.online-local-player-dock { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); align-items: stretch; gap: 10px; width: 100%; }
-.online-local-player-dock .board-reserve { position: relative; left: auto; top: auto; width: 100%; min-height: 86px; transform: none; }
-.online-local-player-dock .online-hand-panel { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 5px 10px; padding: 7px 10px; }
+.online-local-player-dock { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); grid-template-areas: "reserve hand"; align-items: stretch; column-gap: 12px; width: 100%; }
+.online-local-player-dock .board-reserve { position: relative; left: auto; top: auto; grid-area: reserve; width: 100%; min-width: 0; max-width: 210px; min-height: 86px; transform: none; }
+.online-local-player-dock .online-hand-panel { grid-area: hand; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 5px 10px; padding: 7px 10px; }
 .online-local-player-dock .online-hand-panel > div:first-child { display: none; }
 .online-local-player-dock .online-hand { min-width: 0; min-height: 64px; padding-block: 2px 5px; }
 .online-local-player-dock .online-card { width: 46px; }
