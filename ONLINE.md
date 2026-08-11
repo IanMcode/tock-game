@@ -96,11 +96,15 @@ a card index or `null` when the forced player has no card.
 
 ## Storage and real-time delivery
 
-`InMemoryRoomStore` is deliberately temporary. It loses rooms on process restart
-and cannot coordinate multiple server instances. Before public deployment, create
-a durable `RoomStore` adapter backed by a transaction-capable database or Redis.
-Saving a command must atomically compare the expected revision and write the new
-snapshot/event so two server instances cannot both accept revision 12.
+When `DATABASE_URL` is present, production rooms use `NeonRoomStore`. The store
+creates its table and expiry index idempotently on first use, keeps room snapshots
+as validated versioned JSON, and uses an atomic storage version for joins and game
+commands. This prevents two server instances from both accepting a write based on
+the same room state. Player reconnect tokens are SHA-256 hashed before storage.
+
+Rooms expire seven days after their last successful join or game command. Reads do
+not extend that lifetime. Local development and automated tests fall back to
+`InMemoryRoomStore` when `DATABASE_URL` is absent.
 
 The current client polls `GET /api/rooms/{roomId}` and refreshes after a rejected
 stale command. Server-Sent Events or WebSockets can later replace polling as a
@@ -109,16 +113,15 @@ exists; authoritative state still comes from the same privacy-safe room view.
 
 ## Production checklist
 
-Before sharing rooms publicly:
+Before broad public use:
 
-1. Replace the in-memory room store with durable atomic storage.
-2. Add room expiry, token rotation, and explicit leave/reclaim behavior.
-3. Rate-limit room creation, joins, reads, and invalid commands.
-4. Enforce allowed origins and HTTPS; never place player tokens in query strings.
-5. Add structured logs that exclude hands, draw piles, and player tokens.
-6. Add a cross-device reconnect/reclaim flow; tab-scoped reconnect is implemented.
-7. Replace polling with an SSE/WebSocket notification adapter if needed.
-8. Add browser-level tests with isolated clients for every supported room size.
+1. Add token rotation and explicit leave/reclaim behavior.
+2. Rate-limit room creation, joins, reads, and invalid commands.
+3. Enforce allowed origins and HTTPS; never place player tokens in query strings.
+4. Add structured logs that exclude hands, draw piles, and player tokens.
+5. Add a cross-device reconnect/reclaim flow; tab-scoped reconnect is implemented.
+6. Replace polling with an SSE/WebSocket notification adapter if needed.
+7. Add browser-level tests with isolated clients for every supported room size.
 
 Authentication, rankings, payments, public matchmaking, and chat remain outside the
 current milestone.

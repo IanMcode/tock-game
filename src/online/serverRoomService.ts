@@ -1,13 +1,14 @@
 import { InMemoryRoomStore, RoomService } from "./roomService";
+import { NeonRoomStore } from "./neonRoomStore";
 
 const globalRooms = globalThis as typeof globalThis & {
   __tockRoomService?: RoomService;
 };
 
+const databaseUrl = process.env.DATABASE_URL;
+
 export const serverRoomService = globalRooms.__tockRoomService ?? new RoomService(
-  new InMemoryRoomStore(),
+  databaseUrl ? new NeonRoomStore(databaseUrl) : new InMemoryRoomStore(),
 );
 
-if (process.env.NODE_ENV !== "production") {
-  globalRooms.__tockRoomService = serverRoomService;
-}
+globalRooms.__tockRoomService = serverRoomService;

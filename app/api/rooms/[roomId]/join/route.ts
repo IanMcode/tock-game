@@ -9,7 +9,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { roomId } = await context.params;
-    return jsonResponse(serverRoomService.joinRoom(roomId), { status: 201 });
+    return jsonResponse(await serverRoomService.joinRoom(roomId), { status: 201 });
   } catch (error) {
     return onlineErrorResponse(error);
   }

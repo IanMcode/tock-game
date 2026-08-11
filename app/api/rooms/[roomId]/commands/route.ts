@@ -12,7 +12,7 @@ export async function POST(
     const { roomId } = await context.params;
     const token = getBearerToken(request, true)!;
     const envelope = parseCommandEnvelope(await request.json());
-    return jsonResponse(serverRoomService.submitCommand(roomId, token, envelope));
+    return jsonResponse(await serverRoomService.submitCommand(roomId, token, envelope));
   } catch (error) {
     return onlineErrorResponse(error);
   }

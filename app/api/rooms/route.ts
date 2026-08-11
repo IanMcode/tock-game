@@ -8,7 +8,7 @@ export async function POST(request?: Request): Promise<Response> {
   try {
     const text = request ? await request.text() : "";
     const options = parseCreateRoomOptions(text ? JSON.parse(text) : undefined);
-    return jsonResponse(serverRoomService.createRoom(options), { status: 201 });
+    return jsonResponse(await serverRoomService.createRoom(options), { status: 201 });
   } catch (error) {
     return onlineErrorResponse(error);
   }

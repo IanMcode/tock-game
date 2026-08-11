@@ -11,7 +11,7 @@ export async function GET(
   try {
     const { roomId } = await context.params;
     const token = getBearerToken(request, false);
-    return jsonResponse(serverRoomService.getRoomView(roomId, token));
+    return jsonResponse(await serverRoomService.getRoomView(roomId, token));
   } catch (error) {
     return onlineErrorResponse(error);
   }

@@ -4,6 +4,7 @@ import type { BoardPlayerCount } from "../game/definition";
 import {
   applySessionCommand,
   createGameSession,
+  SessionCommandError,
   type CommandEnvelope,
   type GameSession,
 } from "../game/session";
@@ -16,6 +17,11 @@ export type OnlineRoom = {
   id: string;
   seats: Partial<Record<PlayerId, string>>;
   session: GameSession;
+};
+
+export type StoredRoom = {
+  room: OnlineRoom;
+  version: number;
 };
 
 export type RoomView = {
@@ -44,19 +50,29 @@ export type CreateRoomOptions = {
 };
 
 export interface RoomStore {
-  get(roomId: string): OnlineRoom | undefined;
-  save(room: OnlineRoom): void;
+  get(roomId: string): Promise<StoredRoom | undefined>;
+  create(room: OnlineRoom): Promise<boolean>;
+  save(room: OnlineRoom, expectedVersion: number): Promise<boolean>;
 }
 
 export class InMemoryRoomStore implements RoomStore {
-  private readonly rooms = new Map<string, OnlineRoom>();
+  private readonly rooms = new Map<string, StoredRoom>();
 
-  get(roomId: string): OnlineRoom | undefined {
+  async get(roomId: string): Promise<StoredRoom | undefined> {
     return this.rooms.get(roomId);
   }
 
-  save(room: OnlineRoom): void {
-    this.rooms.set(room.id, room);
+  async create(room: OnlineRoom): Promise<boolean> {
+    if (this.rooms.has(room.id)) return false;
+    this.rooms.set(room.id, { room, version: 0 });
+    return true;
+  }
+
+  async save(room: OnlineRoom, expectedVersion: number): Promise<boolean> {
+    const stored = this.rooms.get(room.id);
+    if (!stored || stored.version !== expectedVersion) return false;
+    this.rooms.set(room.id, { room, version: expectedVersion + 1 });
+    return true;
   }
 }
 
@@ -71,7 +87,8 @@ export type RoomErrorCode =
   | "ROOM_FULL"
   | "ROOM_NOT_READY"
   | "INVALID_TOKEN"
-  | "SEAT_MISMATCH";
+  | "SEAT_MISMATCH"
+  | "ROOM_CONFLICT";
 
 export class RoomError extends Error {
   constructor(readonly code: RoomErrorCode, message: string) {
@@ -94,10 +111,10 @@ export class RoomService {
     this.randomState = options.createRandomState ?? createRandomState;
   }
 
-  createRoom(options: CreateRoomOptions = {}): RoomJoinResult {
-    const roomId = this.uniqueRoomId();
+  async createRoom(options: CreateRoomOptions = {}): Promise<RoomJoinResult> {
     const playerId = PLAYER_IDS[0];
     const playerToken = this.createPlayerToken();
+    const playerTokenHash = await hashPlayerToken(playerToken);
     const playerCount = options.playerCount ?? 4;
     const teams = options.teams ?? playerCount === 4;
     const game = createGame({
@@ -106,69 +123,90 @@ export class RoomService {
       teams,
       ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
     });
-    const room: OnlineRoom = {
-      id: roomId,
-      seats: { [playerId]: playerToken },
-      session: createGameSession(roomId, game),
-    };
-    this.store.save(room);
-    return {
-      access: { roomId, playerId, playerToken },
-      room: this.view(room, playerId),
-    };
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const roomId = this.createRoomId().trim().toUpperCase();
+      if (!roomId) continue;
+      const room: OnlineRoom = {
+        id: roomId,
+        seats: { [playerId]: playerTokenHash },
+        session: createGameSession(roomId, game),
+      };
+      if (await this.store.create(room)) {
+        return {
+          access: { roomId, playerId, playerToken },
+          room: this.view(room, playerId),
+        };
+      }
+    }
+    throw new Error("Unable to allocate a unique room ID.");
   }
 
-  joinRoom(roomId: string): RoomJoinResult {
-    const room = this.getRoom(roomId);
-    const playerId = room.session.game.players
-      .map((player) => player.id)
-      .find((candidate) => !room.seats[candidate]);
-    if (!playerId) throw new RoomError("ROOM_FULL", `Room ${room.id} is full.`);
+  async joinRoom(roomId: string): Promise<RoomJoinResult> {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const stored = await this.getRoom(roomId);
+      const playerId = stored.room.session.game.players
+        .map((player) => player.id)
+        .find((candidate) => !stored.room.seats[candidate]);
+      if (!playerId) throw new RoomError("ROOM_FULL", `Room ${stored.room.id} is full.`);
 
-    const playerToken = this.createPlayerToken();
-    const next = { ...room, seats: { ...room.seats, [playerId]: playerToken } };
-    this.store.save(next);
-    return {
-      access: { roomId: next.id, playerId, playerToken },
-      room: this.view(next, playerId),
-    };
+      const playerToken = this.createPlayerToken();
+      const playerTokenHash = await hashPlayerToken(playerToken);
+      const next = {
+        ...stored.room,
+        seats: { ...stored.room.seats, [playerId]: playerTokenHash },
+      };
+      if (await this.store.save(next, stored.version)) {
+        return {
+          access: { roomId: next.id, playerId, playerToken },
+          room: this.view(next, playerId),
+        };
+      }
+    }
+    throw new RoomError("ROOM_CONFLICT", "Another player joined at the same time. Please try again.");
   }
 
-  getRoomView(roomId: string, playerToken?: string): RoomView {
-    const room = this.getRoom(roomId);
-    const viewer = playerToken ? this.playerForToken(room, playerToken) : null;
+  async getRoomView(roomId: string, playerToken?: string): Promise<RoomView> {
+    const { room } = await this.getRoom(roomId);
+    const viewer = playerToken ? await this.playerForToken(room, playerToken) : null;
     return this.view(room, viewer);
   }
 
-  submitCommand(
+  async submitCommand(
     roomId: string,
     playerToken: string,
     envelope: CommandEnvelope,
-  ): RoomView {
-    const room = this.getRoom(roomId);
+  ): Promise<RoomView> {
+    const stored = await this.getRoom(roomId);
+    const room = stored.room;
     if (this.status(room) === "waiting") {
-      throw new RoomError("ROOM_NOT_READY", "All four players must join before play begins.");
+      throw new RoomError("ROOM_NOT_READY", "Every seat must be filled before play begins.");
     }
 
-    const playerId = this.playerForToken(room, playerToken);
+    const playerId = await this.playerForToken(room, playerToken);
     if (envelope.command.actor !== playerId) {
       throw new RoomError("SEAT_MISMATCH", "The command actor does not match this player token.");
     }
 
     const next = { ...room, session: applySessionCommand(room.session, envelope) };
-    this.store.save(next);
+    if (!await this.store.save(next, stored.version)) {
+      throw new SessionCommandError(
+        "REVISION_CONFLICT",
+        "The room changed before this move was saved. Refresh and try again.",
+      );
+    }
     return this.view(next, playerId);
   }
 
-  private getRoom(roomId: string): OnlineRoom {
+  private async getRoom(roomId: string): Promise<StoredRoom> {
     const normalizedId = roomId.trim().toUpperCase();
-    const room = this.store.get(normalizedId);
-    if (!room) throw new RoomError("ROOM_NOT_FOUND", `Room ${normalizedId} does not exist.`);
-    return room;
+    const stored = await this.store.get(normalizedId);
+    if (!stored) throw new RoomError("ROOM_NOT_FOUND", `Room ${normalizedId} does not exist.`);
+    return stored;
   }
 
-  private playerForToken(room: OnlineRoom, token: string): PlayerId {
-    const playerId = PLAYER_IDS.find((candidate) => room.seats[candidate] === token);
+  private async playerForToken(room: OnlineRoom, token: string): Promise<PlayerId> {
+    const tokenHash = await hashPlayerToken(token);
+    const playerId = PLAYER_IDS.find((candidate) => room.seats[candidate] === tokenHash);
     if (!playerId) throw new RoomError("INVALID_TOKEN", "The player token is not valid for this room.");
     return playerId;
   }
@@ -187,14 +225,12 @@ export class RoomService {
     if (room.session.game.winningTeam) return "complete";
     return room.session.game.players.every((player) => Boolean(room.seats[player.id])) ? "active" : "waiting";
   }
+}
 
-  private uniqueRoomId(): string {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const candidate = this.createRoomId().trim().toUpperCase();
-      if (candidate && !this.store.get(candidate)) return candidate;
-    }
-    throw new Error("Unable to allocate a unique room ID.");
-  }
+export async function hashPlayerToken(token: string): Promise<string> {
+  const bytes = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function defaultRoomId(): string {

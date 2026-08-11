@@ -33,6 +33,7 @@ export function onlineErrorResponse(error: unknown): Response {
       ROOM_NOT_READY: 409,
       INVALID_TOKEN: 401,
       SEAT_MISMATCH: 403,
+      ROOM_CONFLICT: 409,
     }[error.code];
     return jsonResponse({ error: { code: error.code, message: error.message } }, { status });
   }

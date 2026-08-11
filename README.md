@@ -52,11 +52,12 @@ The online lobby and remote table use a tested guest-room API:
 - create, join, read, and command Route Handlers under `/api/rooms`;
 - private hands, partner exchange, legal destination selection, split-seven moves,
   discards, polling, and revision-conflict recovery in the remote table;
-- a replaceable `RoomStore` boundary for future durable storage.
+- durable Neon PostgreSQL rooms with atomic updates, hashed player tokens, and
+  seven-day expiry when `DATABASE_URL` is configured;
+- an in-memory fallback for local development and automated tests.
 
-The bundled store is intentionally in-memory and suitable only for development or
-a single long-running Node process. See [ONLINE.md](./ONLINE.md) for the API,
-security model, production requirements, and 2–4-player roadmap.
+The Neon schema is created automatically on first use. See [ONLINE.md](./ONLINE.md)
+for the API, security model, and remaining public-launch hardening work.
 
 ## Verify
 
