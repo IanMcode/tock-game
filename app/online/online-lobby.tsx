@@ -1,0 +1,450 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+import {
+  createOnlineRoom,
+  joinOnlineRoom,
+  readOnlineRoom,
+  sendOnlineCommand,
+} from "../../src/online/client";
+import type { BoardPlayerCount } from "../../src/game/definition";
+import type { PlayerId } from "../../src/game/types";
+import type { RoomAccess, RoomView } from "../../src/online/roomService";
+import { Board, type DestinationOption } from "../game-table";
+import { applyPieceMove, type AtomicMove } from "../../src/game/actions";
+import { getLegalBasicCardMoves } from "../../src/game/cardMoves";
+import { getRulesetDefinition } from "../../src/game/definition";
+import type { ForwardMove } from "../../src/game/moves";
+import { getSplitSevenDestinationOptions } from "../../src/game/splitSelection";
+import type { SplitSevenMove } from "../../src/game/specialMoves";
+import type { Card, Piece } from "../../src/game/types";
+import type { GameCommand } from "../../src/game/session";
+import type { CardMove } from "../../src/game/turns";
+
+const ACCESS_KEY = "tock-online-room-access";
+const PLAYER_NAMES: Record<PlayerId, string> = {
+  P1: "Poppy",
+  P2: "River",
+  P3: "Sunny",
+  P4: "Fern",
+};
+
+export default function OnlineLobby() {
+  const [playerCount, setPlayerCount] = useState<BoardPlayerCount>(4);
+  const [teams, setTeams] = useState(true);
+  const [dealer, setDealer] = useState<PlayerId | "random">("random");
+  const [joinCode, setJoinCode] = useState("");
+  const [access, setAccess] = useState<RoomAccess | null>(null);
+  const [room, setRoom] = useState<RoomView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const saved = sessionStorage.getItem(ACCESS_KEY);
+      if (!saved) return;
+      try {
+        setAccess(JSON.parse(saved) as RoomAccess);
+      } catch {
+        sessionStorage.removeItem(ACCESS_KEY);
+      }
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!access) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const next = await readOnlineRoom(access.roomId, access.playerToken);
+        if (!cancelled) {
+          setRoom(next);
+          setError(null);
+        }
+      } catch (refreshError) {
+        if (!cancelled) setError(messageFrom(refreshError));
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, 1_500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [access]);
+
+  async function createRoom() {
+    setBusy(true);
+    setError(null);
+    try {
+      remember((await createOnlineRoom({ playerCount, teams, dealer })).access);
+    } catch (createError) {
+      setError(messageFrom(createError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function joinRoom() {
+    if (!joinCode.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      remember((await joinOnlineRoom(joinCode.trim().toUpperCase())).access);
+    } catch (joinError) {
+      setError(messageFrom(joinError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remember(nextAccess: RoomAccess) {
+    sessionStorage.setItem(ACCESS_KEY, JSON.stringify(nextAccess));
+    setAccess(nextAccess);
+  }
+
+  function leaveRoom() {
+    sessionStorage.removeItem(ACCESS_KEY);
+    setAccess(null);
+    setRoom(null);
+    setError(null);
+  }
+
+  if (access) {
+    return (
+      <main className="online-shell">
+        <header className="online-header">
+          <div>
+            <p className="eyebrow">Online room</p>
+            <h1>{access.roomId}</h1>
+          </div>
+          <Link className="quiet-button" href="/">Local table</Link>
+        </header>
+
+        <section className="room-card">
+          <div className="room-code-block">
+            <span>Room code</span>
+            <strong>{access.roomId}</strong>
+            <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy code</button>
+          </div>
+          <div className="room-status-copy">
+            <p className="eyebrow">Your seat</p>
+            <h2>{PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
+            <p>{room?.status === "active" ? "The table is ready." : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
+          </div>
+        </section>
+
+        <section className="seat-grid" aria-label="Room seats">
+          {room ? Array.from({ length: room.requiredPlayers }, (_, index) => {
+            const playerId = `P${index + 1}` as PlayerId;
+            const connected = room.connectedPlayers.includes(playerId);
+            return (
+              <article className={connected ? "seat-card is-connected" : "seat-card"} key={playerId}>
+                <span>{playerId}</span>
+                <strong>{PLAYER_NAMES[playerId]}</strong>
+                <small>{connected ? "Connected" : "Open seat"}</small>
+              </article>
+            );
+          }) : <p>Connecting to room…</p>}
+        </section>
+
+        {room && room.status !== "waiting" && (
+          <OnlineRoomTable access={access} room={room} onRoom={setRoom} />
+        )}
+        {error && <p className="online-error" role="alert">{error}</p>}
+        <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>
+      </main>
+    );
+  }
+
+  const activePlayerIds = (["P1", "P2", "P3", "P4"] as const).slice(0, playerCount);
+  return (
+    <main className="online-shell">
+      <header className="online-header">
+        <div>
+          <p className="eyebrow">Guest multiplayer</p>
+          <h1>Play Tock online</h1>
+        </div>
+        <Link className="quiet-button" href="/">Local table</Link>
+      </header>
+
+      <div className="online-options-grid">
+        <section className="online-panel">
+          <p className="eyebrow">Host a table</p>
+          <h2>Create room</h2>
+          <label>
+            <span>Players</span>
+            <select value={playerCount} onChange={(event) => {
+              const count = Number(event.target.value) as BoardPlayerCount;
+              setPlayerCount(count);
+              if (count !== 4) setTeams(false);
+              if (dealer !== "random" && Number(dealer.slice(1)) > count) setDealer("random");
+            }}>
+              <option value={2}>2 players</option>
+              <option value={3}>3 players</option>
+              <option value={4}>4 players</option>
+            </select>
+          </label>
+          <label className="online-check">
+            <input type="checkbox" checked={teams} disabled={playerCount !== 4} onChange={(event) => setTeams(event.target.checked)} />
+            <span>Opposite-seat teams</span>
+          </label>
+          <label>
+            <span>First dealer</span>
+            <select value={dealer} onChange={(event) => setDealer(event.target.value as PlayerId | "random")}>
+              <option value="random">Random</option>
+              {activePlayerIds.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_NAMES[playerId]}</option>)}
+            </select>
+          </label>
+          <button className="online-primary" type="button" disabled={busy} onClick={createRoom}>Create private room</button>
+        </section>
+
+        <section className="online-panel">
+          <p className="eyebrow">Have a code?</p>
+          <h2>Join room</h2>
+          <label>
+            <span>Six-character room code</span>
+            <input value={joinCode} maxLength={6} autoCapitalize="characters" onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="TOCK42" />
+          </label>
+          <button className="online-primary" type="button" disabled={busy || !joinCode.trim()} onClick={joinRoom}>Join next open seat</button>
+          <p className="online-help">Your reconnect token stays in this browser tab. Share only the room code.</p>
+        </section>
+      </div>
+      {error && <p className="online-error" role="alert">{error}</p>}
+    </main>
+  );
+}
+
+function messageFrom(error: unknown): string {
+  return error instanceof Error ? error.message : "The online request failed.";
+}
+
+function OnlineRoomTable({
+  access,
+  room,
+  onRoom,
+}: {
+  access: RoomAccess;
+  room: RoomView;
+  onRoom: (room: RoomView) => void;
+}) {
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
+  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
+  const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
+  const [showNumbers, setShowNumbers] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const game = room.session.game;
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  const viewer = game.players.find((player) => player.id === access.playerId);
+  const hand = useMemo(() => viewer?.hand ?? [], [viewer]);
+  const pieces = useMemo(() => game.players.flatMap((player) => player.pieces), [game.players]);
+  const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
+  const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
+  const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
+  const legalMoves = useMemo(() =>
+    selectedCard && isMyTurn && !forcedDiscard
+      ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
+      : [],
+  [access.playerId, forcedDiscard, game.rulesetId, isMyTurn, pieces, selectedCard]);
+  const playableIndexes = useMemo(() =>
+    !isMyTurn || forcedDiscard ? [] : hand.flatMap((card, index) =>
+      getLegalBasicCardMoves(pieces, access.playerId, card, game.rulesetId).length ? [index] : [],
+    ),
+  [access.playerId, forcedDiscard, game.rulesetId, hand, isMyTurn, pieces]);
+  const isSplitSeven = selectedCard?.rank === "7";
+  const previewPieces = useMemo(() => splitSteps.reduce<Piece[]>(
+    (current, step) => applyPieceMove(current, step),
+    pieces,
+  ), [pieces, splitSteps]);
+  const matchingSplitMoves = useMemo(() => !isSplitSeven ? [] : (legalMoves as SplitSevenMove[]).filter(
+    (move) => splitSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
+  ), [isSplitSeven, legalMoves, splitSteps]);
+  const activePieceIds = useMemo(() => {
+    if (!selectedCard || busy) return new Set<string>();
+    if (isSplitSeven) {
+      return new Set(matchingSplitMoves
+        .map((move) => move.steps[splitSteps.length]?.pieceId)
+        .filter((pieceId): pieceId is string => Boolean(pieceId)));
+    }
+    return new Set(legalMoves.filter((move): move is AtomicMove => move.kind !== "split7").map((move) => move.pieceId));
+  }, [busy, isSplitSeven, legalMoves, matchingSplitMoves, selectedCard, splitSteps.length]);
+  const boardPlayers = game.players.map((player) => ({
+    id: player.id,
+    pieces: player.pieces,
+    hand: Array.from({ length: player.handCount }, () => ({ rank: "A" as const, suit: "spades" as const })),
+  }));
+  const alreadyExchanged = Boolean(game.exchangeSelections[access.playerId]);
+  const onlyFivesPlayable = playableIndexes.length > 0 && playableIndexes.every((index) => hand[index]?.rank === "5");
+  const canDiscard = selectedCardIndex !== null && (
+    forcedDiscard || playableIndexes.length === 0 || (onlyFivesPlayable && selectedCard?.rank !== "5")
+  );
+
+  function resetSelection() {
+    setSelectedCardIndex(null);
+    setSelectedPieceId(null);
+    setSplitSteps([]);
+    setDestinationMoves([]);
+  }
+
+  function chooseCard(index: number) {
+    setSelectedCardIndex(index);
+    setSelectedPieceId(null);
+    setSplitSteps([]);
+    setDestinationMoves([]);
+  }
+
+  function choosePiece(pieceId: string) {
+    if (!selectedCard || !activePieceIds.has(pieceId)) return;
+    setSelectedPieceId(pieceId);
+    if (isSplitSeven) {
+      const options = getSplitSevenDestinationOptions(matchingSplitMoves, splitSteps.length, pieceId);
+      setDestinationMoves(options.map((option) => ({
+        move: option.steps[option.steps.length - 1],
+        splitSteps: option.steps,
+      })));
+      return;
+    }
+    setDestinationMoves(uniqueOnlineMoves(
+      legalMoves.filter((move): move is AtomicMove => move.kind !== "split7" && move.pieceId === pieceId),
+    ).map((move) => ({ move })));
+  }
+
+  async function chooseDestination(option: DestinationOption) {
+    if (isSplitSeven && option.splitSteps) {
+      const nextSteps = [...splitSteps, ...option.splitSteps];
+      if (nextSteps.length < 7) {
+        setSplitSteps(nextSteps);
+        setSelectedPieceId(null);
+        setDestinationMoves([]);
+        return;
+      }
+      const complete = matchingSplitMoves.find((move) =>
+        nextSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
+      );
+      if (complete) await playMove(complete);
+      return;
+    }
+    await playMove(option.move);
+  }
+
+  async function playMove(move: CardMove) {
+    if (selectedCardIndex === null) return;
+    await submit({ type: "play-card", actor: access.playerId, cardIndex: selectedCardIndex, move });
+  }
+
+  async function submit(command: GameCommand) {
+    setBusy(true);
+    setCommandError(null);
+    try {
+      const next = await sendOnlineCommand(access.roomId, access.playerToken, {
+        commandId: crypto.randomUUID(),
+        expectedRevision: room.session.revision,
+        command,
+      });
+      onRoom(next);
+      resetSelection();
+    } catch (submitError) {
+      setCommandError(messageFrom(submitError));
+      try {
+        onRoom(await readOnlineRoom(access.roomId, access.playerToken));
+      } catch {
+        // Keep the command error visible if refreshing also fails.
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="online-table" style={ONLINE_APPEARANCE as React.CSSProperties}>
+      <div className="online-turn-heading">
+        <div>
+          <p className="eyebrow">Remote table · revision {room.session.revision}</p>
+          <h2>{game.winningTeam ? `${PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
+        </div>
+        {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+      </div>
+
+      <Board
+        pieces={isSplitSeven ? previewPieces : pieces}
+        boardDefinition={ruleset.board}
+        teamMode={ruleset.exchange === "partners"}
+        activePieceIds={activePieceIds}
+        hoppingPieces={[]}
+        swappingPieces={[]}
+        capturingPieceIds={[]}
+        players={boardPlayers}
+        dealer={game.dealer}
+        dealIndex={game.dealIndex}
+        dealCount={ruleset.dealSchedule.length}
+        selectedPieceId={selectedPieceId}
+        destinationMoves={destinationMoves}
+        showSpaceNumbers={showNumbers}
+        onToggleSpaceNumbers={() => setShowNumbers((shown) => !shown)}
+        onPieceClick={choosePiece}
+        onDestinationClick={(option) => void chooseDestination(option)}
+      />
+
+      <div className="online-hand-panel">
+        <div>
+          <p className="eyebrow">Your hand</p>
+          <strong>{PLAYER_NAMES[access.playerId]}</strong>
+        </div>
+        <div className="online-hand">
+          {hand.map((card, index) => (
+            <button
+              type="button"
+              className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
+              disabled={busy || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+              onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
+              key={`${card.rank}-${card.suit}-${index}`}
+            >
+              <span>{card.rank}</span>
+              <strong>{cardSymbol(card)}</strong>
+            </button>
+          ))}
+          {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
+        </div>
+        {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
+        {isMyTurn && game.phase === "play" && (
+          <button
+            className="online-discard"
+            type="button"
+            disabled={busy || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+            onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
+          >
+            {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
+          </button>
+        )}
+        {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
+      </div>
+      {commandError && <p className="online-error" role="alert">{commandError}</p>}
+    </section>
+  );
+}
+
+const ONLINE_APPEARANCE = {
+  "--color-p1": "#D81B60", "--color-p1-soft": "#F8DCE8", "--color-p1-ink": "#FFFFFF", "--shape-p1": "circle(49% at 50% 50%)",
+  "--color-p2": "#0057B8", "--color-p2-soft": "#D9E7F7", "--color-p2-ink": "#FFFFFF", "--shape-p2": "inset(2% round 24%)",
+  "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)",
+  "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)",
+};
+
+function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return moves.filter((move) => {
+    const key = JSON.stringify(move);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function cardSymbol(card: Card): string {
+  return { clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" }[card.suit];
+}

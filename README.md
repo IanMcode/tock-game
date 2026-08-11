@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tock
 
-## Getting Started
+A two-to-four-player game of Tock, built with Next.js and TypeScript. It includes
+both a local test table and private-code guest rooms backed by an authoritative
+server game session.
 
-First, run the development server:
+## Play locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) for the local test table, or
+[http://localhost:3000/online](http://localhost:3000/online) to create or join a
+private room in separate browser tabs or devices connected to the same server.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How to use the table
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. At the start of each hand, choose one card from every player's hand for the blind partner exchange.
+2. On a turn, choose a card in the current player's hand.
+3. Legal pieces glow. Choose one, then choose one of its glowing destinations on the board to complete the move.
+4. For a 7, choose any highlighted distance for the selected piece, then assign any remaining steps. For a Jack, choose the initiating piece and then its swap destination.
+5. When no card can move—or a 10 forces the turn—choose a card and use **Discard selected card**.
 
-## Learn More
+Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The move desk keeps the most recent card visible and records the latest turns in its play log.
 
-To learn more about Next.js, take a look at the following resources:
+After a destination is confirmed, the marble hops through every crossed space before the move is committed. Controls remain locked until the animation finishes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Reserve and eliminated pieces remain visible in the four colored trays around the board. Each tray also shows one face-down card for every card remaining in that player's hand. By default, every player begins with piece one protected on their entry space; the remaining pieces begin in reserve. A protected piece carries a gold inner ring and a gold ✦ badge until it moves. Partners sit opposite one another: Poppy and Sunny play against River and Fern.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Included rules
 
-## Deploy on Vercel
+- Two-, three-, or four-player free-for-all, plus opposite-seat teams for four players
+- 36-, 54-, or 72-space shared track, reserve, protected entry, and four-space home lanes
+- Deck-maximizing 5/4 deal schedules, dealer rotation, and team-only partner exchange
+- Entry, forward and backward movement, exact home entry, captures, and blockades
+- Ace and King entry, backward 4, universal 5, split 7, forced-discard 10, Jack swap, and face-card movement
+- Partner piece control after a player gets all four pieces home in team games
+- Individual or team win detection and automatic progression between hands and decks
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The canonical rules are documented in [RULES.md](./RULES.md). Pure game logic lives in `src/game/`; the React interface only presents state and dispatches legal actions.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Online play
+
+The online lobby and remote table use a tested guest-room API:
+
+- deterministic shuffling and versioned game snapshots;
+- revisioned, idempotent commands validated by an authoritative game session;
+- private player views that expose only the viewer's hand;
+- room codes, two-to-four guest seats, tab-scoped reconnect tokens, and spectator-safe views;
+- create, join, read, and command Route Handlers under `/api/rooms`;
+- private hands, partner exchange, legal destination selection, split-seven moves,
+  discards, polling, and revision-conflict recovery in the remote table;
+- a replaceable `RoomStore` boundary for future durable storage.
+
+The bundled store is intentionally in-memory and suitable only for development or
+a single long-running Node process. See [ONLINE.md](./ONLINE.md) for the API,
+security model, production requirements, and 2–4-player roadmap.
+
+## Verify
+
+```bash
+npm test
+npm run lint
+npm run build
+```

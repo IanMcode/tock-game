@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { createStandardDeck } from "./cards";
+import { getEntryIndex } from "./board";
 import { createGame } from "./createGame";
-import { getCardMoveValue, getNextPlayer } from "./rules";
-import type { Card } from "./types";
-
-function card(rank: Card["rank"]): Card {
-  return {
-    rank,
-    suit: "clubs",
-  };
-}
+import { getNextPlayer } from "./rules";
 
 describe("local game engine", () => {
   it("creates a standard 52-card deck without jokers", () => {
@@ -21,7 +14,7 @@ describe("local game engine", () => {
   });
 
   it("creates four players", () => {
-    const game = createGame({ shuffle: false });
+    const game = createGame({ shuffle: false, dealer: "P4" });
 
     expect(game.players.map((player) => player.id)).toEqual([
       "P1",
@@ -30,17 +23,34 @@ describe("local game engine", () => {
       "P4",
     ]);
     expect(game.currentPlayer).toBe("P1");
+    expect(game.dealer).toBe("P4");
+    expect(game.phase).toBe("exchange");
   });
 
-  it("creates four pieces per player at start", () => {
-    const game = createGame({ shuffle: false });
+  it("starts each player's first piece protected on its entry", () => {
+    const game = createGame({ shuffle: false, dealer: "P4" });
 
     for (const player of game.players) {
       expect(player.pieces).toHaveLength(4);
-      expect(player.pieces.every((piece) => piece.position === "start")).toBe(
-        true,
-      );
+      expect(player.pieces[0].position).toEqual({
+        zone: "track",
+        index: getEntryIndex(player.id),
+        isEntryProtected: true,
+      });
+      expect(player.pieces.slice(1).every((piece) => piece.position.zone === "reserve")).toBe(true);
     }
+  });
+
+  it("can create the all-reserve starting variant", () => {
+    const game = createGame({
+      shuffle: false,
+      dealer: "P4",
+      startWithPieceOnEntry: false,
+    });
+
+    expect(game.players.every((player) =>
+      player.pieces.every((piece) => piece.position.zone === "reserve"),
+    )).toBe(true);
   });
 
   it("returns the next player in turn order", () => {
@@ -48,15 +58,5 @@ describe("local game engine", () => {
     expect(getNextPlayer("P2")).toBe("P3");
     expect(getNextPlayer("P3")).toBe("P4");
     expect(getNextPlayer("P4")).toBe("P1");
-  });
-
-  it("returns card move values", () => {
-    expect(getCardMoveValue(card("A"))).toBe("start");
-    expect(getCardMoveValue(card("K"))).toBe("start");
-    expect(getCardMoveValue(card("J"))).toBe("swap");
-    expect(getCardMoveValue(card("7"))).toBe("split7");
-    expect(getCardMoveValue(card("Q"))).toBe(12);
-    expect(getCardMoveValue(card("2"))).toBe(2);
-    expect(getCardMoveValue(card("10"))).toBe(10);
   });
 });
