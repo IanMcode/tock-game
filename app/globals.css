@@ -63,14 +63,14 @@ button { font: inherit; }
 .number-toggle i span { position: absolute; left: 3px; top: 3px; width: 11px; height: 11px; border-radius: 50%; background: white; transition: transform .15s; }
 .number-toggle[aria-pressed="true"] i { background: var(--green); }
 .number-toggle[aria-pressed="true"] i span { transform: translateX(13px); }
-.board { --space-diameter: 4.25cqw; --piece-diameter: 3.825cqw; position: relative; width: min(100%, 760px); aspect-ratio: 1; isolation: isolate; container: tock-board / inline-size; filter: drop-shadow(0 13px 18px rgba(37,67,54,.13)); }
+.board { --space-diameter: 4.25cqw; --piece-diameter: 3.825cqw; --board-rotation: 0deg; --counter-rotation: 0deg; position: relative; width: min(100%, 760px); aspect-ratio: 1; isolation: isolate; container: tock-board / inline-size; transform: rotate(var(--board-rotation)); filter: drop-shadow(0 13px 18px rgba(37,67,54,.13)); }
 .board-2 { --space-diameter: 5.8cqw; --piece-diameter: 5.22cqw; }
 .board-3 { --space-diameter: 4.7cqw; --piece-diameter: 4.23cqw; }
 .board::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.86) 0 18%, transparent 18.5%), repeating-linear-gradient(25deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px), linear-gradient(145deg, #dce7dc, #b8cabd); }
 .board-2::before { clip-path: polygon(7% 12%, 93% 12%, 93% 88%, 7% 88%); }
 .board-3::before { clip-path: polygon(50% 1%, 99% 88%, 1% 88%); }
 .board-4::before { clip-path: polygon(8% 4%, 92% 4%, 96% 92%, 4% 92%); }
-.board-center { position: absolute; left: 50%; top: 50%; width: 21%; aspect-ratio: 1; transform: translate(-50%,-50%); z-index: 1; display: grid; place-content: center; text-align: center; border-radius: 22%; color: #f8f0da; background: var(--green); box-shadow: 0 8px 24px rgba(20,55,44,.24); transform-origin: center; rotate: 45deg; }
+.board-center { position: absolute; left: 50%; top: 50%; width: 21%; aspect-ratio: 1; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); z-index: 1; display: grid; place-content: center; text-align: center; border-radius: 22%; color: #f8f0da; background: var(--green); box-shadow: 0 8px 24px rgba(20,55,44,.24); transform-origin: center; }
 .board-center > * { rotate: -45deg; }
 .board-center span { font-family: Georgia, serif; font-size: clamp(20px, 4vw, 40px); letter-spacing: .05em; }
 .board-center small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; opacity: .66; }
@@ -79,12 +79,13 @@ button { font: inherit; }
 .table-card::after { content: ""; position: absolute; inset: 4%; border: 1px solid rgba(40,50,45,.09); border-radius: inherit; pointer-events: none; }
 .table-card.red { color: #c9323d; }
 .table-card > strong { position: absolute; inset: 0; display: grid; place-items: center; font-family: Georgia, serif; font-size: clamp(25px, 5.2cqw, 51px); font-weight: 500; }
-.board-center .table-card-corner { position: absolute; z-index: 1; display: grid; place-items: center; font-family: Georgia, serif; font-size: clamp(7px, 1.18cqw, 13px); font-style: normal; font-weight: 700; line-height: .82; letter-spacing: 0; }
+.table-card-corner { position: absolute; z-index: 1; display: grid; place-items: center; font-family: Georgia, serif; font-style: normal; font-weight: 700; line-height: .82; letter-spacing: 0; }
+.board-center .table-card-corner { font-size: clamp(7px, 1.18cqw, 13px); }
 .table-card-corner b, .table-card-corner i { font: inherit; }
 .table-card-top { left: 10%; top: 8%; }
 .table-card-bottom { right: 10%; bottom: 8%; transform: rotate(180deg); }
 @keyframes center-card-arrive { from { opacity: 0; transform: rotate(-45deg) translateY(-18%) scale(.72); } }
-.board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 13%; display: grid; align-content: center; gap: 3px; padding: 7px 8px; transform: translate(-50%,-50%); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
+.board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 13%; display: grid; align-content: center; gap: 3px; padding: 7px 8px; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
 .reserve-heading { min-height: 25px; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .reserve-player-label { display: inline-flex; align-items: center; gap: 4px; color: var(--reserve); font-size: clamp(7px, .8vw, 10px); font-weight: 900; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
 .reserve-player-label i { width: 9px; height: 9px; flex: 0 0 auto; clip-path: var(--player-shape); background: var(--reserve); }
@@ -109,14 +110,18 @@ button { font: inherit; }
 .board-3 .track-space, .board-3 .home-space { width: 4.7%; }
 .track-space .space-number { grid-area: 1 / 1; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: rgba(23,49,42,.68); font-size: clamp(6px, .8vw, 10px); font-weight: 900; }
 .track-space .space-number:empty::after { content: ""; width: 22%; height: 22%; border-radius: 50%; background: rgba(31,65,51,.2); }
+.track-space .space-number { rotate: var(--counter-rotation); }
 .track-space .piece, .home-space .piece { grid-area: 1 / 1; width: var(--piece-diameter); }
+.track-space .piece, .home-space .piece, .hopping-piece-slot .piece, .swapping-piece-slot .piece { rotate: var(--counter-rotation); }
 .track-space.entry-space { width: 4.25%; border: 2px solid var(--entry); border-radius: 6px; transform: translate(-50%,-50%) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--entry) 14%, transparent), inset 0 1px 2px rgba(255,255,255,.8); }
 .board-2 .track-space.entry-space { width: 5.8%; }
 .board-3 .track-space.entry-space { width: 4.7%; }
-.track-space.entry-space > * { rotate: -45deg; }
+.track-space.entry-space > * { rotate: calc(-45deg + var(--counter-rotation)); }
 .home-space { background: var(--home); border: 1px solid rgba(34,67,54,.24); }
 .destination-button { position: absolute; inset: -5px; z-index: 12; display: grid; place-items: center; padding: 0; border: 3px solid var(--destination); border-radius: 50%; background: color-mix(in srgb, var(--destination) 14%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--destination) 16%, transparent); cursor: pointer; animation: destination-pulse 1s ease-in-out infinite; }
 .destination-button span { width: 34%; aspect-ratio: 1; clip-path: var(--destination-shape); background: var(--destination); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--destination) 48%, transparent)); }
+.track-space .destination-button span { rotate: var(--counter-rotation); }
+.track-space.entry-space .destination-button span { rotate: calc(-45deg + var(--counter-rotation)); }
 .track-space.entry-space .destination-button { rotate: 0deg; border-radius: 7px; }
 .destination-button:hover, .destination-button:focus-visible { background: color-mix(in srgb, var(--destination) 28%, white); outline: 3px solid white; outline-offset: 2px; }
 @keyframes destination-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--destination) 8%, transparent); } }
@@ -359,9 +364,9 @@ button { font: inherit; }
 .online-log-heading strong { font-family: Georgia, serif; font-size: 18px; font-weight: 500; }
 .online-log-card { position: relative; width: 40px; aspect-ratio: .7; flex: 0 0 auto; display: block; padding: 4px; border: 1px solid #d7d1c5; border-radius: 6px; color: #21332d; background: #fffefa; box-shadow: 0 4px 10px rgba(42,47,42,.13); }
 .online-log-card.red { color: #c73c35; }
-.online-log-card > span, .online-log-card > small { display: block; font-size: 9px; font-weight: 900; line-height: 1; }
+.online-log-card .table-card-corner { font-size: 8px; }
+.online-log-card > span { display: grid; font-weight: 900; line-height: .82; }
 .online-log-card > strong { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; }
-.online-log-card > small { position: absolute; right: 4px; bottom: 4px; transform: rotate(180deg); }
 .online-log-window { max-height: 104px; overflow-y: auto; padding-right: 8px; scrollbar-color: #b7c5bd transparent; }
 .online-log-window p { margin: 0; padding: 7px 0; border-top: 1px solid rgba(34,67,54,.12); color: var(--muted); font-size: 11px; line-height: 1.35; }
 .online-log-window p:first-child { border-top: 0; }

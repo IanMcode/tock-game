@@ -13,9 +13,10 @@ import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
 import { getUnseenAnimationMoves } from "../../src/online/animation";
+import { describePublicGameEvent } from "../../src/online/history";
 import {
   Board,
-  CardFace,
+  PlayingCardGraphic,
   getBoardTrackPoint,
   getPiecePoint,
   getSwapControlPoint,
@@ -33,7 +34,6 @@ import type { SplitSevenMove } from "../../src/game/specialMoves";
 import type { Card, Piece } from "../../src/game/types";
 import type { GameCommand } from "../../src/game/session";
 import type { CardMove } from "../../src/game/turns";
-import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAYER_NAMES: Record<PlayerId, string> = {
@@ -538,6 +538,7 @@ function OnlineRoomTable({
           onPieceClick={choosePiece}
           onDestinationClick={(option) => void chooseDestination(option)}
           recentCard={latestCard}
+          perspectivePlayerId={access.playerId}
         />
         {isDealing && (
           <div className="online-deal-overlay" role="status" aria-live="polite">
@@ -553,11 +554,11 @@ function OnlineRoomTable({
             <p className="eyebrow">Play log</p>
             <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
           </div>
-          {latestCard && <CardFace card={latestCard} className="online-log-card" />}
+          {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
         </div>
         <div className="online-log-window">
           {recentEvents.map((event) => (
-            <p key={event.revision}>{describeOnlineEvent(event, room.playerNames)}</p>
+            <p key={event.revision}>{describePublicGameEvent(event, room.playerNames)}</p>
           ))}
           {recentEvents.length === 0 && <p>Played and discarded cards will appear here for everyone.</p>}
         </div>
@@ -684,21 +685,6 @@ async function animateOnlineMoves({
 
 function waitForOnlineAnimation(duration: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, duration));
-}
-
-function describeOnlineEvent(
-  event: PublicGameEvent,
-  playerNames: Partial<Record<PlayerId, string>>,
-): string {
-  const actor = playerNames[event.actor] ?? PLAYER_NAMES[event.actor];
-  const card = event.card ? `${event.card.rank}${cardSymbol(event.card)}` : "a card";
-  if (event.type === "discard") return `${actor} discarded ${card}.`;
-  if (!event.move) return `${actor} played ${card}.`;
-  if (event.move.kind === "split7") return `${actor} played ${card} and split seven steps.`;
-  if (event.move.kind === "enter") return `${actor} played ${card} and entered a piece.`;
-  if (event.move.kind === "swap") return `${actor} played ${card} and swapped two pieces.`;
-  const direction = event.move.kind === "backward" ? "backward" : "forward";
-  return `${actor} played ${card} and moved ${direction}${event.move.capturedPieceId ? ", bumping a piece" : ""}.`;
 }
 
 function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {

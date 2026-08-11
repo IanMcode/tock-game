@@ -910,6 +910,7 @@ export function Board({
   onPieceClick,
   onDestinationClick,
   recentCard,
+  perspectivePlayerId,
 }: {
   pieces: readonly Piece[];
   boardDefinition: BoardDefinition;
@@ -930,6 +931,7 @@ export function Board({
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
   recentCard?: Card | null;
+  perspectivePlayerId?: PlayerId;
 }) {
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
@@ -942,6 +944,9 @@ export function Board({
     ? playerShapeVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
     : playerShapeVar("P1");
   const activePlayerIds = boardDefinition.playerIds;
+  const perspectiveRotation = perspectivePlayerId
+    ? getBoardPerspectiveRotation(perspectivePlayerId, boardDefinition)
+    : 0;
 
   return (
     <div className="board-wrap">
@@ -960,10 +965,17 @@ export function Board({
           Space numbers
         </button>
       </div>
-      <div className={`board board-${boardDefinition.playerCount}`} aria-label={`${boardDefinition.trackSize}-space Tock board`}>
+      <div
+        className={`board board-${boardDefinition.playerCount}`}
+        aria-label={`${boardDefinition.trackSize}-space Tock board`}
+        style={{
+          "--board-rotation": `${perspectiveRotation}deg`,
+          "--counter-rotation": `${-perspectiveRotation}deg`,
+        } as React.CSSProperties}
+      >
         <div className={`board-center ${recentCard ? "has-recent-card" : ""}`}>
           {recentCard ? (
-            <TableCard card={recentCard} />
+            <PlayingCardGraphic card={recentCard} />
           ) : (
             <>
               <span>TOCK</span>
@@ -1246,11 +1258,11 @@ export function CardFace({ card, className = "" }: { card: Card; className?: str
   );
 }
 
-function TableCard({ card }: { card: Card }) {
+export function PlayingCardGraphic({ card, className = "" }: { card: Card; className?: string }) {
   const red = card.suit === "hearts" || card.suit === "diamonds";
   const suit = SUIT_SYMBOL[card.suit];
   return (
-    <span className={`table-card ${red ? "red" : "black"}`} aria-label={`${card.rank} of ${card.suit}`}>
+    <span className={`table-card ${red ? "red" : "black"} ${className}`} aria-label={`${card.rank} of ${card.suit}`}>
       <span className="table-card-corner table-card-top"><b>{card.rank}</b><i>{suit}</i></span>
       <strong aria-hidden="true">{suit}</strong>
       <span className="table-card-corner table-card-bottom"><b>{card.rank}</b><i>{suit}</i></span>
@@ -1383,6 +1395,13 @@ function getReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
     4: [{ x: 50, y: 6 }, { x: 94, y: 50 }, { x: 50, y: 94 }, { x: 6, y: 50 }],
   };
   return points[board.playerCount][playerIndex];
+}
+
+export function getBoardPerspectiveRotation(viewer: PlayerId, board: BoardDefinition): number {
+  const point = getReservePoint(viewer, board);
+  const currentAngle = Math.atan2(point.y - 50, point.x - 50) * 180 / Math.PI;
+  const rotation = 90 - currentAngle;
+  return rotation > 180 ? rotation - 360 : rotation;
 }
 
 function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {

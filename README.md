@@ -23,7 +23,7 @@ private room in separate browser tabs or devices connected to the same server.
 4. For a 7, choose any highlighted distance for the selected piece, then assign any remaining steps. For a Jack, choose the initiating piece and then its swap destination.
 5. When no card can move—or a 10 forces the turn—choose a card and use **Discard selected card**.
 
-Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The move desk keeps the most recent card visible and records the latest turns in its play log.
+Use **Space numbers** above the board to show or hide each player's 1–18 track labels. The center of the board shows the most recently played card, and the play log records recent turns and any pieces eliminated by those moves.
 
 After a destination is confirmed, the marble hops through every crossed space before the move is committed. Controls remain locked until the animation finishes.
 
@@ -49,6 +49,7 @@ The online lobby and remote table use a tested guest-room API:
 - revisioned, idempotent commands validated by an authoritative game session;
 - private player views that expose only the viewer's hand;
 - room codes, two-to-four guest seats, tab-scoped reconnect tokens, and spectator-safe views;
+- a player-relative board that places each viewer's own seat at the bottom;
 - create, join, read, and command Route Handlers under `/api/rooms`;
 - private hands, partner exchange, legal destination selection, split-seven moves,
   discards, player-chosen names, synchronized movement and dealing animations, shared play
