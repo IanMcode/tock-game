@@ -64,14 +64,14 @@ button { font: inherit; }
 .number-toggle[aria-pressed="true"] i { background: var(--green); }
 .number-toggle[aria-pressed="true"] i span { transform: translateX(13px); }
 .board { --space-diameter: 3.3cqw; --piece-diameter: 2.97cqw; --center-field: 15%; --board-rotation: 0deg; --counter-rotation: 0deg; position: relative; width: min(100%, 760px); aspect-ratio: 1; isolation: isolate; container: tock-board / inline-size; transform: rotate(var(--board-rotation)); filter: drop-shadow(0 13px 18px rgba(37,67,54,.13)); }
-.board-2 { --space-diameter: 4.5cqw; --piece-diameter: 4.05cqw; --center-field: 10%; }
+.board-2 { --space-diameter: 6cqw; --piece-diameter: 5.4cqw; --center-field: 13%; width: min(100%, 720px); aspect-ratio: .9; }
 .board-3 { --space-diameter: 4cqw; --piece-diameter: 3.6cqw; }
 .board::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.86) 0 var(--center-field), transparent calc(var(--center-field) + .5%)), repeating-linear-gradient(25deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px), linear-gradient(145deg, #dce7dc, #b8cabd); }
-.board-2::before { clip-path: polygon(7% 12%, 93% 12%, 93% 88%, 7% 88%); }
+.board-2::before { clip-path: polygon(12% 4%, 88% 4%, 88% 96%, 12% 96%); }
 .board-3::before { clip-path: polygon(50% 1%, 99% 88%, 1% 88%); }
 .board-4::before { clip-path: polygon(8% 4%, 92% 4%, 96% 92%, 4% 92%); }
 .board-center { position: absolute; left: 50%; top: 50%; width: 18%; aspect-ratio: 1; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); z-index: 1; display: grid; place-content: center; text-align: center; border-radius: 22%; color: #f8f0da; background: var(--green); box-shadow: 0 8px 24px rgba(20,55,44,.24); transform-origin: center; }
-.board-2 .board-center { width: 12%; }
+.board-2 .board-center { width: 14%; }
 .board-2 .board-center span { font-size: 4cqw; }
 .board-center > * { rotate: -45deg; }
 .board-center span { font-family: Georgia, serif; font-size: clamp(20px, 4vw, 40px); letter-spacing: .05em; }
@@ -357,18 +357,14 @@ button { font: inherit; }
 .online-board-stage .board-wrap { width: 100%; }
 .online-table .board { width: min(100%, 1040px); }
 .online-table .board-reserve { width: 18%; min-height: 10%; }
-.board-player-dock-anchor { position: absolute; z-index: 15; width: 0; height: 0; }
-.board-player-dock { position: absolute; top: 0; display: flex; align-items: stretch; gap: 1.2cqw; transform: translateY(-50%) rotate(var(--counter-rotation)); }
-.board-player-dock.dock-right { left: -9cqw; transform-origin: 9cqw 50%; }
-.board-player-dock.dock-left { right: -9cqw; flex-direction: row-reverse; transform-origin: calc(100% - 9cqw) 50%; }
-.board-player-dock .board-reserve { position: relative; left: auto; top: auto; width: 18cqw; min-height: 10cqw; flex: 0 0 18cqw; transform: none; }
-.board-player-dock .online-hand-panel { position: relative; width: 40cqw; min-height: 10cqw; grid-template-columns: 1fr; align-content: center; gap: .4cqw; padding: .8cqw 1cqw; transform: none; }
-.board-player-dock .online-hand-panel > div:first-child { display: none; }
-.board-player-dock .online-hand { min-height: 6.8cqw; gap: .65cqw; padding: .3cqw; overflow: visible; }
-.board-player-dock .online-card { width: min(5.6cqw, 54px); padding: .6cqw; border-radius: .75cqw; }
-.board-player-dock .online-card > strong { font-size: min(3cqw, 27px); }
-.board-player-dock .online-discard { width: 100%; padding: .55cqw .8cqw; font-size: min(1.2cqw, 11px); }
-.board-player-dock .online-hand-panel > p { grid-column: 1; margin: 0; font-size: min(1.1cqw, 10px); }
+.board-footer-dock { position: relative; z-index: 15; width: min(100%, 900px); margin-top: 8px; --piece-diameter: 34px; }
+.online-local-player-dock { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); align-items: stretch; gap: 10px; width: 100%; }
+.online-local-player-dock .board-reserve { position: relative; left: auto; top: auto; width: 100%; min-height: 86px; transform: none; }
+.online-local-player-dock .online-hand-panel { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 5px 10px; padding: 7px 10px; }
+.online-local-player-dock .online-hand-panel > div:first-child { display: none; }
+.online-local-player-dock .online-hand { min-width: 0; min-height: 64px; padding-block: 2px 5px; }
+.online-local-player-dock .online-card { width: 46px; }
+.online-local-player-dock .online-hand-panel > p { grid-column: 1 / -1; margin: 0; }
 .online-table .piece.active { z-index: 8; }
 .online-table .piece.active::after { content: ""; position: absolute; inset: -11px; z-index: -2; clip-path: var(--piece-shape); background: #ffe168; filter: drop-shadow(0 0 3px white) drop-shadow(0 0 8px #ffe168) drop-shadow(0 0 13px var(--piece)); opacity: .88; animation: online-piece-ring .72s ease-in-out infinite alternate; }
 @keyframes online-piece-ring { to { inset: -15px; opacity: .38; } }
@@ -435,7 +431,8 @@ button { font: inherit; }
   .online-shell-active .online-turn-heading h2 { margin-top: 2px; font-size: 21px; }
   .online-shell-active .online-board-stage { grid-area: board; min-height: 0; height: 100%; }
   .online-shell-active .online-board-stage .board-wrap { height: 100%; grid-template-rows: auto minmax(0,1fr) auto; padding: 8px 10px; }
-  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 174px), 1040px); }
+  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 285px), 1040px); }
+  .online-shell-active .online-table .board-2 { width: min(100%, calc((100svh - 265px) * .9), 720px); }
   .online-shell-active .online-play-log { grid-area: log; grid-template-columns: 1fr; align-content: start; min-height: 0; margin-top: 0; }
   .online-shell-active .online-chat { grid-area: chat; }
   .online-shell-active .online-log-window { max-height: none; }
@@ -453,6 +450,7 @@ button { font: inherit; }
   .online-hand-panel > p { grid-column: 1; margin-top: -8px; }
   .online-discard { width: 100%; }
   .online-table .board-reserve { width: 23%; }
+  .online-local-player-dock .board-reserve { width: 100%; }
 }
 
 @media (max-width: 760px), (max-height: 619px) {
@@ -466,7 +464,7 @@ button { font: inherit; }
   .online-shell-active .online-board-stage { grid-area: board; }
   .online-shell-active .online-play-log { grid-area: log; }
   .online-shell-active .online-chat { grid-area: chat; }
-  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 250px), 1040px); }
+  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 310px), 1040px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

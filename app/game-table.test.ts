@@ -13,7 +13,7 @@ import {
 describe("player board perspective", () => {
   it("places each player's space 12 exactly on a corner", () => {
     const expectedCorners = {
-      2: [{ x: 16, y: 20 }, { x: 84, y: 80 }],
+      2: [{ x: 78, y: 90 }, { x: 22, y: 10 }],
       3: [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }],
       4: [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }],
     } as const;
@@ -41,12 +41,28 @@ describe("player board perspective", () => {
           rotation,
         );
         const firstHomeSpace = rotatePoint(getHomeLanePoint(playerId, 0, board), rotation);
+        const space12 = rotatePoint(
+          getBoardTrackPoint(getBoardTrackIndex(board, playerId, 12), board),
+          rotation,
+        );
 
         expect(reserve.x).toBeCloseTo(entry.x, 1);
         expect(reserve.y).toBeGreaterThan(90);
         expect(entrance.y).toBeCloseTo(entry.y, 1);
         expect(entry.y).toBeGreaterThan(60);
         expect(firstHomeSpace.y).toBeLessThan(entrance.y);
+        if (board.playerCount === 2) {
+          expect(entry.x).toBeLessThan(space12.x);
+          expect(entry.y).toBeCloseTo(space12.y, 1);
+          const playerEdge = [18, 17, 16, 15, 14, 13, 12].map((space) => rotatePoint(
+            getBoardTrackPoint(getBoardTrackIndex(board, playerId, space), board),
+            rotation,
+          ));
+          expect(playerEdge.every((point) => Math.abs(point.y - entry.y) < 0.1)).toBe(true);
+          expect(playerEdge.map((point) => point.x)).toEqual(
+            [...playerEdge].map((point) => point.x).sort((left, right) => left - right),
+          );
+        }
       }
     }
   });

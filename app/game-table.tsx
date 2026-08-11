@@ -890,6 +890,95 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   );
 }
 
+export function BoardReserve({
+  owner,
+  pieces,
+  player,
+  playerName,
+  dealer,
+  dealIndex,
+  dealCount,
+  activePieceIds,
+  animatedPieceIds = new Set<string>(),
+  selectedPieceId,
+  capturingPieceIds,
+  onPieceClick,
+  style,
+}: {
+  owner: PlayerId;
+  pieces: readonly Piece[];
+  player?: GameState["players"][number];
+  playerName: string;
+  dealer: PlayerId;
+  dealIndex: GameState["dealIndex"];
+  dealCount: number;
+  activePieceIds: ReadonlySet<string>;
+  animatedPieceIds?: ReadonlySet<string>;
+  selectedPieceId: string | null;
+  capturingPieceIds: readonly string[];
+  onPieceClick: (pieceId: string) => void;
+  style?: React.CSSProperties;
+}) {
+  const reservePieces = pieces.filter(
+    (piece) => piece.owner === owner && piece.position.zone === "reserve" && !animatedPieceIds.has(piece.id),
+  );
+  const handCount = player?.hand.length ?? 0;
+  const homeComplete = pieces.filter((piece) => piece.owner === owner).every(
+    (piece) => piece.position.zone === "home",
+  );
+
+  return (
+    <div
+      className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""}`}
+      style={{
+        "--reserve": playerColorVar(owner),
+        "--reserve-soft": playerSoftVar(owner),
+        ...style,
+      } as React.CSSProperties}
+      aria-label={`${playerName}'s reserve`}
+    >
+      <div className="reserve-heading">
+        <span className="reserve-player-label">
+          <i style={{ "--player-shape": playerShapeVar(owner) } as React.CSSProperties} aria-hidden="true" />
+          {playerName}
+        </span>
+        {owner === dealer && (
+          <span className="board-dealer" aria-label={`${playerName} is the dealer, hand ${dealIndex + 1} of ${dealCount}`}>
+            <DeckIcon />
+            <span>
+              <strong>Dealer</strong>
+              <small>Hand {dealIndex + 1} of {dealCount}</small>
+            </span>
+          </span>
+        )}
+      </div>
+      <div className="board-hand-count" aria-label={`${playerName} has ${handCount} ${handCount === 1 ? "card" : "cards"} remaining`}>
+        {handCount > 0 ? (
+          <span className="face-down-cards" aria-hidden="true">
+            {Array.from({ length: handCount }, (_, index) => <i key={index} />)}
+          </span>
+        ) : (
+          <span className="empty-card-count">No cards</span>
+        )}
+        <small>{handCount} left</small>
+      </div>
+      <div className="reserve-pieces">
+        {reservePieces.length > 0 ? reservePieces.map((piece) => (
+          <PieceButton
+            key={piece.id}
+            piece={piece}
+            active={activePieceIds.has(piece.id)}
+            selected={selectedPieceId === piece.id}
+            capturing={capturingPieceIds.includes(piece.id)}
+            playerName={playerName}
+            onClick={() => onPieceClick(piece.id)}
+          />
+        )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
+      </div>
+    </div>
+  );
+}
+
 export function Board({
   pieces,
   boardDefinition,
@@ -911,8 +1000,8 @@ export function Board({
   onDestinationClick,
   recentCard,
   perspectivePlayerId,
-  reserveDockPlayerId,
-  reserveDockContent,
+  externalReservePlayerId,
+  footerContent,
 }: {
   pieces: readonly Piece[];
   boardDefinition: BoardDefinition;
@@ -934,8 +1023,8 @@ export function Board({
   onDestinationClick: (option: DestinationOption) => void;
   recentCard?: Card | null;
   perspectivePlayerId?: PlayerId;
-  reserveDockPlayerId?: PlayerId;
-  reserveDockContent?: React.ReactNode;
+  externalReservePlayerId?: PlayerId;
+  footerContent?: React.ReactNode;
 }) {
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
@@ -988,95 +1077,26 @@ export function Board({
           )}
         </div>
         {activePlayerIds.map((owner) => {
+          if (owner === externalReservePlayerId) return null;
           const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
-          const reservePieces = pieces.filter(
-            (piece) =>
-              piece.owner === owner &&
-              piece.position.zone === "reserve" &&
-              !animatedPieceIds.has(piece.id),
-          );
-          const handCount = players.find((player) => player.id === owner)?.hand.length ?? 0;
-          const homeComplete = pieces.filter((piece) => piece.owner === owner).every(
-            (piece) => piece.position.zone === "home",
-          );
           const reservePoint = getBoardReservePoint(owner, boardDefinition);
-          const reserveCard = (
-            <div
-              className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""}`}
-              key={`${owner}-reserve-card`}
-              style={{
-                "--reserve": playerColorVar(owner),
-                "--reserve-soft": playerSoftVar(owner),
-                ...(owner === reserveDockPlayerId ? {} : {
-                  left: `${reservePoint.x}%`,
-                  top: `${reservePoint.y}%`,
-                }),
-              } as React.CSSProperties}
-              aria-label={`${playerName}'s reserve`}
-            >
-              <div className="reserve-heading">
-                <span className="reserve-player-label">
-                  <i style={{ "--player-shape": playerShapeVar(owner) } as React.CSSProperties} aria-hidden="true" />
-                  {playerName}
-                </span>
-                {owner === dealer && (
-                  <span
-                    className="board-dealer"
-                    aria-label={`${playerName} is the dealer, hand ${dealIndex + 1} of ${dealCount}`}
-                  >
-                    <DeckIcon />
-                    <span>
-                      <strong>Dealer</strong>
-                      <small>Hand {dealIndex + 1} of {dealCount}</small>
-                    </span>
-                  </span>
-                )}
-              </div>
-              <div
-                className="board-hand-count"
-                aria-label={`${playerName} has ${handCount} ${handCount === 1 ? "card" : "cards"} remaining`}
-              >
-                {handCount > 0 ? (
-                  <span className="face-down-cards" aria-hidden="true">
-                    {Array.from({ length: handCount }, (_, index) => <i key={index} />)}
-                  </span>
-                ) : (
-                  <span className="empty-card-count">No cards</span>
-                )}
-                <small>{handCount} left</small>
-              </div>
-              <div className="reserve-pieces">
-                {reservePieces.length > 0 ? reservePieces.map((piece) => (
-                  <PieceButton
-                    key={piece.id}
-                    piece={piece}
-                    active={activePieceIds.has(piece.id)}
-                    selected={selectedPieceId === piece.id}
-                    capturing={capturingPieceIds.includes(piece.id)}
-                    playerName={playerName}
-                    onClick={() => onPieceClick(piece.id)}
-                  />
-                )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
-              </div>
-            </div>
-          );
-          if (owner !== reserveDockPlayerId || !reserveDockContent) {
-            return reserveCard;
-          }
-
-          const screenReservePoint = rotateBoardPoint(reservePoint, perspectiveRotation);
-          const dockSide = screenReservePoint.x > 50 ? "left" : "right";
           return (
-            <div
-              className="board-player-dock-anchor"
-              key={`${owner}-reserve-dock`}
+            <BoardReserve
+              key={`${owner}-reserve`}
+              owner={owner}
+              pieces={pieces}
+              player={players.find((player) => player.id === owner)}
+              playerName={playerName}
+              dealer={dealer}
+              dealIndex={dealIndex}
+              dealCount={dealCount}
+              activePieceIds={activePieceIds}
+              animatedPieceIds={animatedPieceIds}
+              selectedPieceId={selectedPieceId}
+              capturingPieceIds={capturingPieceIds}
+              onPieceClick={onPieceClick}
               style={{ left: `${reservePoint.x}%`, top: `${reservePoint.y}%` }}
-            >
-              <div className={`board-player-dock dock-${dockSide}`}>
-                {reserveCard}
-                {reserveDockContent}
-              </div>
-            </div>
+            />
           );
         })}
         {Array.from({ length: boardDefinition.trackSize }, (_, index) => {
@@ -1222,6 +1242,7 @@ export function Board({
           </div>
         ))}
       </div>
+      {footerContent && <div className="board-footer-dock">{footerContent}</div>}
       <div className="team-key">
         {teamMode ? (
           <>
@@ -1367,6 +1388,7 @@ function describeDestinationOption(option: DestinationOption) {
 }
 
 export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+  if (board.playerCount === 2) return getTwoPlayerTrackPoint(trackIndex, board);
   const vertices = getBoardVertices(board.playerCount);
   const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
@@ -1390,6 +1412,13 @@ export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: Boar
 }
 
 function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point: BoardPoint): BoardPoint {
+  if (board.playerCount === 2) {
+    const normalizedIndex = (trackIndex + board.trackSize) % board.trackSize;
+    if (normalizedIndex <= 10) return { x: -1, y: 0 };
+    if (normalizedIndex <= 17) return { x: 0, y: -1 };
+    if (normalizedIndex <= 28) return { x: 1, y: 0 };
+    return { x: 0, y: 1 };
+  }
   const vertices = getBoardVertices(board.playerCount);
   const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
@@ -1407,14 +1436,36 @@ function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point:
 }
 
 function getBoardSpaceSize(board: BoardDefinition): number {
-  if (board.playerCount === 2) return 4.5;
+  if (board.playerCount === 2) return 6;
   if (board.playerCount === 3) return 4;
   return 3.3;
+}
+
+function getTwoPlayerTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+  const index = (trackIndex + board.trackSize) % board.trackSize;
+  const left = 22;
+  const right = 78;
+  const top = 10;
+  const bottom = 90;
+
+  if (index <= 10) {
+    return roundPoint({ x: right, y: top + (index + 1) / 12 * (bottom - top) });
+  }
+  if (index <= 17) {
+    return roundPoint({ x: right - (index - 11) / 6 * (right - left), y: bottom });
+  }
+  if (index <= 28) {
+    return roundPoint({ x: left, y: bottom - (index - 17) / 12 * (bottom - top) });
+  }
+  return roundPoint({ x: left + (index - 29) / 6 * (right - left), y: top });
 }
 
 export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
   const entryIndex = getEntryIndex(owner, board);
   const entry = getBoardTrackPoint(entryIndex, board);
+  if (board.playerCount === 2) {
+    return { x: entry.x, y: entry.y < 50 ? -3 : 103 };
+  }
   const inward = getInwardTrackNormal(entryIndex, board, entry);
   const outward = { x: -inward.x, y: -inward.y };
   const fromCenter = { x: entry.x - 50, y: entry.y - 50 };
@@ -1448,7 +1499,7 @@ function getBoardEdgeProgress(
 
 function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {
   if (playerCount === 2) {
-    return [{ x: 16, y: 20 }, { x: 84, y: 20 }, { x: 84, y: 80 }, { x: 16, y: 80 }];
+    return [{ x: 22, y: 10 }, { x: 78, y: 10 }, { x: 78, y: 90 }, { x: 22, y: 90 }];
   }
   if (playerCount === 3) {
     return [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }];
@@ -1460,16 +1511,6 @@ function roundPoint(point: { x: number; y: number }) {
   return {
     x: Number(point.x.toFixed(4)),
     y: Number(point.y.toFixed(4)),
-  };
-}
-
-function rotateBoardPoint(point: BoardPoint, degrees: number): BoardPoint {
-  const radians = degrees * Math.PI / 180;
-  const x = point.x - 50;
-  const y = point.y - 50;
-  return {
-    x: 50 + x * Math.cos(radians) - y * Math.sin(radians),
-    y: 50 + x * Math.sin(radians) + y * Math.cos(radians),
   };
 }
 

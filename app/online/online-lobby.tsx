@@ -17,6 +17,7 @@ import { getUnseenAnimationMoves } from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
 import {
   Board,
+  BoardReserve,
   PlayingCardGraphic,
   getBoardTrackPoint,
   getPiecePoint,
@@ -573,6 +574,28 @@ function OnlineRoomTable({
       {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
     </div>
   );
+  const localPlayerDock = (
+    <div className="online-local-player-dock">
+      <BoardReserve
+        owner={access.playerId}
+        pieces={isSplitSeven ? previewPieces : displayPieces}
+        player={boardPlayers.find((player) => player.id === access.playerId)}
+        playerName={room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}
+        dealer={game.dealer}
+        dealIndex={game.dealIndex}
+        dealCount={ruleset.dealSchedule.length}
+        activePieceIds={activePieceIds}
+        animatedPieceIds={new Set([
+          ...hoppingPieces.map((animated) => animated.piece.id),
+          ...swappingPieces.map((animated) => animated.piece.id),
+        ])}
+        selectedPieceId={selectedPieceId}
+        capturingPieceIds={capturingPieceIds}
+        onPieceClick={choosePiece}
+      />
+      {handPanel}
+    </div>
+  );
 
   return (
     <section className={`online-table ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
@@ -611,8 +634,8 @@ function OnlineRoomTable({
           onDestinationClick={(option) => void chooseDestination(option)}
           recentCard={latestCard}
           perspectivePlayerId={access.playerId}
-          reserveDockPlayerId={access.playerId}
-          reserveDockContent={handPanel}
+          externalReservePlayerId={access.playerId}
+          footerContent={localPlayerDock}
         />
         {isDealing && (
           <div className="online-deal-overlay" role="status" aria-live="polite">
