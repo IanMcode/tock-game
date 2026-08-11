@@ -1002,8 +1002,8 @@ export function Board({
               style={{
                 "--reserve": playerColorVar(owner),
                 "--reserve-soft": playerSoftVar(owner),
-                left: `${getReservePoint(owner, boardDefinition).x}%`,
-                top: `${getReservePoint(owner, boardDefinition).y}%`,
+                left: `${getBoardReservePoint(owner, boardDefinition).x}%`,
+                top: `${getBoardReservePoint(owner, boardDefinition).y}%`,
               } as React.CSSProperties}
               aria-label={`${playerName}'s reserve`}
             >
@@ -1343,7 +1343,7 @@ function describeDestinationOption(option: DestinationOption) {
 
 export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
   const vertices = getBoardVertices(board.playerCount);
-  const edgeProgress = trackIndex / board.trackSize * vertices.length;
+  const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
   const edgeOffset = edgeProgress - Math.floor(edgeProgress);
   const from = vertices[edgeIndex];
@@ -1366,7 +1366,7 @@ export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: Boar
 
 function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point: BoardPoint): BoardPoint {
   const vertices = getBoardVertices(board.playerCount);
-  const edgeProgress = trackIndex / board.trackSize * vertices.length;
+  const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
   const from = vertices[edgeIndex];
   const to = vertices[(edgeIndex + 1) % vertices.length];
@@ -1387,21 +1387,38 @@ function getBoardSpaceSize(board: BoardDefinition): number {
   return 4.25;
 }
 
-function getReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
-  const playerIndex = board.playerIds.indexOf(owner);
-  const points: Readonly<Record<BoardPlayerCount, readonly BoardPoint[]>> = {
-    2: [{ x: 50, y: 7 }, { x: 50, y: 93 }],
-    3: [{ x: 82, y: 10 }, { x: 50, y: 94 }, { x: 18, y: 10 }],
-    4: [{ x: 50, y: 6 }, { x: 94, y: 50 }, { x: 50, y: 94 }, { x: 6, y: 50 }],
-  };
-  return points[board.playerCount][playerIndex];
+export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
+  const entryIndex = getEntryIndex(owner, board);
+  const entry = getBoardTrackPoint(entryIndex, board);
+  const inward = getInwardTrackNormal(entryIndex, board, entry);
+  const outward = { x: -inward.x, y: -inward.y };
+  const fromCenter = { x: entry.x - 50, y: entry.y - 50 };
+  const reserveRadius = board.playerCount === 3 ? 45 : 44;
+  const perpendicularDistance = fromCenter.x * outward.x + fromCenter.y * outward.y;
+  const outwardOffset = reserveRadius - perpendicularDistance;
+  return roundPoint({
+    x: entry.x + outward.x * outwardOffset,
+    y: entry.y + outward.y * outwardOffset,
+  });
 }
 
 export function getBoardPerspectiveRotation(viewer: PlayerId, board: BoardDefinition): number {
-  const point = getReservePoint(viewer, board);
-  const currentAngle = Math.atan2(point.y - 50, point.x - 50) * 180 / Math.PI;
+  const entryIndex = getEntryIndex(viewer, board);
+  const entry = getBoardTrackPoint(entryIndex, board);
+  const inward = getInwardTrackNormal(entryIndex, board, entry);
+  const currentAngle = Math.atan2(-inward.y, -inward.x) * 180 / Math.PI;
   const rotation = 90 - currentAngle;
   return rotation > 180 ? rotation - 360 : rotation;
+}
+
+function getBoardEdgeProgress(
+  trackIndex: number,
+  board: BoardDefinition,
+  edgeCount: number,
+): number {
+  const perspectiveOffset = board.playerCount === 2 ? -12.5 : -8;
+  const shiftedIndex = (trackIndex + perspectiveOffset + board.trackSize) % board.trackSize;
+  return shiftedIndex / board.trackSize * edgeCount;
 }
 
 function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {

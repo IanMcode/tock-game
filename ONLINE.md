@@ -42,8 +42,9 @@ number of every piece eliminated by a move. Client views never include the
 private hand index used to submit a command.
 Each client replays unseen public move events before adopting the latest board
 snapshot, so opponents and reconnecting viewers see the same movement sequence.
-The rendered board rotates per viewer so their own seat is always at the bottom,
-while labels, pieces, and the shared most-recent-card display stay upright.
+The rendered board rotates per viewer so their own seat, protected entry, and
+home lane are always aligned along the bottom, while labels, pieces, and the
+shared most-recent-card display stay upright.
 
 ## Guest room API
 
