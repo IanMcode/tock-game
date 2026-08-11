@@ -963,7 +963,7 @@ export function Board({
       <div className={`board board-${boardDefinition.playerCount}`} aria-label={`${boardDefinition.trackSize}-space Tock board`}>
         <div className={`board-center ${recentCard ? "has-recent-card" : ""}`}>
           {recentCard ? (
-            <CardFace card={recentCard} className="center-recent-card" />
+            <TableCard card={recentCard} />
           ) : (
             <>
               <span>TOCK</span>
@@ -1246,6 +1246,18 @@ export function CardFace({ card, className = "" }: { card: Card; className?: str
   );
 }
 
+function TableCard({ card }: { card: Card }) {
+  const red = card.suit === "hearts" || card.suit === "diamonds";
+  const suit = SUIT_SYMBOL[card.suit];
+  return (
+    <span className={`table-card ${red ? "red" : "black"}`} aria-label={`${card.rank} of ${card.suit}`}>
+      <span className="table-card-corner table-card-top"><b>{card.rank}</b><i>{suit}</i></span>
+      <strong aria-hidden="true">{suit}</strong>
+      <span className="table-card-corner table-card-bottom"><b>{card.rank}</b><i>{suit}</i></span>
+    </span>
+  );
+}
+
 function DeckIcon() {
   return (
     <span className="deck-icon" aria-hidden="true">
@@ -1274,7 +1286,6 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
         "--piece": playerColorVar(piece.owner),
         "--piece-ink": playerInkVar(piece.owner),
         "--piece-shape": playerShapeVar(piece.owner),
-        width: hopping ? "90%" : undefined,
       } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();

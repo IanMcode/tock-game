@@ -39,6 +39,8 @@ Player-chosen display names are public room metadata, limited to 24 characters,
 and retained with the room across reconnects.
 Played and discarded cards are public room history. Client views never include
 the private hand index used to submit a command.
+Each client replays unseen public move events before adopting the latest board
+snapshot, so opponents and reconnecting viewers see the same movement sequence.
 
 ## Guest room API
 

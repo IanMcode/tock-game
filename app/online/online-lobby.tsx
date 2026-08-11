@@ -12,6 +12,7 @@ import {
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
+import { getUnseenAnimationMoves } from "../../src/online/animation";
 import {
   Board,
   CardFace,
@@ -274,6 +275,11 @@ function OnlineRoomTable({
   const viewer = game.players.find((player) => player.id === access.playerId);
   const hand = useMemo(() => viewer?.hand ?? [], [viewer]);
   const pieces = useMemo(() => game.players.flatMap((player) => player.pieces), [game.players]);
+  const [displayPieces, setDisplayPieces] = useState<Piece[]>(() => [...pieces]);
+  const displayPiecesRef = useRef<Piece[]>([...pieces]);
+  const displayedRevisionRef = useRef(room.session.revision);
+  const locallyAnimatedRevisionRef = useRef<number | null>(null);
+  const animationRunRef = useRef(0);
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
@@ -293,6 +299,70 @@ function OnlineRoomTable({
     const timeout = window.setTimeout(() => setIsDealing(false), ONLINE_DEAL_DURATION);
     return () => window.clearTimeout(timeout);
   }, [dealKey]);
+
+  useEffect(() => {
+    const targetRevision = room.session.revision;
+    if (targetRevision <= displayedRevisionRef.current) return;
+
+    const previousRevision = displayedRevisionRef.current;
+    displayedRevisionRef.current = targetRevision;
+    const finalPieces = pieces.map((piece) => ({ ...piece, position: { ...piece.position } }));
+    const setVisualPieces = (next: readonly Piece[]) => {
+      const copy = next.map((piece) => ({ ...piece, position: { ...piece.position } }));
+      displayPiecesRef.current = copy;
+      setDisplayPieces(copy);
+    };
+
+    if (locallyAnimatedRevisionRef.current === targetRevision) {
+      locallyAnimatedRevisionRef.current = null;
+      setVisualPieces(finalPieces);
+      return;
+    }
+
+    const unseenMoves = getUnseenAnimationMoves(
+      room.session.events ?? [],
+      previousRevision,
+      targetRevision,
+    );
+
+    if (unseenMoves.length === 0) {
+      setVisualPieces(finalPieces);
+      return;
+    }
+
+    const runId = ++animationRunRef.current;
+    setIsAnimating(true);
+    setSelectedCardIndex(null);
+    setSelectedPieceId(null);
+    setSplitSteps([]);
+    setDestinationMoves([]);
+
+    void animateOnlineMoves({
+      startingPieces: displayPiecesRef.current,
+      moves: unseenMoves,
+      board: ruleset.board,
+      setHoppingPieces,
+      setSwappingPieces,
+      setCapturingPieceIds,
+      onPiecesChanged: setVisualPieces,
+      shouldContinue: () => animationRunRef.current === runId,
+    }).then(() => {
+      if (animationRunRef.current !== runId) return;
+      setVisualPieces(finalPieces);
+      setHoppingPieces([]);
+      setSwappingPieces([]);
+      setCapturingPieceIds([]);
+      setIsAnimating(false);
+    }).catch((animationError) => {
+      if (animationRunRef.current !== runId) return;
+      setVisualPieces(finalPieces);
+      setHoppingPieces([]);
+      setSwappingPieces([]);
+      setCapturingPieceIds([]);
+      setIsAnimating(false);
+      setCommandError(messageFrom(animationError));
+    });
+  }, [pieces, room.session.events, room.session.revision, ruleset.board]);
   const legalMoves = useMemo(() =>
     selectedCard && isMyTurn && !forcedDiscard
       ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
@@ -369,7 +439,14 @@ function OnlineRoomTable({
     setDestinationMoves([]);
 
     try {
-      await animateMoves(isSplitSeven ? previewPieces : pieces, animationMoves);
+      const animatedPieces = await animateOnlineMoves({
+        startingPieces: isSplitSeven ? previewPieces : displayPiecesRef.current,
+        moves: animationMoves,
+        board: ruleset.board,
+        setHoppingPieces,
+        setSwappingPieces,
+        setCapturingPieceIds,
+      });
 
       if (isSplitSeven && option.splitSteps) {
         const nextSteps = [...splitSteps, ...option.splitSteps];
@@ -384,53 +461,14 @@ function OnlineRoomTable({
         if (complete) await playMove(complete);
         return;
       }
+      displayPiecesRef.current = animatedPieces;
+      setDisplayPieces(animatedPieces);
       await playMove(option.move);
     } finally {
       setHoppingPieces([]);
       setSwappingPieces([]);
       setCapturingPieceIds([]);
       setIsAnimating(false);
-    }
-  }
-
-  async function animateMoves(startingPieces: readonly Piece[], moves: readonly AtomicMove[]) {
-    let currentPieces = [...startingPieces];
-    let frameNumber = 0;
-
-    for (const move of moves) {
-      if (move.kind === "swap") {
-        const movingPiece = currentPieces.find((piece) => piece.id === move.pieceId);
-        const targetPiece = currentPieces.find((piece) => piece.id === move.targetPieceId);
-        if (!movingPiece || !targetPiece) throw new Error("Cannot animate a Jack swap with a missing piece.");
-
-        const movingFrom = getPiecePoint(movingPiece, ruleset.board);
-        const movingTo = getBoardTrackPoint(move.destination.index, ruleset.board);
-        const targetFrom = getPiecePoint(targetPiece, ruleset.board);
-        const targetTo = getBoardTrackPoint(move.targetDestination.index, ruleset.board);
-        setSwappingPieces([
-          { piece: movingPiece, from: movingFrom, through: getSwapControlPoint(movingFrom, movingTo), to: movingTo },
-          { piece: targetPiece, from: targetFrom, through: getSwapControlPoint(targetFrom, targetTo), to: targetTo },
-        ]);
-        await waitForOnlineAnimation(ONLINE_SWAP_DURATION);
-        setSwappingPieces([]);
-        currentPieces = applyAtomicMove(currentPieces, move);
-        continue;
-      }
-
-      const frames = getMoveAnimationFrames(currentPieces, move, ruleset.board);
-      for (const [frameIndex, frame] of frames.entries()) {
-        frameNumber += 1;
-        if (frameIndex === frames.length - 1 && move.capturedPieceId) {
-          setCapturingPieceIds([move.capturedPieceId]);
-        }
-        setHoppingPieces(frame.flatMap((animated) => {
-          const piece = currentPieces.find((candidate) => candidate.id === animated.pieceId);
-          return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
-        }));
-        await waitForOnlineAnimation(ONLINE_HOP_DURATION);
-      }
-      currentPieces = applyAtomicMove(currentPieces, move);
-      setCapturingPieceIds([]);
     }
   }
 
@@ -448,9 +486,12 @@ function OnlineRoomTable({
         expectedRevision: room.session.revision,
         command,
       });
+      if (command.type === "play-card") locallyAnimatedRevisionRef.current = next.session.revision;
       onRoom(next);
       resetSelection();
     } catch (submitError) {
+      displayPiecesRef.current = [...pieces];
+      setDisplayPieces([...pieces]);
       setCommandError(messageFrom(submitError));
       try {
         onRoom(await readOnlineRoom(access.roomId, access.playerToken));
@@ -478,7 +519,7 @@ function OnlineRoomTable({
 
       <div className="online-board-stage">
         <Board
-          pieces={isSplitSeven ? previewPieces : pieces}
+          pieces={isSplitSeven ? previewPieces : displayPieces}
           boardDefinition={ruleset.board}
           teamMode={ruleset.exchange === "partners"}
           activePieceIds={activePieceIds}
@@ -571,6 +612,75 @@ const ONLINE_APPEARANCE = {
 const ONLINE_HOP_DURATION = 130;
 const ONLINE_SWAP_DURATION = 720;
 const ONLINE_DEAL_DURATION = 1_050;
+
+type OnlineAnimationOptions = {
+  startingPieces: readonly Piece[];
+  moves: readonly AtomicMove[];
+  board: ReturnType<typeof getRulesetDefinition>["board"];
+  setHoppingPieces: (pieces: HoppingPiece[]) => void;
+  setSwappingPieces: (pieces: SwappingPiece[]) => void;
+  setCapturingPieceIds: (pieceIds: string[]) => void;
+  onPiecesChanged?: (pieces: readonly Piece[]) => void;
+  shouldContinue?: () => boolean;
+};
+
+async function animateOnlineMoves({
+  startingPieces,
+  moves,
+  board,
+  setHoppingPieces,
+  setSwappingPieces,
+  setCapturingPieceIds,
+  onPiecesChanged,
+  shouldContinue = () => true,
+}: OnlineAnimationOptions): Promise<Piece[]> {
+  let currentPieces = [...startingPieces];
+  let frameNumber = 0;
+
+  for (const move of moves) {
+    if (!shouldContinue()) return currentPieces;
+    if (move.kind === "swap") {
+      const movingPiece = currentPieces.find((piece) => piece.id === move.pieceId);
+      const targetPiece = currentPieces.find((piece) => piece.id === move.targetPieceId);
+      if (!movingPiece || !targetPiece) throw new Error("Cannot animate a Jack swap with a missing piece.");
+
+      const movingFrom = getPiecePoint(movingPiece, board);
+      const movingTo = getBoardTrackPoint(move.destination.index, board);
+      const targetFrom = getPiecePoint(targetPiece, board);
+      const targetTo = getBoardTrackPoint(move.targetDestination.index, board);
+      setSwappingPieces([
+        { piece: movingPiece, from: movingFrom, through: getSwapControlPoint(movingFrom, movingTo), to: movingTo },
+        { piece: targetPiece, from: targetFrom, through: getSwapControlPoint(targetFrom, targetTo), to: targetTo },
+      ]);
+      await waitForOnlineAnimation(ONLINE_SWAP_DURATION);
+      if (!shouldContinue()) return currentPieces;
+      setSwappingPieces([]);
+      currentPieces = applyAtomicMove(currentPieces, move);
+      onPiecesChanged?.(currentPieces);
+      continue;
+    }
+
+    const frames = getMoveAnimationFrames(currentPieces, move, board);
+    for (const [frameIndex, frame] of frames.entries()) {
+      if (!shouldContinue()) return currentPieces;
+      frameNumber += 1;
+      if (frameIndex === frames.length - 1 && move.capturedPieceId) {
+        setCapturingPieceIds([move.capturedPieceId]);
+      }
+      setHoppingPieces(frame.flatMap((animated) => {
+        const piece = currentPieces.find((candidate) => candidate.id === animated.pieceId);
+        return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
+      }));
+      await waitForOnlineAnimation(ONLINE_HOP_DURATION);
+    }
+    if (!shouldContinue()) return currentPieces;
+    currentPieces = applyAtomicMove(currentPieces, move);
+    onPiecesChanged?.(currentPieces);
+    setCapturingPieceIds([]);
+  }
+
+  return currentPieces;
+}
 
 function waitForOnlineAnimation(duration: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, duration));

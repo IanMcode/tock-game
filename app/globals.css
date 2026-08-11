@@ -63,7 +63,9 @@ button { font: inherit; }
 .number-toggle i span { position: absolute; left: 3px; top: 3px; width: 11px; height: 11px; border-radius: 50%; background: white; transition: transform .15s; }
 .number-toggle[aria-pressed="true"] i { background: var(--green); }
 .number-toggle[aria-pressed="true"] i span { transform: translateX(13px); }
-.board { position: relative; width: min(100%, 760px); aspect-ratio: 1; isolation: isolate; container: tock-board / inline-size; filter: drop-shadow(0 13px 18px rgba(37,67,54,.13)); }
+.board { --space-diameter: 4.25cqw; --piece-diameter: 3.825cqw; position: relative; width: min(100%, 760px); aspect-ratio: 1; isolation: isolate; container: tock-board / inline-size; filter: drop-shadow(0 13px 18px rgba(37,67,54,.13)); }
+.board-2 { --space-diameter: 5.8cqw; --piece-diameter: 5.22cqw; }
+.board-3 { --space-diameter: 4.7cqw; --piece-diameter: 4.23cqw; }
 .board::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.86) 0 18%, transparent 18.5%), repeating-linear-gradient(25deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px), linear-gradient(145deg, #dce7dc, #b8cabd); }
 .board-2::before { clip-path: polygon(7% 12%, 93% 12%, 93% 88%, 7% 88%); }
 .board-3::before { clip-path: polygon(50% 1%, 99% 88%, 1% 88%); }
@@ -73,11 +75,14 @@ button { font: inherit; }
 .board-center span { font-family: Georgia, serif; font-size: clamp(20px, 4vw, 40px); letter-spacing: .05em; }
 .board-center small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; opacity: .66; }
 .board-center.has-recent-card { background: color-mix(in srgb, var(--green) 84%, black); }
-.center-recent-card { position: relative; width: 43%; aspect-ratio: .7; display: block; padding: 5%; border-radius: 9px; color: #21332d; background: #fffefa; box-shadow: 0 7px 18px rgba(0,0,0,.3); animation: center-card-arrive .38s ease-out; }
-.center-recent-card.red { color: #c73c35; }
-.center-recent-card > span, .center-recent-card > small { display: block; font-size: clamp(7px, 1.25cqw, 13px); font-weight: 900; line-height: 1; }
-.center-recent-card > strong { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(16px, 3.5cqw, 32px); }
-.center-recent-card > small { position: absolute; right: 8%; bottom: 7%; transform: rotate(180deg); }
+.table-card { position: relative; width: 11.2cqw; aspect-ratio: .7; place-self: center; display: block; border: 1px solid #d8d1c5; border-radius: clamp(6px, 1cqw, 11px); color: #21332d; background: linear-gradient(155deg, #fff 0 48%, #f8f5ed 100%); box-shadow: inset 0 0 0 3px #fff, 0 8px 21px rgba(0,0,0,.34); animation: center-card-arrive .38s ease-out; }
+.table-card::after { content: ""; position: absolute; inset: 4%; border: 1px solid rgba(40,50,45,.09); border-radius: inherit; pointer-events: none; }
+.table-card.red { color: #c9323d; }
+.table-card > strong { position: absolute; inset: 0; display: grid; place-items: center; font-family: Georgia, serif; font-size: clamp(25px, 5.2cqw, 51px); font-weight: 500; }
+.board-center .table-card-corner { position: absolute; z-index: 1; display: grid; place-items: center; font-family: Georgia, serif; font-size: clamp(7px, 1.18cqw, 13px); font-style: normal; font-weight: 700; line-height: .82; letter-spacing: 0; }
+.table-card-corner b, .table-card-corner i { font: inherit; }
+.table-card-top { left: 10%; top: 8%; }
+.table-card-bottom { right: 10%; bottom: 8%; transform: rotate(180deg); }
 @keyframes center-card-arrive { from { opacity: 0; transform: rotate(-45deg) translateY(-18%) scale(.72); } }
 .board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 13%; display: grid; align-content: center; gap: 3px; padding: 7px 8px; transform: translate(-50%,-50%); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
 .reserve-heading { min-height: 25px; display: flex; align-items: center; justify-content: center; gap: 7px; }
@@ -95,9 +100,7 @@ button { font: inherit; }
 .board-hand-count small { white-space: nowrap; }
 .empty-card-count { color: color-mix(in srgb, var(--reserve) 65%, #64756f); font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .board-reserve > .reserve-pieces { min-height: 25px; }
-.board-reserve .piece { width: 3.825cqw; }
-.board-2 .board-reserve .piece { width: 5.22cqw; }
-.board-3 .board-reserve .piece { width: 4.23cqw; }
+.board-reserve .piece { width: var(--piece-diameter); }
 .board-reserve small { color: color-mix(in srgb, var(--reserve) 70%, #64756f); font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .board-reserve.is-home-complete { border-width: 2px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--reserve) 12%, transparent), 0 7px 18px rgba(29,55,45,.11); }
 .board-reserve.is-home-complete > .reserve-pieces small { color: var(--reserve); letter-spacing: .08em; }
@@ -106,9 +109,7 @@ button { font: inherit; }
 .board-3 .track-space, .board-3 .home-space { width: 4.7%; }
 .track-space .space-number { grid-area: 1 / 1; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: rgba(23,49,42,.68); font-size: clamp(6px, .8vw, 10px); font-weight: 900; }
 .track-space .space-number:empty::after { content: ""; width: 22%; height: 22%; border-radius: 50%; background: rgba(31,65,51,.2); }
-.track-space .piece, .home-space .piece { grid-area: 1 / 1; width: 3.825cqw; }
-.board-2 .track-space .piece, .board-2 .home-space .piece { width: 5.22cqw; }
-.board-3 .track-space .piece, .board-3 .home-space .piece { width: 4.23cqw; }
+.track-space .piece, .home-space .piece { grid-area: 1 / 1; width: var(--piece-diameter); }
 .track-space.entry-space { width: 4.25%; border: 2px solid var(--entry); border-radius: 6px; transform: translate(-50%,-50%) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--entry) 14%, transparent), inset 0 1px 2px rgba(255,255,255,.8); }
 .board-2 .track-space.entry-space { width: 5.8%; }
 .board-3 .track-space.entry-space { width: 4.7%; }
@@ -145,8 +146,9 @@ button { font: inherit; }
 .piece.is-captured { z-index: 8; pointer-events: none; animation: piece-captured var(--hop-duration, 130ms) ease-in forwards; }
 @keyframes marble-hop { 0% { transform: translateY(2px) scale(.9); } 48% { transform: translateY(-11px) scale(1.08); box-shadow: 0 9px 9px rgba(18,42,33,.2); } 100% { transform: translateY(0) scale(1); } }
 @keyframes piece-captured { 0% { opacity: 1; transform: scale(1); } 45% { opacity: .8; transform: scale(1.12) rotate(-8deg); } 100% { opacity: 0; transform: scale(.15) rotate(25deg); } }
-.swapping-piece-slot { position: absolute; left: var(--swap-from-x); top: var(--swap-from-y); z-index: 11; width: 4.25%; aspect-ratio: 1; display: grid; place-items: center; transform: translate(-50%,-50%); pointer-events: none; animation: jack-swap var(--swap-duration, 720ms) cubic-bezier(.45,0,.2,1) forwards; }
-.swapping-piece-slot .piece { width: 90%; animation: none; box-shadow: 0 8px 13px rgba(18,42,33,.28); }
+.hopping-piece-slot .piece, .swapping-piece-slot .piece { width: var(--piece-diameter); }
+.swapping-piece-slot { position: absolute; left: var(--swap-from-x); top: var(--swap-from-y); z-index: 11; width: var(--space-diameter); aspect-ratio: 1; display: grid; place-items: center; transform: translate(-50%,-50%); pointer-events: none; animation: jack-swap var(--swap-duration, 720ms) cubic-bezier(.45,0,.2,1) forwards; }
+.swapping-piece-slot .piece { animation: none; box-shadow: 0 8px 13px rgba(18,42,33,.28); }
 @keyframes jack-swap {
   0% { left: var(--swap-from-x); top: var(--swap-from-y); transform: translate(-50%,-50%) scale(1); }
   48%, 52% { left: var(--swap-through-x); top: var(--swap-through-y); transform: translate(-50%,-50%) scale(1.18); }
@@ -408,5 +410,5 @@ button { font: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .online-table .piece.active::after { animation: none; }
-  .center-recent-card, .online-deal-overlay, .online-deal-deck, .online-table.is-dealing .online-card { animation: none; }
+  .table-card, .online-deal-overlay, .online-deal-deck, .online-table.is-dealing .online-card { animation: none; }
 }
