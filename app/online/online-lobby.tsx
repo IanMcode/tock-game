@@ -38,6 +38,7 @@ import type { GameCommand } from "../../src/game/session";
 import type { CardMove } from "../../src/game/turns";
 
 const ACCESS_KEY = "tock-online-room-access";
+const PLAY_LOG_ENTRY_LIMIT = 6;
 const PLAYER_NAMES: Record<PlayerId, string> = {
   P1: "Poppy",
   P2: "River",
@@ -301,8 +302,8 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const recentEvents = useMemo(
-    () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-ruleset.board.playerCount).reverse(),
-    [room.session.events, ruleset.board.playerCount],
+    () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-PLAY_LOG_ENTRY_LIMIT).reverse(),
+    [room.session.events],
   );
   const latestEvent = recentEvents[0];
   const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
