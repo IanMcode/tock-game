@@ -133,17 +133,28 @@ export default function OnlineLobby() {
   }
 
   if (access) {
+    const isActiveRoom = room?.status === "active";
+    const viewerName = room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId];
     return (
-      <main className="online-shell">
-        <header className="online-header">
+      <main className={`online-shell ${isActiveRoom ? "online-shell-active" : ""}`}>
+        <header className={`online-header ${isActiveRoom ? "online-game-header" : ""}`}>
           <div>
-            <p className="eyebrow">Online room</p>
-            <h1>{access.roomId}</h1>
+            <p className="eyebrow">Online room{isActiveRoom ? ` · ${access.roomId}` : ""}</p>
+            <h1>{isActiveRoom ? `${viewerName} · ${access.playerId}` : access.roomId}</h1>
           </div>
-          <Link className="quiet-button" href="/">Local table</Link>
+          <div className="online-header-actions">
+            {isActiveRoom && (
+              <>
+                <span>{room?.connectedPlayers.length ?? 0} players connected</span>
+                <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
+                <button type="button" onClick={leaveRoom}>Leave room</button>
+              </>
+            )}
+            <Link className="quiet-button" href="/">Local table</Link>
+          </div>
         </header>
 
-        <section className="room-card">
+        {!isActiveRoom && <section className="room-card">
           <div className="room-code-block">
             <span>Room code</span>
             <strong>{access.roomId}</strong>
@@ -154,9 +165,9 @@ export default function OnlineLobby() {
             <h2>{room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
             <p>{room?.status === "active" ? "The table is ready." : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
           </div>
-        </section>
+        </section>}
 
-        <section className="seat-grid" aria-label="Room seats">
+        {!isActiveRoom && <section className="seat-grid" aria-label="Room seats">
           {room ? Array.from({ length: room.requiredPlayers }, (_, index) => {
             const playerId = `P${index + 1}` as PlayerId;
             const connected = room.connectedPlayers.includes(playerId);
@@ -168,13 +179,13 @@ export default function OnlineLobby() {
               </article>
             );
           }) : <p>Connecting to room…</p>}
-        </section>
+        </section>}
 
         {room && room.status !== "waiting" && (
           <OnlineRoomTable access={access} room={room} onRoom={setRoom} />
         )}
         {error && <p className="online-error" role="alert">{error}</p>}
-        <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>
+        {!isActiveRoom && <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>}
       </main>
     );
   }
@@ -548,22 +559,6 @@ function OnlineRoomTable({
         )}
       </div>
 
-      <section className="online-play-log" aria-label="Play log">
-        <div className="online-log-heading">
-          <div>
-            <p className="eyebrow">Play log</p>
-            <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
-          </div>
-          {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
-        </div>
-        <div className="online-log-window">
-          {recentEvents.map((event) => (
-            <p key={event.revision}>{describePublicGameEvent(event, room.playerNames)}</p>
-          ))}
-          {recentEvents.length === 0 && <p>Played and discarded cards will appear here for everyone.</p>}
-        </div>
-      </section>
-
       <div className="online-hand-panel">
         <div>
           <p className="eyebrow">Your hand</p>
@@ -598,6 +593,22 @@ function OnlineRoomTable({
         )}
         {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
       </div>
+
+      <section className="online-play-log" aria-label="Play log">
+        <div className="online-log-heading">
+          <div>
+            <p className="eyebrow">Play log</p>
+            <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
+          </div>
+          {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
+        </div>
+        <div className="online-log-window">
+          {recentEvents.map((event) => (
+            <p key={event.revision}>{describePublicGameEvent(event, room.playerNames)}</p>
+          ))}
+          {recentEvents.length === 0 && <p>Played and discarded cards will appear here for everyone.</p>}
+        </div>
+      </section>
       {commandError && <p className="online-error" role="alert">{commandError}</p>}
     </section>
   );

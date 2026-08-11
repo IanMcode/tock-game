@@ -45,6 +45,8 @@ snapshot, so opponents and reconnecting viewers see the same movement sequence.
 The rendered board rotates per viewer so their own seat, protected entry, and
 home lane are always aligned along the bottom, while labels, pieces, and the
 shared most-recent-card display stay upright.
+On desktop-sized viewports, the board uses the available height while the turn,
+player hand, and play log form a side rail, with the log directly below the hand.
 
 ## Guest room API
 

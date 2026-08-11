@@ -323,6 +323,9 @@ button { font: inherit; }
 .online-shell { width: min(1320px, calc(100% - 32px)); min-height: 100vh; margin: 0 auto; padding: 46px 0 70px; }
 .online-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
 .online-header h1 { margin: 5px 0 0; font-family: Georgia, serif; font-size: clamp(38px, 6vw, 68px); font-weight: 500; }
+.online-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.online-header-actions > span { color: var(--muted); font-size: 11px; }
+.online-header-actions > button { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: rgba(255,253,247,.82); cursor: pointer; font-size: 11px; font-weight: 800; }
 .online-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px; }
 .online-panel, .room-card, .seat-card, .online-ready-note { border: 1px solid var(--line); border-radius: 22px; background: rgba(255,253,247,.9); box-shadow: 0 14px 38px rgba(28,58,47,.08); }
 .online-panel { display: grid; align-content: start; gap: 16px; padding: 26px; }
@@ -399,6 +402,27 @@ button { font: inherit; }
 .online-discard:disabled { cursor: default; opacity: .4; }
 .online-hand-panel > p { grid-column: 2 / -1; margin: -10px 0 0; color: var(--muted); font-size: 11px; }
 
+@media (min-width: 761px) and (min-height: 620px) {
+  .online-shell-active { width: min(1680px, calc(100% - 20px)); min-height: 100svh; padding: 8px 0 0; }
+  .online-game-header { min-height: 46px; margin-bottom: 8px; }
+  .online-game-header h1 { margin-top: 2px; font-size: clamp(22px, 2.2vw, 30px); letter-spacing: -.02em; }
+  .online-game-header .quiet-button { padding: 10px 12px; font-size: 11px; }
+  .online-shell-active .online-table { height: calc(100svh - 82px); grid-template-columns: minmax(0,1fr) minmax(300px,360px); grid-template-rows: auto auto minmax(0,1fr); grid-template-areas: "board turn" "board hand" "board log"; align-items: stretch; gap: 10px; margin-top: 0; }
+  .online-shell-active .online-turn-heading { grid-area: turn; padding: 11px 14px; }
+  .online-shell-active .online-turn-heading h2 { margin-top: 2px; font-size: 21px; }
+  .online-shell-active .online-board-stage { grid-area: board; min-height: 0; height: 100%; }
+  .online-shell-active .online-board-stage .board-wrap { height: 100%; grid-template-rows: auto minmax(0,1fr) auto; padding: 8px 10px; }
+  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 174px), 1040px); }
+  .online-shell-active .online-hand-panel { grid-area: hand; grid-template-columns: 1fr; align-content: start; gap: 9px; padding: 14px; }
+  .online-shell-active .online-hand { min-height: 82px; }
+  .online-shell-active .online-card { width: clamp(46px, 4.2vw, 54px); }
+  .online-shell-active .online-discard { width: 100%; }
+  .online-shell-active .online-hand-panel > p { grid-column: 1; margin-top: -4px; }
+  .online-shell-active .online-play-log { grid-area: log; min-height: 0; grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); align-content: stretch; gap: 8px; overflow: hidden; padding: 13px 14px; }
+  .online-shell-active .online-log-window { max-height: none; overflow-y: auto; }
+  .online-shell-active .online-error { grid-column: 2; }
+}
+
 @media (max-width: 680px) {
   .online-shell { width: min(100% - 20px, 1320px); padding-top: 24px; }
   .online-header { align-items: flex-start; }
@@ -411,6 +435,20 @@ button { font: inherit; }
   .online-hand-panel > p { grid-column: 1; margin-top: -8px; }
   .online-discard { width: 100%; }
   .online-table .board-reserve { width: 23%; }
+}
+
+@media (max-width: 760px), (max-height: 619px) {
+  .online-shell-active { width: min(100% - 20px, 1320px); padding-top: 16px; }
+  .online-game-header { align-items: flex-start; margin-bottom: 14px; }
+  .online-game-header h1 { font-size: 26px; }
+  .online-header-actions { align-items: flex-end; flex-direction: column; }
+  .online-header-actions > span { display: none; }
+  .online-shell-active .online-table { height: auto; grid-template-columns: 1fr; grid-template-areas: "turn" "board" "hand" "log"; }
+  .online-shell-active .online-turn-heading { grid-area: turn; }
+  .online-shell-active .online-board-stage { grid-area: board; }
+  .online-shell-active .online-hand-panel { grid-area: hand; }
+  .online-shell-active .online-play-log { grid-area: log; }
+  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 250px), 1040px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
