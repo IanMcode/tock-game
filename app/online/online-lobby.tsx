@@ -520,15 +520,16 @@ function OnlineRoomTable({
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
     } as React.CSSProperties}>
-      <div className="online-turn-heading">
+      <div className="online-game-viewport">
+        <div className="online-turn-heading">
         <div>
           <p className="eyebrow">Remote table · revision {room.session.revision}</p>
           <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
         </div>
         {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
-      </div>
+        </div>
 
-      <div className="online-board-stage">
+        <div className="online-board-stage">
         <Board
           pieces={isSplitSeven ? previewPieces : displayPieces}
           boardDefinition={ruleset.board}
@@ -557,9 +558,9 @@ function OnlineRoomTable({
             <strong>Dealing a new hand…</strong>
           </div>
         )}
-      </div>
+        </div>
 
-      <div className="online-hand-panel">
+        <div className="online-hand-panel">
         <div>
           <p className="eyebrow">Your hand</p>
           <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
@@ -592,6 +593,7 @@ function OnlineRoomTable({
           </button>
         )}
         {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
+        </div>
       </div>
 
       <section className="online-play-log" aria-label="Play log">

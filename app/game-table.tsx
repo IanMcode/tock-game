@@ -1416,7 +1416,7 @@ function getBoardEdgeProgress(
   board: BoardDefinition,
   edgeCount: number,
 ): number {
-  const perspectiveOffset = board.playerCount === 2 ? -12.5 : -8;
+  const perspectiveOffset = -11;
   const shiftedIndex = (trackIndex + perspectiveOffset + board.trackSize) % board.trackSize;
   return shiftedIndex / board.trackSize * edgeCount;
 }

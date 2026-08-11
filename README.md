@@ -51,6 +51,7 @@ The online lobby and remote table use a tested guest-room API:
 - room codes, two-to-four guest seats, tab-scoped reconnect tokens, and spectator-safe views;
 - a player-relative board that aligns each viewer's seat, entry, and home lane along the bottom;
 - a responsive game surface that keeps the largest practical board and the viewer's hand visible together;
+- corner-anchored tracks with each player's space 12 marking a change of direction;
 - create, join, read, and command Route Handlers under `/api/rooms`;
 - private hands, partner exchange, legal destination selection, split-seven moves,
   discards, player-chosen names, synchronized movement and dealing animations, shared play

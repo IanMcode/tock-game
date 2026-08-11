@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
-import { BOARD_DEFINITIONS } from "../src/game/definition";
+import { BOARD_DEFINITIONS, getBoardTrackIndex } from "../src/game/definition";
 import {
   getBoardPerspectiveRotation,
   getBoardReservePoint,
@@ -11,6 +11,22 @@ import {
 } from "./game-table";
 
 describe("player board perspective", () => {
+  it("places each player's space 12 exactly on a corner", () => {
+    const expectedCorners = {
+      2: [{ x: 16, y: 20 }, { x: 84, y: 80 }],
+      3: [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }],
+      4: [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }],
+    } as const;
+
+    for (const board of Object.values(BOARD_DEFINITIONS)) {
+      board.playerIds.forEach((playerId, index) => {
+        expect(getBoardTrackPoint(getBoardTrackIndex(board, playerId, 12), board)).toEqual(
+          expectedCorners[board.playerCount][index],
+        );
+      });
+    }
+  });
+
   it("places every player's seat, entry, and home lane at the bottom of each board size", () => {
     for (const board of Object.values(BOARD_DEFINITIONS)) {
       for (const playerId of board.playerIds) {
