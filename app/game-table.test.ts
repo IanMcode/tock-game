@@ -48,6 +48,24 @@ describe("player board perspective", () => {
     }
   });
 
+  it("pins three-player opponent reserves to safe screen-aligned slots", () => {
+    const board = BOARD_DEFINITIONS[3];
+
+    for (const viewer of board.playerIds) {
+      const rotation = getBoardPerspectiveRotation(viewer, board);
+      const opponents = board.playerIds.filter((playerId) => playerId !== viewer);
+      const screenPoints = opponents.map((owner) => rotatePoint(
+        getBoardReservePoint(owner, board, viewer),
+        rotation,
+      )).sort((left, right) => left.x - right.x);
+
+      expect(screenPoints).toEqual([
+        expect.objectContaining({ x: expect.closeTo(19, 3), y: expect.closeTo(8, 3) }),
+        expect.objectContaining({ x: expect.closeTo(81, 3), y: expect.closeTo(8, 3) }),
+      ]);
+    }
+  });
+
   it("places every player's seat, entry, and home lane at the bottom of each board size", () => {
     for (const board of Object.values(BOARD_DEFINITIONS)) {
       for (const playerId of board.playerIds) {

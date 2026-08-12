@@ -1079,7 +1079,7 @@ export function Board({
         {activePlayerIds.map((owner) => {
           if (owner === externalReservePlayerId) return null;
           const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
-          const reservePoint = getBoardReservePoint(owner, boardDefinition);
+          const reservePoint = getBoardReservePoint(owner, boardDefinition, perspectivePlayerId);
           return (
             <BoardReserve
               key={`${owner}-reserve`}
@@ -1513,7 +1513,19 @@ function getThreePlayerSeatPoint(playerIndex: number, endpoint: "start" | "end")
   });
 }
 
-export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
+export function getBoardReservePoint(
+  owner: PlayerId,
+  board: BoardDefinition,
+  perspectivePlayerId?: PlayerId,
+): BoardPoint {
+  if (board.playerCount === 3 && perspectivePlayerId && owner !== perspectivePlayerId) {
+    const viewerIndex = board.playerIds.indexOf(perspectivePlayerId);
+    const ownerIndex = board.playerIds.indexOf(owner);
+    const relativeSeat = (ownerIndex - viewerIndex + board.playerCount) % board.playerCount;
+    const screenPoint = relativeSeat === 1 ? { x: 19, y: 8 } : { x: 81, y: 8 };
+    return rotateBoardPoint(screenPoint, -getBoardPerspectiveRotation(perspectivePlayerId, board));
+  }
+
   const entryIndex = getEntryIndex(owner, board);
   const entry = getBoardTrackPoint(entryIndex, board);
   if (board.playerCount === 2) {
@@ -1528,6 +1540,16 @@ export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): B
   return roundPoint({
     x: entry.x + outward.x * outwardOffset,
     y: entry.y + outward.y * outwardOffset,
+  });
+}
+
+function rotateBoardPoint(point: BoardPoint, degrees: number): BoardPoint {
+  const radians = degrees * Math.PI / 180;
+  const x = point.x - 50;
+  const y = point.y - 50;
+  return roundPoint({
+    x: 50 + x * Math.cos(radians) - y * Math.sin(radians),
+    y: 50 + x * Math.sin(radians) + y * Math.cos(radians),
   });
 }
 
