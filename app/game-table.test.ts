@@ -14,7 +14,7 @@ describe("player board perspective", () => {
   it("places each player's space 12 exactly on a corner", () => {
     const expectedCorners = {
       2: [{ x: 78, y: 90 }, { x: 22, y: 10 }],
-      3: [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }],
+      3: [{ x: 68, y: 82 }, { x: 13.2872, y: 49.5885 }, { x: 68.7128, y: 18.4115 }],
       4: [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }],
     } as const;
 
@@ -51,7 +51,7 @@ describe("player board perspective", () => {
         expect(entrance.y).toBeCloseTo(entry.y, 1);
         expect(entry.y).toBeGreaterThan(60);
         expect(firstHomeSpace.y).toBeLessThan(entrance.y);
-        if (board.playerCount === 2) {
+        if (board.playerCount === 2 || board.playerCount === 3) {
           expect(entry.x).toBeLessThan(space12.x);
           expect(entry.y).toBeCloseTo(space12.y, 1);
           const playerEdge = [18, 17, 16, 15, 14, 13, 12].map((space) => rotatePoint(

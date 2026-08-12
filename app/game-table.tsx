@@ -1389,6 +1389,7 @@ function describeDestinationOption(option: DestinationOption) {
 
 export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
   if (board.playerCount === 2) return getTwoPlayerTrackPoint(trackIndex, board);
+  if (board.playerCount === 3) return getThreePlayerTrackPoint(trackIndex, board);
   const vertices = getBoardVertices(board.playerCount);
   const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
   const edgeIndex = Math.floor(edgeProgress) % vertices.length;
@@ -1418,6 +1419,21 @@ function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point:
     if (normalizedIndex <= 17) return { x: 0, y: -1 };
     if (normalizedIndex <= 28) return { x: 1, y: 0 };
     return { x: 0, y: 1 };
+  }
+  if (board.playerCount === 3) {
+    const normalizedIndex = (trackIndex + board.trackSize) % board.trackSize;
+    const playerIndex = Math.floor(normalizedIndex / board.sectionSize);
+    const seatStart = getThreePlayerSeatPoint(playerIndex, "start");
+    const seatEnd = getThreePlayerSeatPoint(playerIndex, "end");
+    const dx = seatEnd.x - seatStart.x;
+    const dy = seatEnd.y - seatStart.y;
+    const length = Math.hypot(dx, dy) || 1;
+    let normal = { x: -dy / length, y: dx / length };
+    const towardCenter = { x: 50 - point.x, y: 50 - point.y };
+    if (normal.x * towardCenter.x + normal.y * towardCenter.y < 0) {
+      normal = { x: -normal.x, y: -normal.y };
+    }
+    return normal;
   }
   const vertices = getBoardVertices(board.playerCount);
   const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
@@ -1458,6 +1474,40 @@ function getTwoPlayerTrackPoint(trackIndex: number, board: BoardDefinition): Boa
     return roundPoint({ x: left, y: bottom - (index - 17) / 12 * (bottom - top) });
   }
   return roundPoint({ x: left + (index - 29) / 6 * (right - left), y: top });
+}
+
+function getThreePlayerTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+  const normalizedIndex = (trackIndex + board.trackSize) % board.trackSize;
+  const playerIndex = Math.floor(normalizedIndex / board.sectionSize);
+  const sectionSpace = normalizedIndex % board.sectionSize + 1;
+  const seatStart = getThreePlayerSeatPoint(playerIndex, "start");
+  const seatEnd = getThreePlayerSeatPoint(playerIndex, "end");
+
+  if (sectionSpace >= 12) {
+    const progress = (sectionSpace - 12) / 6;
+    return roundPoint({
+      x: seatStart.x + (seatEnd.x - seatStart.x) * progress,
+      y: seatStart.y + (seatEnd.y - seatStart.y) * progress,
+    });
+  }
+
+  const previousSeatEnd = getThreePlayerSeatPoint((playerIndex + 2) % 3, "end");
+  const progress = sectionSpace / 12;
+  return roundPoint({
+    x: previousSeatEnd.x + (seatStart.x - previousSeatEnd.x) * progress,
+    y: previousSeatEnd.y + (seatStart.y - previousSeatEnd.y) * progress,
+  });
+}
+
+function getThreePlayerSeatPoint(playerIndex: number, endpoint: "start" | "end"): BoardPoint {
+  const base = endpoint === "start" ? { x: 68, y: 82 } : { x: 32, y: 82 };
+  const radians = playerIndex * 2 * Math.PI / 3;
+  const x = base.x - 50;
+  const y = base.y - 50;
+  return roundPoint({
+    x: 50 + x * Math.cos(radians) - y * Math.sin(radians),
+    y: 50 + x * Math.sin(radians) + y * Math.cos(radians),
+  });
 }
 
 export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
@@ -1502,7 +1552,7 @@ function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] 
     return [{ x: 22, y: 10 }, { x: 78, y: 10 }, { x: 78, y: 90 }, { x: 22, y: 90 }];
   }
   if (playerCount === 3) {
-    return [{ x: 50, y: 15 }, { x: 86, y: 82 }, { x: 14, y: 82 }];
+    return [{ x: 68, y: 82 }, { x: 32, y: 82 }, { x: 13.2872, y: 49.5885 }];
   }
   return [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }];
 }
