@@ -108,6 +108,29 @@ describe("online room service", () => {
     expect(second.room.playerNames).toEqual({ P1: "Ian", P2: "Omi" });
   });
 
+  it("can randomize the order in which players occupy board seats", async () => {
+    const store = new InMemoryRoomStore();
+    let token = 0;
+    const service = new RoomService(store, {
+      createRoomId: () => "TOCK01",
+      createPlayerToken: () => `token-${++token}`,
+      createRandomState: () => 12_345,
+    });
+
+    const host = await service.createRoom({ playerCount: 4, teams: true, randomizeSeats: true });
+    const stored = await store.get("TOCK01");
+    expect(stored?.room.joinOrder).toHaveLength(4);
+    expect(new Set(stored?.room.joinOrder)).toEqual(new Set(["P1", "P2", "P3", "P4"]));
+    expect(host.access.playerId).toBe(stored?.room.joinOrder?.[0]);
+
+    const joined = [
+      (await service.joinRoom("TOCK01")).access.playerId,
+      (await service.joinRoom("TOCK01")).access.playerId,
+      (await service.joinRoom("TOCK01")).access.playerId,
+    ];
+    expect([host.access.playerId, ...joined]).toEqual(stored?.room.joinOrder);
+  });
+
   it("shares authenticated chat messages with the room", async () => {
     const service = createTestService();
     const host = await service.createRoom({ playerCount: 2, teams: false, playerName: "Ian" });

@@ -1040,7 +1040,7 @@ export function Board({
   const perspectiveRotation = perspectivePlayerId
     ? getBoardPerspectiveRotation(perspectivePlayerId, boardDefinition)
     : 0;
-  const useOpponentReserveRow = boardDefinition.playerCount === 3 && Boolean(perspectivePlayerId && externalReservePlayerId);
+  const useOpponentReserveRow = Boolean(perspectivePlayerId && externalReservePlayerId);
   const opponentReserveOwners = useOpponentReserveRow && perspectivePlayerId
     ? activePlayerIds
       .filter((owner) => owner !== perspectivePlayerId)
@@ -1093,7 +1093,7 @@ export function Board({
         </button>
       </div>
       {useOpponentReserveRow && (
-        <div className="board-opponent-row" aria-label="Opponents">
+        <div className={`board-opponent-row opponents-${opponentReserveOwners.length}`} aria-label="Opponents">
           {opponentReserveOwners.map((owner) => renderReserve(owner, true))}
         </div>
       )}
@@ -1637,7 +1637,7 @@ function getPlayerAppearanceVariables(
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
     variables[`--color-${playerId.toLowerCase()}-ink`] = color.ink;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
-    variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "7%" : "0%";
+    variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "12%" : "0%";
     return variables;
   }, {}) as React.CSSProperties;
 }

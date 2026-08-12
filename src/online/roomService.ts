@@ -23,6 +23,7 @@ export type ChatMessage = {
 export type OnlineRoom = {
   id: string;
   seats: Partial<Record<PlayerId, string>>;
+  joinOrder?: PlayerId[];
   playerNames: Partial<Record<PlayerId, string>>;
   chatMessages: ChatMessage[];
   session: GameSession;
@@ -59,6 +60,7 @@ export type CreateRoomOptions = {
   teams?: boolean;
   dealer?: PlayerId | "random";
   playerName?: string;
+  randomizeSeats?: boolean;
 };
 
 export const DEFAULT_PLAYER_NAMES: Record<PlayerId, string> = {
@@ -131,7 +133,6 @@ export class RoomService {
   }
 
   async createRoom(options: CreateRoomOptions = {}): Promise<RoomJoinResult> {
-    const playerId = PLAYER_IDS[0];
     const playerToken = this.createPlayerToken();
     const playerTokenHash = await hashPlayerToken(playerToken);
     const playerCount = options.playerCount ?? 4;
@@ -142,12 +143,17 @@ export class RoomService {
       teams,
       ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
     });
+    const joinOrder = options.randomizeSeats
+      ? shufflePlayerIds(game.players.map((player) => player.id), this.randomState())
+      : game.players.map((player) => player.id);
+    const playerId = joinOrder[0];
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const roomId = this.createRoomId().trim().toUpperCase();
       if (!roomId) continue;
       const room: OnlineRoom = {
         id: roomId,
         seats: { [playerId]: playerTokenHash },
+        joinOrder,
         playerNames: { [playerId]: normalizePlayerName(options.playerName, playerId) },
         chatMessages: [],
         session: createGameSession(roomId, game),
@@ -165,8 +171,7 @@ export class RoomService {
   async joinRoom(roomId: string, playerName?: string): Promise<RoomJoinResult> {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const stored = await this.getRoom(roomId);
-      const playerId = stored.room.session.game.players
-        .map((player) => player.id)
+      const playerId = (stored.room.joinOrder ?? stored.room.session.game.players.map((player) => player.id))
         .find((candidate) => !stored.room.seats[candidate]);
       if (!playerId) throw new RoomError("ROOM_FULL", `Room ${stored.room.id} is full.`);
 
@@ -312,4 +317,15 @@ function defaultRoomId(): string {
   const bytes = new Uint8Array(6);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+function shufflePlayerIds(playerIds: readonly PlayerId[], randomState: number): PlayerId[] {
+  const shuffled = [...playerIds];
+  let state = randomState >>> 0;
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    const swapIndex = state % (index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }

@@ -41,8 +41,19 @@ function validateRoom(room: OnlineRoom): void {
   if (!isRecord(room) || typeof room.id !== "string" || !/^[A-Z0-9]{6}$/.test(room.id)) {
     throw new Error("The stored room has an invalid ID.");
   }
+  if (!isRecord(room.session)) throw new Error("The stored room has an invalid session.");
+  const session = room.session as GameSession;
+  if (!isRecord(session.game)) throw new Error("The stored room has an invalid game.");
   if (!isRecord(room.seats)) throw new Error("The stored room has invalid seats.");
   if (!isRecord(room.playerNames)) throw new Error("The stored room has invalid player names.");
+  if (room.joinOrder !== undefined && (
+    !Array.isArray(room.joinOrder) ||
+    room.joinOrder.length !== session.game.players.length ||
+    new Set(room.joinOrder).size !== room.joinOrder.length ||
+    room.joinOrder.some((playerId) => !session.game.players.some((player) => player.id === playerId))
+  )) {
+    throw new Error("The stored room has an invalid join order.");
+  }
   if (!Array.isArray(room.chatMessages) || room.chatMessages.length > 50) {
     throw new Error("The stored room has invalid chat history.");
   }
@@ -83,8 +94,6 @@ function validateRoom(room: OnlineRoom): void {
     }
   }
 
-  if (!isRecord(room.session)) throw new Error("The stored room has an invalid session.");
-  const session = room.session as GameSession;
   if (
     session.id !== room.id ||
     !Number.isSafeInteger(session.revision) ||

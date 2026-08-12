@@ -15,6 +15,8 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   const teams = value.teams ?? playerCount === 4;
   if (typeof teams !== "boolean") throw new Error("Teams must be true or false.");
   if (teams && playerCount !== 4) throw new Error("Team play requires four players.");
+  const randomizeSeats = value.randomizeSeats ?? false;
+  if (typeof randomizeSeats !== "boolean") throw new Error("Randomize seats must be true or false.");
 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") {
@@ -28,6 +30,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     playerCount: playerCount as BoardPlayerCount,
     teams,
     dealer: dealer as PlayerId | "random",
+    randomizeSeats,
     ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
   };
 }

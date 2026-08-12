@@ -8,6 +8,7 @@ describe("online command protocol", () => {
       playerCount: 3,
       teams: false,
       dealer: "P2",
+      randomizeSeats: false,
     });
     expect(parseCreateRoomOptions(undefined)).toEqual({});
   });
@@ -15,6 +16,7 @@ describe("online command protocol", () => {
   it("rejects invalid room combinations", () => {
     expect(() => parseCreateRoomOptions({ playerCount: 2, teams: true })).toThrow("requires four players");
     expect(() => parseCreateRoomOptions({ playerCount: 2, dealer: "P3" })).toThrow("not seated");
+    expect(() => parseCreateRoomOptions({ randomizeSeats: "yes" })).toThrow("must be true or false");
   });
 
   it("normalizes player names at the network boundary", () => {

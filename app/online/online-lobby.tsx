@@ -15,6 +15,7 @@ import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
 import { getUnseenAnimationMoves } from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
+import { getGameStatistics } from "../../src/online/statistics";
 import {
   Board,
   BoardReserve,
@@ -136,17 +137,17 @@ export default function OnlineLobby() {
   }
 
   if (access) {
-    const isActiveRoom = room?.status === "active";
+    const isGameRoom = room?.status === "active" || room?.status === "complete";
     const viewerName = room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId];
     return (
-      <main className={`online-shell ${isActiveRoom ? "online-shell-active" : ""}`}>
-        <header className={`online-header ${isActiveRoom ? "online-game-header" : ""}`}>
+      <main className={`online-shell ${isGameRoom ? "online-shell-active" : ""}`}>
+        <header className={`online-header ${isGameRoom ? "online-game-header" : ""}`}>
           <div>
-            <p className="eyebrow">Online room{isActiveRoom ? ` · ${access.roomId}` : ""}</p>
-            <h1>{isActiveRoom ? `${viewerName} · ${access.playerId}` : access.roomId}</h1>
+            <p className="eyebrow">Online room{isGameRoom ? ` · ${access.roomId}` : ""}</p>
+            <h1>{isGameRoom ? `${viewerName} · ${access.playerId}` : access.roomId}</h1>
           </div>
           <div className="online-header-actions">
-            {isActiveRoom && (
+            {isGameRoom && (
               <>
                 <span>{room?.connectedPlayers.length ?? 0} players connected</span>
                 <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
@@ -157,7 +158,7 @@ export default function OnlineLobby() {
           </div>
         </header>
 
-        {!isActiveRoom && <section className="room-card">
+        {!isGameRoom && <section className="room-card">
           <div className="room-code-block">
             <span>Room code</span>
             <strong>{access.roomId}</strong>
@@ -170,7 +171,7 @@ export default function OnlineLobby() {
           </div>
         </section>}
 
-        {!isActiveRoom && <section className="seat-grid" aria-label="Room seats">
+        {!isGameRoom && <section className="seat-grid" aria-label="Room seats">
           {room ? Array.from({ length: room.requiredPlayers }, (_, index) => {
             const playerId = `P${index + 1}` as PlayerId;
             const connected = room.connectedPlayers.includes(playerId);
@@ -185,10 +186,10 @@ export default function OnlineLobby() {
         </section>}
 
         {room && room.status !== "waiting" && (
-          <OnlineRoomTable access={access} room={room} onRoom={setRoom} />
+          <OnlineRoomTable access={access} room={room} onRoom={setRoom} onAccess={remember} />
         )}
         {error && <p className="online-error" role="alert">{error}</p>}
-        {!isActiveRoom && <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>}
+        {!isGameRoom && <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>}
       </main>
     );
   }
@@ -267,10 +268,12 @@ function OnlineRoomTable({
   access,
   room,
   onRoom,
+  onAccess,
 }: {
   access: RoomAccess;
   room: RoomView;
   onRoom: (room: RoomView) => void;
+  onAccess: (access: RoomAccess) => void;
 }) {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
@@ -286,6 +289,11 @@ function OnlineRoomTable({
   const [isDealing, setIsDealing] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [victoryPanel, setVictoryPanel] = useState<"rematch" | "statistics" | null>(null);
+  const [rematchRandomizeSeats, setRematchRandomizeSeats] = useState(true);
+  const [rematchTeams, setRematchTeams] = useState(() => getRulesetDefinition(room.session.game.rulesetId).exchange === "partners");
+  const [rematchDealer, setRematchDealer] = useState<PlayerId | "random">("random");
+  const [rematchBusy, setRematchBusy] = useState(false);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -307,6 +315,11 @@ function OnlineRoomTable({
   );
   const latestEvent = recentEvents[0];
   const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
+  const gameStatistics = useMemo(
+    () => getGameStatistics(room.session.events ?? [], game.players.map((player) => player.id)),
+    [game.players, room.session.events],
+  );
+  const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_NAMES[playerId]) ?? [];
 
   useEffect(() => {
     if (previousDealKey.current === dealKey) return;
@@ -539,6 +552,27 @@ function OnlineRoomTable({
     }
   }
 
+  async function createRematch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRematchBusy(true);
+    setCommandError(null);
+    try {
+      const next = await createOnlineRoom({
+        playerCount: ruleset.board.playerCount,
+        teams: ruleset.board.playerCount === 4 && rematchTeams,
+        dealer: rematchDealer,
+        randomizeSeats: rematchRandomizeSeats,
+        playerName: room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId],
+      });
+      onRoom(next.room);
+      onAccess(next.access);
+    } catch (rematchError) {
+      setCommandError(messageFrom(rematchError));
+    } finally {
+      setRematchBusy(false);
+    }
+  }
+
   const handPanel = (
     <div className="online-hand-panel">
       <div>
@@ -638,6 +672,59 @@ function OnlineRoomTable({
           externalReservePlayerId={access.playerId}
           footerContent={localPlayerDock}
         />
+        {game.winningTeam && (
+          <section className="online-victory" aria-label="Game complete">
+            <p className="eyebrow">Game complete</p>
+            <h2>{winnerNames.join(" and ")} Win!</h2>
+            <p>{winnerNames.length > 1 ? "Every team piece made it home." : "All four pieces made it home first."}</p>
+            <div className="online-victory-actions">
+              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "rematch" ? null : "rematch")}>Quickstart a new game</button>
+              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "statistics" ? null : "statistics")}>Show game statistics</button>
+            </div>
+            {victoryPanel === "rematch" && (
+              <form className="online-rematch-options" onSubmit={(event) => void createRematch(event)}>
+                <label className="online-check">
+                  <input type="checkbox" checked={rematchRandomizeSeats} onChange={(event) => setRematchRandomizeSeats(event.target.checked)} />
+                  <span>Randomize player positions</span>
+                </label>
+                {ruleset.board.playerCount === 4 ? (
+                  <label>
+                    <span>Game format</span>
+                    <select value={rematchTeams ? "teams" : "free-for-all"} onChange={(event) => setRematchTeams(event.target.value === "teams")}>
+                      <option value="teams">Keep or make opposite-seat teams</option>
+                      <option value="free-for-all">Free for all</option>
+                    </select>
+                  </label>
+                ) : <p>This player count will remain free for all.</p>}
+                <label>
+                  <span>First dealer</span>
+                  <select value={rematchDealer} onChange={(event) => setRematchDealer(event.target.value as PlayerId | "random")}>
+                    <option value="random">Random dealer</option>
+                    {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_NAMES[player.id]} ({player.id})</option>)}
+                  </select>
+                </label>
+                <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Creating room…" : "Create rematch room"}</button>
+                <small>A fresh room code will be created for the other players to join.</small>
+              </form>
+            )}
+            {victoryPanel === "statistics" && (
+              <div className="online-statistics">
+                {gameStatistics.map((player) => (
+                  <article key={player.playerId}>
+                    <strong>{room.playerNames[player.playerId] ?? PLAYER_NAMES[player.playerId]}</strong>
+                    <span>Jacks played: {player.jacksPlayed}</span>
+                    <span>Out cards (A/K): {player.outCardsPlayed}</span>
+                    <span>Pieces eliminated: {player.eliminations}</span>
+                    <small>{Object.entries(player.eliminatedPlayers).length
+                      ? Object.entries(player.eliminatedPlayers).map(([playerId, count]) => `${room.playerNames[playerId as PlayerId] ?? PLAYER_NAMES[playerId as PlayerId]} ×${count}`).join(" · ")
+                      : "No opposing pieces eliminated"}</small>
+                  </article>
+                ))}
+                <p>More detailed statistics can be added as the game history expands.</p>
+              </div>
+            )}
+          </section>
+        )}
         {isDealing && (
           <div className="online-deal-overlay" role="status" aria-live="polite">
             <span className="online-deal-deck" aria-hidden="true"><i /><i /><i /></span>
@@ -696,10 +783,10 @@ function OnlineRoomTable({
 }
 
 const ONLINE_APPEARANCE = {
-  "--color-p1": "#D81B60", "--color-p1-soft": "#F8DCE8", "--color-p1-ink": "#FFFFFF", "--shape-p1": "circle(49% at 50% 50%)",
-  "--color-p2": "#0057B8", "--color-p2-soft": "#D9E7F7", "--color-p2-ink": "#FFFFFF", "--shape-p2": "inset(2% round 24%)",
-  "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)",
-  "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)",
+  "--color-p1": "#D81B60", "--color-p1-soft": "#F8DCE8", "--color-p1-ink": "#FFFFFF", "--shape-p1": "circle(49% at 50% 50%)", "--pip-offset-p1": "0%",
+  "--color-p2": "#0057B8", "--color-p2-soft": "#D9E7F7", "--color-p2-ink": "#FFFFFF", "--shape-p2": "inset(2% round 24%)", "--pip-offset-p2": "0%",
+  "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)", "--pip-offset-p3": "12%",
+  "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)", "--pip-offset-p4": "0%",
 };
 
 const ONLINE_HOP_DURATION = 130;
