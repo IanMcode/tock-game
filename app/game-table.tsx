@@ -1364,6 +1364,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
         "--piece": playerColorVar(piece.owner),
         "--piece-ink": playerInkVar(piece.owner),
         "--piece-shape": playerShapeVar(piece.owner),
+        "--piece-pip-offset": `var(--pip-offset-${piece.owner.toLowerCase()})`,
       } as React.CSSProperties}
       onClick={() => {
         if (active) onClick();
@@ -1636,6 +1637,7 @@ function getPlayerAppearanceVariables(
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
     variables[`--color-${playerId.toLowerCase()}-ink`] = color.ink;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
+    variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "7%" : "0%";
     return variables;
   }, {}) as React.CSSProperties;
 }
