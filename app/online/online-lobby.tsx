@@ -40,6 +40,7 @@ import type { CardMove } from "../../src/game/turns";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAY_LOG_ENTRY_LIMIT = 6;
+const ONLINE_REFRESH_INTERVAL = 750;
 const PLAYER_NAMES: Record<PlayerId, string> = {
   P1: "Poppy",
   P2: "River",
@@ -87,7 +88,7 @@ export default function OnlineLobby() {
       }
     };
     void refresh();
-    const interval = window.setInterval(refresh, 1_500);
+    const interval = window.setInterval(refresh, ONLINE_REFRESH_INTERVAL);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
