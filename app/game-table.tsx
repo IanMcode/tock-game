@@ -1040,6 +1040,40 @@ export function Board({
   const perspectiveRotation = perspectivePlayerId
     ? getBoardPerspectiveRotation(perspectivePlayerId, boardDefinition)
     : 0;
+  const useOpponentReserveRow = boardDefinition.playerCount === 3 && Boolean(perspectivePlayerId && externalReservePlayerId);
+  const opponentReserveOwners = useOpponentReserveRow && perspectivePlayerId
+    ? activePlayerIds
+      .filter((owner) => owner !== perspectivePlayerId)
+      .sort((left, right) => {
+        const viewerIndex = activePlayerIds.indexOf(perspectivePlayerId);
+        const leftSeat = (activePlayerIds.indexOf(left) - viewerIndex + activePlayerIds.length) % activePlayerIds.length;
+        const rightSeat = (activePlayerIds.indexOf(right) - viewerIndex + activePlayerIds.length) % activePlayerIds.length;
+        return leftSeat - rightSeat;
+      })
+    : [];
+
+  const renderReserve = (owner: PlayerId, inOpponentRow = false) => {
+    const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
+    const reservePoint = inOpponentRow ? undefined : getBoardReservePoint(owner, boardDefinition, perspectivePlayerId);
+    return (
+      <BoardReserve
+        key={`${owner}-reserve`}
+        owner={owner}
+        pieces={pieces}
+        player={players.find((player) => player.id === owner)}
+        playerName={playerName}
+        dealer={dealer}
+        dealIndex={dealIndex}
+        dealCount={dealCount}
+        activePieceIds={activePieceIds}
+        animatedPieceIds={animatedPieceIds}
+        selectedPieceId={selectedPieceId}
+        capturingPieceIds={capturingPieceIds}
+        onPieceClick={onPieceClick}
+        style={reservePoint ? { left: `${reservePoint.x}%`, top: `${reservePoint.y}%` } : undefined}
+      />
+    );
+  };
 
   return (
     <div className="board-wrap">
@@ -1058,6 +1092,11 @@ export function Board({
           Space numbers
         </button>
       </div>
+      {useOpponentReserveRow && (
+        <div className="board-opponent-row" aria-label="Opponents">
+          {opponentReserveOwners.map((owner) => renderReserve(owner, true))}
+        </div>
+      )}
       <div
         className={`board board-${boardDefinition.playerCount}`}
         aria-label={`${boardDefinition.trackSize}-space Tock board`}
@@ -1077,27 +1116,8 @@ export function Board({
           )}
         </div>
         {activePlayerIds.map((owner) => {
-          if (owner === externalReservePlayerId) return null;
-          const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
-          const reservePoint = getBoardReservePoint(owner, boardDefinition, perspectivePlayerId);
-          return (
-            <BoardReserve
-              key={`${owner}-reserve`}
-              owner={owner}
-              pieces={pieces}
-              player={players.find((player) => player.id === owner)}
-              playerName={playerName}
-              dealer={dealer}
-              dealIndex={dealIndex}
-              dealCount={dealCount}
-              activePieceIds={activePieceIds}
-              animatedPieceIds={animatedPieceIds}
-              selectedPieceId={selectedPieceId}
-              capturingPieceIds={capturingPieceIds}
-              onPieceClick={onPieceClick}
-              style={{ left: `${reservePoint.x}%`, top: `${reservePoint.y}%` }}
-            />
-          );
+          if (owner === externalReservePlayerId || (useOpponentReserveRow && owner !== perspectivePlayerId)) return null;
+          return renderReserve(owner);
         })}
         {Array.from({ length: boardDefinition.trackSize }, (_, index) => {
           const point = getBoardTrackPoint(index, boardDefinition);
