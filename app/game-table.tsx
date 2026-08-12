@@ -1500,7 +1500,10 @@ function getThreePlayerTrackPoint(trackIndex: number, board: BoardDefinition): B
 }
 
 function getThreePlayerSeatPoint(playerIndex: number, endpoint: "start" | "end"): BoardPoint {
-  const base = endpoint === "start" ? { x: 68, y: 82 } : { x: 32, y: 82 };
+  const seatHalfWidth = 8 * Math.sqrt(3);
+  const base = endpoint === "start"
+    ? { x: 50 + seatHalfWidth, y: 90 }
+    : { x: 50 - seatHalfWidth, y: 90 };
   const radians = playerIndex * 2 * Math.PI / 3;
   const x = base.x - 50;
   const y = base.y - 50;
@@ -1519,7 +1522,7 @@ export function getBoardReservePoint(owner: PlayerId, board: BoardDefinition): B
   const inward = getInwardTrackNormal(entryIndex, board, entry);
   const outward = { x: -inward.x, y: -inward.y };
   const fromCenter = { x: entry.x - 50, y: entry.y - 50 };
-  const reserveRadius = board.playerCount === 3 ? 45 : 44;
+  const reserveRadius = board.playerCount === 3 ? 64 : 44;
   const perpendicularDistance = fromCenter.x * outward.x + fromCenter.y * outward.y;
   const outwardOffset = reserveRadius - perpendicularDistance;
   return roundPoint({
@@ -1552,7 +1555,7 @@ function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] 
     return [{ x: 22, y: 10 }, { x: 78, y: 10 }, { x: 78, y: 90 }, { x: 22, y: 90 }];
   }
   if (playerCount === 3) {
-    return [{ x: 68, y: 82 }, { x: 32, y: 82 }, { x: 13.2872, y: 49.5885 }];
+    return [{ x: 63.8564, y: 90 }, { x: 36.1436, y: 90 }, { x: 8.4308, y: 42 }];
   }
   return [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }];
 }

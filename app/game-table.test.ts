@@ -14,7 +14,7 @@ describe("player board perspective", () => {
   it("places each player's space 12 exactly on a corner", () => {
     const expectedCorners = {
       2: [{ x: 78, y: 90 }, { x: 22, y: 10 }],
-      3: [{ x: 68, y: 82 }, { x: 13.2872, y: 49.5885 }, { x: 68.7128, y: 18.4115 }],
+      3: [{ x: 63.8564, y: 90 }, { x: 8.4308, y: 42 }, { x: 77.7128, y: 18 }],
       4: [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }],
     } as const;
 
@@ -24,6 +24,27 @@ describe("player board perspective", () => {
           expectedCorners[board.playerCount][index],
         );
       });
+    }
+  });
+
+  it("spaces every three-player track position evenly", () => {
+    const board = BOARD_DEFINITIONS[3];
+    const distances = Array.from({ length: board.trackSize }, (_, index) => {
+      const point = getBoardTrackPoint(index, board);
+      const next = getBoardTrackPoint((index + 1) % board.trackSize, board);
+      return Math.hypot(next.x - point.x, next.y - point.y);
+    });
+
+    expect(Math.max(...distances) - Math.min(...distances)).toBeLessThan(0.001);
+  });
+
+  it("keeps three-player opponent reserves clear of the track", () => {
+    const board = BOARD_DEFINITIONS[3];
+
+    for (const playerId of board.playerIds) {
+      const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
+      const reserve = getBoardReservePoint(playerId, board);
+      expect(Math.hypot(reserve.x - entry.x, reserve.y - entry.y)).toBeGreaterThan(15);
     }
   });
 
