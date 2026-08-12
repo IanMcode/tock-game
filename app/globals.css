@@ -114,13 +114,13 @@ button { font: inherit; }
 .track-space .space-number { rotate: var(--counter-rotation); }
 .track-space .piece, .home-space .piece { grid-area: 1 / 1; width: var(--piece-diameter); }
 .track-space .piece, .home-space .piece, .hopping-piece-slot .piece, .swapping-piece-slot .piece { rotate: var(--counter-rotation); }
-.track-space.entry-space { width: var(--space-diameter); border: 2px solid var(--entry); border-radius: 6px; transform: translate(-50%,-50%) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--entry) 14%, transparent), inset 0 1px 2px rgba(255,255,255,.8); }
-.track-space.entry-space > * { rotate: calc(-45deg + var(--counter-rotation)); }
+.track-space.entry-space { width: var(--space-diameter); border: 2px solid var(--entry); border-radius: 6px; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); box-shadow: 0 0 0 3px color-mix(in srgb, var(--entry) 14%, transparent), inset 0 1px 2px rgba(255,255,255,.8); }
+.track-space.entry-space > * { rotate: -45deg; }
 .home-space { background: var(--home); border: 1px solid rgba(34,67,54,.24); }
 .destination-button { position: absolute; inset: -5px; z-index: 12; display: grid; place-items: center; padding: 0; border: 3px solid var(--destination); border-radius: 50%; background: color-mix(in srgb, var(--destination) 14%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--destination) 16%, transparent); cursor: pointer; animation: destination-pulse 1s ease-in-out infinite; }
 .destination-button span { width: 34%; aspect-ratio: 1; clip-path: var(--destination-shape); background: var(--destination); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--destination) 48%, transparent)); }
 .track-space .destination-button span { rotate: var(--counter-rotation); }
-.track-space.entry-space .destination-button span { rotate: calc(-45deg + var(--counter-rotation)); }
+.track-space.entry-space .destination-button span { rotate: -45deg; }
 .track-space.entry-space .destination-button { rotate: 0deg; border-radius: 7px; }
 .destination-button:hover, .destination-button:focus-visible { background: color-mix(in srgb, var(--destination) 28%, white); outline: 3px solid white; outline-offset: 2px; }
 @keyframes destination-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--destination) 8%, transparent); } }
