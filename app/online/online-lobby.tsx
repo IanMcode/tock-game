@@ -113,11 +113,11 @@ export default function OnlineLobby() {
   }
 
   async function joinRoom() {
-    if (!joinCode.trim()) return;
+    if (!/^\d{4}$/.test(joinCode)) return;
     setBusy(true);
     setError(null);
     try {
-      remember((await joinOnlineRoom(joinCode.trim().toUpperCase(), joinName.trim() || undefined)).access);
+      remember((await joinOnlineRoom(joinCode, joinName.trim() || undefined)).access);
     } catch (joinError) {
       setError(messageFrom(joinError));
     } finally {
@@ -249,10 +249,17 @@ export default function OnlineLobby() {
             <input value={joinName} maxLength={24} autoComplete="nickname" onChange={(event) => setJoinName(event.target.value)} placeholder="River" />
           </label>
           <label>
-            <span>Six-character room code</span>
-            <input value={joinCode} maxLength={6} autoCapitalize="characters" onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="TOCK42" />
+            <span>Four-digit room code</span>
+            <input
+              value={joinCode}
+              maxLength={4}
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="2048"
+            />
           </label>
-          <button className="online-primary" type="button" disabled={busy || !joinCode.trim()} onClick={joinRoom}>Join next open seat</button>
+          <button className="online-primary" type="button" disabled={busy || !/^\d{4}$/.test(joinCode)} onClick={joinRoom}>Join next open seat</button>
           <p className="online-help">Your reconnect token stays in this browser tab. Share only the room code.</p>
         </section>
       </div>

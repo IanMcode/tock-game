@@ -35,7 +35,7 @@ describe("online room persistence", () => {
 });
 
 async function createRoom(): Promise<OnlineRoom> {
-  const id = "TOCK01";
+  const id = "1234";
   return {
     id,
     seats: { P1: await hashPlayerToken("private-token") },

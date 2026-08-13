@@ -38,7 +38,7 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
 }
 
 function validateRoom(room: OnlineRoom): void {
-  if (!isRecord(room) || typeof room.id !== "string" || !/^[A-Z0-9]{6}$/.test(room.id)) {
+  if (!isRecord(room) || typeof room.id !== "string" || !/^\d{4}$/.test(room.id)) {
     throw new Error("The stored room has an invalid ID.");
   }
   if (!isRecord(room.session)) throw new Error("The stored room has an invalid session.");

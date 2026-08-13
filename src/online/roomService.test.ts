@@ -7,25 +7,25 @@ describe("online room service", () => {
     const service = createTestService();
     const host = await service.createRoom();
 
-    expect(host.access).toEqual({ roomId: "TOCK01", playerId: "P1", playerToken: "token-1" });
+    expect(host.access).toEqual({ roomId: "1234", playerId: "P1", playerToken: "token-1" });
     expect(host.room.status).toBe("waiting");
     expect(host.room.connectedPlayers).toEqual(["P1"]);
 
-    const second = await service.joinRoom("tock01");
-    await service.joinRoom("TOCK01");
-    const fourth = await service.joinRoom("TOCK01");
+    const second = await service.joinRoom("1234");
+    await service.joinRoom("1234");
+    const fourth = await service.joinRoom("1234");
 
     expect(second.access.playerId).toBe("P2");
     expect(fourth.access.playerId).toBe("P4");
     expect(fourth.room.status).toBe("active");
-    await expect(service.joinRoom("TOCK01")).rejects.toThrowError(RoomError);
+    await expect(service.joinRoom("1234")).rejects.toThrowError(RoomError);
   });
 
   it("blocks commands until every seat is filled", async () => {
     const service = createTestService();
     const host = await service.createRoom();
 
-    await expectRoomError(() => service.submitCommand("TOCK01", host.access.playerToken, {
+    await expectRoomError(() => service.submitCommand("1234", host.access.playerToken, {
       commandId: "exchange-p1",
       expectedRevision: 0,
       command: { type: "select-exchange-card", actor: "P1", cardIndex: 0 },
@@ -35,17 +35,17 @@ describe("online room service", () => {
   it("binds commands to the seat token and returns that player's safe view", async () => {
     const service = createTestService();
     const host = await service.createRoom();
-    const second = await service.joinRoom("TOCK01");
-    await service.joinRoom("TOCK01");
-    await service.joinRoom("TOCK01");
+    const second = await service.joinRoom("1234");
+    await service.joinRoom("1234");
+    await service.joinRoom("1234");
 
-    await expectRoomError(() => service.submitCommand("TOCK01", second.access.playerToken, {
+    await expectRoomError(() => service.submitCommand("1234", second.access.playerToken, {
       commandId: "spoofed",
       expectedRevision: 0,
       command: { type: "select-exchange-card", actor: "P1", cardIndex: 0 },
     }), "SEAT_MISMATCH");
 
-    const room = await service.submitCommand("TOCK01", host.access.playerToken, {
+    const room = await service.submitCommand("1234", host.access.playerToken, {
       commandId: "exchange-p1",
       expectedRevision: 0,
       command: { type: "select-exchange-card", actor: "P1", cardIndex: 0 },
@@ -58,14 +58,14 @@ describe("online room service", () => {
   it("supports token-based reconnection and spectator-safe views", async () => {
     const service = createTestService();
     const host = await service.createRoom();
-    const reconnected = await service.getRoomView("TOCK01", host.access.playerToken);
-    const spectator = await service.getRoomView("TOCK01");
+    const reconnected = await service.getRoomView("1234", host.access.playerToken);
+    const spectator = await service.getRoomView("1234");
 
     expect(reconnected.session.viewer).toBe("P1");
     expect(reconnected.session.game.players[0].hand).toHaveLength(5);
     expect(spectator.session.viewer).toBeNull();
     expect(spectator.session.game.players.every((player) => player.hand === undefined)).toBe(true);
-    await expectRoomError(() => service.getRoomView("TOCK01", "bad-token"), "INVALID_TOKEN");
+    await expectRoomError(() => service.getRoomView("1234", "bad-token"), "INVALID_TOKEN");
   });
 
   it.each([2, 3] as const)("activates a configured %i-player free-for-all", async (playerCount) => {
@@ -74,7 +74,7 @@ describe("online room service", () => {
     let latest = host.room;
 
     for (let seat = 2; seat <= playerCount; seat += 1) {
-      latest = (await service.joinRoom("TOCK01")).room;
+      latest = (await service.joinRoom("1234")).room;
     }
 
     expect(latest.requiredPlayers).toBe(playerCount);
@@ -88,7 +88,7 @@ describe("online room service", () => {
   it("stores only hashed player credentials", async () => {
     const store = new InMemoryRoomStore();
     const service = new RoomService(store, {
-      createRoomId: () => "TOCK01",
+      createRoomId: () => "1234",
       createPlayerToken: () => "private-token",
       createRandomState: () => 12_345,
     });
@@ -112,21 +112,21 @@ describe("online room service", () => {
     const store = new InMemoryRoomStore();
     let token = 0;
     const service = new RoomService(store, {
-      createRoomId: () => "TOCK01",
+      createRoomId: () => "1234",
       createPlayerToken: () => `token-${++token}`,
       createRandomState: () => 12_345,
     });
 
     const host = await service.createRoom({ playerCount: 4, teams: true, randomizeSeats: true });
-    const stored = await store.get("TOCK01");
+    const stored = await store.get("1234");
     expect(stored?.room.joinOrder).toHaveLength(4);
     expect(new Set(stored?.room.joinOrder)).toEqual(new Set(["P1", "P2", "P3", "P4"]));
     expect(host.access.playerId).toBe(stored?.room.joinOrder?.[0]);
 
     const joined = [
-      (await service.joinRoom("TOCK01")).access.playerId,
-      (await service.joinRoom("TOCK01")).access.playerId,
-      (await service.joinRoom("TOCK01")).access.playerId,
+      (await service.joinRoom("1234")).access.playerId,
+      (await service.joinRoom("1234")).access.playerId,
+      (await service.joinRoom("1234")).access.playerId,
     ];
     expect([host.access.playerId, ...joined]).toEqual(stored?.room.joinOrder);
   });
@@ -136,25 +136,25 @@ describe("online room service", () => {
     const host = await service.createRoom({ playerCount: 2, teams: false, playerName: "Ian" });
     const second = await service.joinRoom(host.access.roomId, "Omi");
 
-    const updated = await service.submitChatMessage("TOCK01", second.access.playerToken, "message-1", "  Good luck!  ");
+    const updated = await service.submitChatMessage("1234", second.access.playerToken, "message-1", "  Good luck!  ");
 
     expect(updated.chatMessages).toEqual([expect.objectContaining({
       id: "message-1",
       playerId: "P2",
       text: "Good luck!",
     })]);
-    expect((await service.getRoomView("TOCK01", host.access.playerToken)).chatMessages).toEqual(updated.chatMessages);
+    expect((await service.getRoomView("1234", host.access.playerToken)).chatMessages).toEqual(updated.chatMessages);
   });
 
   it("rejects a stale atomic store update", async () => {
     const store = new InMemoryRoomStore();
     const service = new RoomService(store, {
-      createRoomId: () => "TOCK01",
+      createRoomId: () => "1234",
       createPlayerToken: () => "private-token",
       createRandomState: () => 12_345,
     });
     await service.createRoom();
-    const stored = await store.get("TOCK01");
+    const stored = await store.get("1234");
     expect(stored).toBeDefined();
 
     expect(await store.save(stored!.room, stored!.version)).toBe(true);
@@ -165,7 +165,7 @@ describe("online room service", () => {
 function createTestService() {
   let token = 0;
   return new RoomService(new InMemoryRoomStore(), {
-    createRoomId: () => "TOCK01",
+    createRoomId: () => "1234",
     createPlayerToken: () => `token-${++token}`,
     createRandomState: () => 12_345,
   });

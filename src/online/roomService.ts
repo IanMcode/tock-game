@@ -148,8 +148,8 @@ export class RoomService {
       : game.players.map((player) => player.id);
     const playerId = joinOrder[0];
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      const roomId = this.createRoomId().trim().toUpperCase();
-      if (!roomId) continue;
+      const roomId = this.createRoomId().trim();
+      if (!/^\d{4}$/.test(roomId)) continue;
       const room: OnlineRoom = {
         id: roomId,
         seats: { [playerId]: playerTokenHash },
@@ -313,10 +313,8 @@ export function normalizeChatText(text: string): string {
 }
 
 function defaultRoomId(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint8Array(6);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+  const value = crypto.getRandomValues(new Uint32Array(1))[0] % 10_000;
+  return value.toString().padStart(4, "0");
 }
 
 function shufflePlayerIds(playerIds: readonly PlayerId[], randomState: number): PlayerId[] {

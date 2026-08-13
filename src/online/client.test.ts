@@ -24,9 +24,9 @@ describe("online browser client", () => {
 
   it("sends a joining player's name", async () => {
     const request = vi.fn(async () => Response.json({ access: {}, room: {} }, { status: 201 }));
-    await joinOnlineRoom("TOCK01", "Omi", request as typeof fetch);
+    await joinOnlineRoom("1234", "Omi", request as typeof fetch);
 
-    expect(request).toHaveBeenCalledWith("/api/rooms/TOCK01/join", expect.objectContaining({
+    expect(request).toHaveBeenCalledWith("/api/rooms/1234/join", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({ playerName: "Omi" }),
     }));
@@ -34,9 +34,9 @@ describe("online browser client", () => {
 
   it("sends authenticated table chat", async () => {
     const request = vi.fn(async () => Response.json({}));
-    await sendOnlineChat("TOCK01", "secret", { messageId: "message-1", text: "Hello" }, request as typeof fetch);
+    await sendOnlineChat("1234", "secret", { messageId: "message-1", text: "Hello" }, request as typeof fetch);
 
-    expect(request).toHaveBeenCalledWith("/api/rooms/TOCK01/chat", expect.objectContaining({
+    expect(request).toHaveBeenCalledWith("/api/rooms/1234/chat", expect.objectContaining({
       method: "POST",
       headers: expect.objectContaining({ authorization: "Bearer secret" }),
       body: JSON.stringify({ messageId: "message-1", text: "Hello" }),

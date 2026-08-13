@@ -14,6 +14,7 @@ describe("online room HTTP routes", () => {
 
     expect(createdResponse.status).toBe(201);
     expect(createdResponse.headers.get("cache-control")).toBe("no-store");
+    expect(roomId).toMatch(/^\d{4}$/);
 
     for (let seat = 2; seat <= 4; seat += 1) {
       const response = await joinRoom(
