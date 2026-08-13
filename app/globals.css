@@ -426,8 +426,8 @@ button { font: inherit; }
 .online-hand { min-height: 88px; display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 5px 3px 9px; }
 .online-card { position: relative; width: 58px; aspect-ratio: .7; flex: 0 0 auto; padding: 7px; border: 1px solid #d7d1c5; border-radius: 9px; color: #21332d; background: #fffefa; box-shadow: 0 4px 10px rgba(42,47,42,.1); cursor: pointer; text-align: left; transition: transform .16s, box-shadow .16s; }
 .online-card.red { color: #c73c35; }
-.online-card > span { display: block; font-weight: 900; line-height: 1; }
-.online-card > strong { position: absolute; inset: 0; display: grid; place-items: center; font-size: 27px; }
+.online-card > span { position: absolute; left: 7px; top: 7px; z-index: 1; display: block; font-size: 15px; font-weight: 900; line-height: 1; }
+.online-card > strong { position: absolute; inset: 22% 0 0; display: grid; place-items: center; font-size: 25px; line-height: 1; }
 .online-card:not(:disabled):hover, .online-card.is-selected { transform: translateY(-7px); box-shadow: 0 11px 20px rgba(32,48,40,.17); }
 .online-card.is-selected { outline: 3px solid var(--green); }
 .online-card:disabled { cursor: default; opacity: .58; }
