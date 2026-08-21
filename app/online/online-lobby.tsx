@@ -59,6 +59,11 @@ export default function OnlineLobby() {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const roomStatusRef = useRef<RoomView["status"] | null>(null);
+
+  useEffect(() => {
+    roomStatusRef.current = room?.status ?? null;
+  }, [room?.status]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -76,22 +81,33 @@ export default function OnlineLobby() {
   useEffect(() => {
     if (!access) return;
     let cancelled = false;
+    let refreshInFlight = false;
     const refresh = async () => {
+      if (document.visibilityState !== "visible" || roomStatusRef.current === "complete" || refreshInFlight) return;
+      refreshInFlight = true;
       try {
         const next = await readOnlineRoom(access.roomId, access.playerToken);
         if (!cancelled) {
+          roomStatusRef.current = next.status;
           setRoom(next);
           setError(null);
         }
       } catch (refreshError) {
         if (!cancelled) setError(messageFrom(refreshError));
+      } finally {
+        refreshInFlight = false;
       }
+    };
+    const resumeVisibleRoom = () => {
+      if (document.visibilityState === "visible") void refresh();
     };
     void refresh();
     const interval = window.setInterval(refresh, ONLINE_REFRESH_INTERVAL);
+    document.addEventListener("visibilitychange", resumeVisibleRoom);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", resumeVisibleRoom);
     };
   }, [access]);
 
@@ -132,6 +148,7 @@ export default function OnlineLobby() {
 
   function leaveRoom() {
     sessionStorage.removeItem(ACCESS_KEY);
+    roomStatusRef.current = null;
     setAccess(null);
     setRoom(null);
     setError(null);
