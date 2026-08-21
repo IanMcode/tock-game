@@ -904,6 +904,7 @@ export function BoardReserve({
   capturingPieceIds,
   onPieceClick,
   style,
+  showReservePieces = true,
 }: {
   owner: PlayerId;
   pieces: readonly Piece[];
@@ -918,6 +919,7 @@ export function BoardReserve({
   capturingPieceIds: readonly string[];
   onPieceClick: (pieceId: string) => void;
   style?: React.CSSProperties;
+  showReservePieces?: boolean;
 }) {
   const reservePieces = pieces.filter(
     (piece) => piece.owner === owner && piece.position.zone === "reserve" && !animatedPieceIds.has(piece.id),
@@ -929,7 +931,7 @@ export function BoardReserve({
 
   return (
     <div
-      className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""}`}
+      className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""} ${showReservePieces ? "" : "is-status-only"}`}
       style={{
         "--reserve": playerColorVar(owner),
         "--reserve-soft": playerSoftVar(owner),
@@ -962,19 +964,21 @@ export function BoardReserve({
         )}
         <small>{handCount} left</small>
       </div>
-      <div className="reserve-pieces">
-        {reservePieces.length > 0 ? reservePieces.map((piece) => (
-          <PieceButton
-            key={piece.id}
-            piece={piece}
-            active={activePieceIds.has(piece.id)}
-            selected={selectedPieceId === piece.id}
-            capturing={capturingPieceIds.includes(piece.id)}
-            playerName={playerName}
-            onClick={() => onPieceClick(piece.id)}
-          />
-        )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
-      </div>
+      {showReservePieces && (
+        <div className="reserve-pieces">
+          {reservePieces.length > 0 ? reservePieces.map((piece) => (
+            <PieceButton
+              key={piece.id}
+              piece={piece}
+              active={activePieceIds.has(piece.id)}
+              selected={selectedPieceId === piece.id}
+              capturing={capturingPieceIds.includes(piece.id)}
+              playerName={playerName}
+              onClick={() => onPieceClick(piece.id)}
+            />
+          )) : <small>{homeComplete ? "Home complete ✓" : "All in play"}</small>}
+        </div>
+      )}
     </div>
   );
 }
@@ -1001,6 +1005,7 @@ export function Board({
   recentCard,
   perspectivePlayerId,
   externalReservePlayerId,
+  reservePresentation = "cards",
   footerContent,
 }: {
   pieces: readonly Piece[];
@@ -1024,6 +1029,7 @@ export function Board({
   recentCard?: Card | null;
   perspectivePlayerId?: PlayerId;
   externalReservePlayerId?: PlayerId;
+  reservePresentation?: "cards" | "board-grid";
   footerContent?: React.ReactNode;
 }) {
   const animatedPieceIds = new Set([
@@ -1040,7 +1046,8 @@ export function Board({
   const perspectiveRotation = perspectivePlayerId
     ? getBoardPerspectiveRotation(perspectivePlayerId, boardDefinition)
     : 0;
-  const useOpponentReserveRow = Boolean(perspectivePlayerId && externalReservePlayerId);
+  const useBoardReserveGrids = reservePresentation === "board-grid";
+  const useOpponentReserveRow = !useBoardReserveGrids && Boolean(perspectivePlayerId && externalReservePlayerId);
   const opponentReserveOwners = useOpponentReserveRow && perspectivePlayerId
     ? activePlayerIds
       .filter((owner) => owner !== perspectivePlayerId)
@@ -1072,6 +1079,42 @@ export function Board({
         onPieceClick={onPieceClick}
         style={reservePoint ? { left: `${reservePoint.x}%`, top: `${reservePoint.y}%` } : undefined}
       />
+    );
+  };
+
+  const renderReserveGrid = (owner: PlayerId) => {
+    const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
+    const reservePoint = getBoardReserveGridPoint(owner, boardDefinition);
+    const ownerPieces = pieces.filter((piece) => piece.owner === owner);
+
+    return (
+      <div
+        className={`board-reserve-grid reserve-${owner.toLowerCase()}`}
+        key={`${owner}-reserve-grid`}
+        style={{
+          left: `${reservePoint.x}%`,
+          top: `${reservePoint.y}%`,
+          "--reserve": playerColorVar(owner),
+          "--reserve-soft": playerSoftVar(owner),
+          "--player-shape": playerShapeVar(owner),
+        } as React.CSSProperties}
+        aria-label={`${playerName}'s pieces waiting to enter`}
+      >
+        {ownerPieces.map((piece) => {
+          const inReserve = piece.position.zone === "reserve" && !animatedPieceIds.has(piece.id);
+          return inReserve ? (
+            <PieceButton
+              key={piece.id}
+              piece={piece}
+              active={activePieceIds.has(piece.id)}
+              selected={selectedPieceId === piece.id}
+              capturing={capturingPieceIds.includes(piece.id)}
+              playerName={playerName}
+              onClick={() => onPieceClick(piece.id)}
+            />
+          ) : <span className="empty-reserve-slot" key={piece.id} aria-hidden="true" />;
+        })}
+      </div>
     );
   };
 
@@ -1115,7 +1158,8 @@ export function Board({
             </>
           )}
         </div>
-        {activePlayerIds.map((owner) => {
+        {useBoardReserveGrids && activePlayerIds.map(renderReserveGrid)}
+        {!useBoardReserveGrids && activePlayerIds.map((owner) => {
           if (owner === externalReservePlayerId || (useOpponentReserveRow && owner !== perspectivePlayerId)) return null;
           return renderReserve(owner);
         })}
@@ -1561,6 +1605,25 @@ export function getBoardReservePoint(
   return roundPoint({
     x: entry.x + outward.x * outwardOffset,
     y: entry.y + outward.y * outwardOffset,
+  });
+}
+
+export function getBoardReserveGridPoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
+  const entryIndex = getEntryIndex(owner, board);
+  const entry = getBoardTrackPoint(entryIndex, board);
+  const next = getBoardTrackPoint((entryIndex + 1) % board.trackSize, board);
+  const inward = getInwardTrackNormal(entryIndex, board, entry);
+  const tangentLength = Math.hypot(next.x - entry.x, next.y - entry.y) || 1;
+  const towardNext = {
+    x: (next.x - entry.x) / tangentLength,
+    y: (next.y - entry.y) / tangentLength,
+  };
+  const inwardDistance = board.playerCount === 3 ? 9 : getBoardSpaceSize(board) * 2.1;
+  const forwardDistance = board.playerCount === 3 ? 5 : getBoardSpaceSize(board) * 1.2;
+
+  return roundPoint({
+    x: entry.x + inward.x * inwardDistance + towardNext.x * forwardDistance,
+    y: entry.y + inward.y * inwardDistance + towardNext.y * forwardDistance,
   });
 }
 

@@ -4,6 +4,7 @@ import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
 import { BOARD_DEFINITIONS, getBoardTrackIndex } from "../src/game/definition";
 import {
   getBoardPerspectiveRotation,
+  getBoardReserveGridPoint,
   getBoardReservePoint,
   getBoardTrackPoint,
   getHomeLanePoint,
@@ -45,6 +46,23 @@ describe("player board perspective", () => {
       const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
       const reserve = getBoardReservePoint(playerId, board);
       expect(Math.hypot(reserve.x - entry.x, reserve.y - entry.y)).toBeGreaterThan(15);
+    }
+  });
+
+  it("keeps the three-player reserve grids inside the board near each entry", () => {
+    const board = BOARD_DEFINITIONS[3];
+
+    for (const playerId of board.playerIds) {
+      const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
+      const reserveGrid = getBoardReserveGridPoint(playerId, board);
+      const distanceFromEntry = Math.hypot(reserveGrid.x - entry.x, reserveGrid.y - entry.y);
+
+      expect(reserveGrid.x).toBeGreaterThan(8);
+      expect(reserveGrid.x).toBeLessThan(92);
+      expect(reserveGrid.y).toBeGreaterThan(8);
+      expect(reserveGrid.y).toBeLessThan(92);
+      expect(distanceFromEntry).toBeGreaterThan(8);
+      expect(distanceFromEntry).toBeLessThan(15);
     }
   });
 
