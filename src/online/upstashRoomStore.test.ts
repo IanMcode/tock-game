@@ -65,6 +65,8 @@ async function createRoom(): Promise<OnlineRoom> {
   const id = "1234";
   return {
     id,
+    started: false,
+    hostParticipantId: "player-P1",
     seats: { P1: await hashPlayerToken("private-token") },
     playerNames: { P1: "Ian" },
     chatMessages: [],

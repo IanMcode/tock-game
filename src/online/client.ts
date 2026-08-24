@@ -1,6 +1,6 @@
 import type { CommandEnvelope } from "../game/session";
 import type { TokenRequest } from "ably";
-import type { CreateRoomOptions, RoomJoinResult, RoomView, StartNextGameOptions } from "./roomService";
+import type { CreateRoomOptions, RoomJoinResult, RoomView, StartNextGameOptions, StartRoomOptions } from "./roomService";
 
 export type OnlineFetch = typeof fetch;
 
@@ -76,6 +76,22 @@ export async function startOnlineNextGame(
   request: OnlineFetch = fetch,
 ): Promise<RoomJoinResult> {
   return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/next-game`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${playerToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(options),
+  });
+}
+
+export async function startOnlineRoom(
+  roomId: string,
+  playerToken: string,
+  options: StartRoomOptions,
+  request: OnlineFetch = fetch,
+): Promise<RoomJoinResult> {
+  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/start`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${playerToken}`,

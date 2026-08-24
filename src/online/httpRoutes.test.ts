@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { POST as createRoom } from "../../app/api/rooms/route";
 import { GET as getRoom } from "../../app/api/rooms/[roomId]/route";
 import { POST as joinRoom } from "../../app/api/rooms/[roomId]/join/route";
+import { POST as startRoom } from "../../app/api/rooms/[roomId]/start/route";
 import { POST as submitCommand } from "../../app/api/rooms/[roomId]/commands/route";
 import type { RoomJoinResult, RoomView } from "./roomService";
 
@@ -31,8 +32,21 @@ describe("online room HTTP routes", () => {
       context(roomId),
     );
     const room = await readJson<RoomView>(roomResponse);
-    expect(room.status).toBe("active");
+    expect(room.status).toBe("waiting");
     expect(room.session.viewer).toBe("P1");
+
+    const startedResponse = await startRoom(
+      new Request(`http://localhost/api/rooms/${roomId}/start`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${created.access.playerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ seatOrder: ["P1", "P2", "P3", "P4"] }),
+      }),
+      context(roomId),
+    );
+    expect(startedResponse.status).toBe(200);
 
     const commandResponse = await submitCommand(
       new Request(`http://localhost/api/rooms/${roomId}/commands`, {

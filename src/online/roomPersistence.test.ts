@@ -27,10 +27,14 @@ describe("online room persistence", () => {
     const legacyRoom = { ...room } as Partial<OnlineRoom>;
     delete legacyRoom.playerNames;
     delete legacyRoom.chatMessages;
+    delete legacyRoom.started;
+    delete legacyRoom.hostParticipantId;
 
     const restored = deserializeOnlineRoom({ version: 1, room: legacyRoom });
     expect(restored.playerNames).toEqual({ P1: "Poppy" });
     expect(restored.chatMessages).toEqual([]);
+    expect(restored.started).toBe(false);
+    expect(restored.hostParticipantId).toBe("player-P1");
   });
 });
 
@@ -38,6 +42,8 @@ async function createRoom(): Promise<OnlineRoom> {
   const id = "1234";
   return {
     id,
+    started: false,
+    hostParticipantId: "player-P1",
     seats: { P1: await hashPlayerToken("private-token") },
     playerNames: { P1: "Ian" },
     chatMessages: [],

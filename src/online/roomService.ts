@@ -24,6 +24,8 @@ export type ChatMessage = {
 
 export type OnlineRoom = {
   id: string;
+  started: boolean;
+  hostParticipantId: string;
   seats: Partial<Record<PlayerId, string>>;
   joinOrder?: PlayerId[];
   playerNames: Partial<Record<PlayerId, string>>;
@@ -67,6 +69,7 @@ export type RoomView = {
   requiredPlayers: number;
   session: GameSessionView;
   viewerPlayerId: PlayerId | null;
+  isHost: boolean;
   matchHistory: MatchGameRecord[];
   currentGameNumber: number;
 };
@@ -94,6 +97,11 @@ export type CreateRoomOptions = {
 export type StartNextGameOptions = {
   dealer?: PlayerId | "random";
   randomizeSeats?: boolean;
+};
+
+export type StartRoomOptions = {
+  dealer?: PlayerId | "random";
+  seatOrder?: PlayerId[];
 };
 
 export const DEFAULT_PLAYER_NAMES: Record<PlayerId, string> = {
@@ -140,6 +148,7 @@ export type RoomErrorCode =
   | "ROOM_NOT_FOUND"
   | "ROOM_FULL"
   | "ROOM_NOT_READY"
+  | "HOST_ONLY"
   | "INVALID_TOKEN"
   | "SEAT_MISMATCH"
   | "ROOM_CONFLICT";
@@ -181,19 +190,22 @@ export class RoomService {
       ? shufflePlayerIds(game.players.map((player) => player.id), this.randomState())
       : game.players.map((player) => player.id);
     const playerId = joinOrder[0];
+    const participantIds = Object.fromEntries(
+      game.players.map((player) => [player.id, `player-${player.id}`]),
+    );
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const roomId = this.createRoomId().trim();
       if (!/^\d{4}$/.test(roomId)) continue;
       const room: OnlineRoom = {
         id: roomId,
+        started: false,
+        hostParticipantId: participantIds[playerId],
         seats: { [playerId]: playerTokenHash },
         joinOrder,
         playerNames: { [playerId]: normalizePlayerName(options.playerName, playerId) },
         chatMessages: [],
         session: createGameSession(roomId, game),
-        participantIds: Object.fromEntries(
-          game.players.map((player) => [player.id, `player-${player.id}`]),
-        ),
+        participantIds,
         matchHistory: [],
         currentGameNumber: 1,
         configuration: {
@@ -248,6 +260,68 @@ export class RoomService {
     return this.view(room, viewer);
   }
 
+  async startRoom(
+    roomId: string,
+    playerToken: string,
+    options: StartRoomOptions = {},
+  ): Promise<RoomJoinResult> {
+    const stored = await this.getRoom(roomId);
+    const room = stored.room;
+    const playerId = await this.playerForToken(room, playerToken);
+    if (!this.isHost(room, playerId)) {
+      throw new RoomError("HOST_ONLY", "Only the host can arrange seats and start the game.");
+    }
+    if (room.started) {
+      throw new RoomError("ROOM_NOT_READY", "This game has already started.");
+    }
+
+    const playerIds = room.session.game.players.map((player) => player.id);
+    if (!playerIds.every((candidate) => Boolean(room.seats[candidate]))) {
+      throw new RoomError("ROOM_NOT_READY", "Every player must join before the host can start.");
+    }
+    const seatOrder = options.seatOrder ?? [...playerIds];
+    if (
+      seatOrder.length !== playerIds.length ||
+      new Set(seatOrder).size !== playerIds.length ||
+      seatOrder.some((candidate) => !playerIds.includes(candidate))
+    ) {
+      throw new Error("The seat order must include every player exactly once.");
+    }
+
+    const dealerChoice = options.dealer ?? room.session.game.dealer;
+    const dealerParticipant = dealerChoice === "random"
+      ? null
+      : participantIdForSeat(room, dealerChoice);
+    const arranged = arrangeRoomSeats(room, playerIds, seatOrder);
+    const dealer = dealerParticipant
+      ? playerIds.find((candidate) => participantIdForSeat(arranged, candidate) === dealerParticipant)
+      : undefined;
+    const configuration = room.configuration ?? {
+      teams: getRulesetDefinition(room.session.game.rulesetId).exchange === "partners",
+      startWithPieceOnEntry: true,
+    };
+    const game = createGame({
+      randomState: this.randomState(),
+      playerCount: playerIds.length as BoardPlayerCount,
+      teams: configuration.teams,
+      startWithPieceOnEntry: configuration.startWithPieceOnEntry,
+      ...(dealer ? { dealer } : {}),
+    });
+    const next: OnlineRoom = {
+      ...arranged,
+      started: true,
+      session: createGameSession(room.id, game),
+    };
+    if (!await this.store.save(next, stored.version)) {
+      throw new RoomError("ROOM_CONFLICT", "The room changed before the game could start. Try again.");
+    }
+    const nextPlayerId = await this.playerForToken(next, playerToken);
+    return {
+      access: { roomId: next.id, playerId: nextPlayerId, playerToken },
+      room: this.view(next, nextPlayerId),
+    };
+  }
+
   async submitCommand(
     roomId: string,
     playerToken: string,
@@ -256,7 +330,7 @@ export class RoomService {
     const stored = await this.getRoom(roomId);
     const room = stored.room;
     if (this.status(room) === "waiting") {
-      throw new RoomError("ROOM_NOT_READY", "Every seat must be filled before play begins.");
+      throw new RoomError("ROOM_NOT_READY", "The host must start the game before cards can be played.");
     }
 
     const playerId = await this.playerForToken(room, playerToken);
@@ -313,6 +387,7 @@ export class RoomService {
     });
     const next: OnlineRoom = {
       ...randomized,
+      started: true,
       chatMessages: [],
       session: createGameSession(randomized.id, game),
       currentGameNumber: (completedRoom.currentGameNumber ?? 1) + 1,
@@ -383,6 +458,7 @@ export class RoomService {
       requiredPlayers: room.session.game.players.length,
       session: createSessionView(room.session, viewer),
       viewerPlayerId: viewer,
+      isHost: viewer ? this.isHost(room, viewer) : false,
       matchHistory: cloneMatchHistory(room.matchHistory ?? []),
       currentGameNumber: room.currentGameNumber ?? 1,
     };
@@ -390,7 +466,11 @@ export class RoomService {
 
   private status(room: OnlineRoom): RoomStatus {
     if (room.session.game.winningTeam) return "complete";
-    return room.session.game.players.every((player) => Boolean(room.seats[player.id])) ? "active" : "waiting";
+    return room.started ? "active" : "waiting";
+  }
+
+  private isHost(room: OnlineRoom, playerId: PlayerId): boolean {
+    return participantIdForSeat(room, playerId) === room.hostParticipantId;
   }
 }
 
@@ -421,6 +501,23 @@ function recordCompletedGame(room: OnlineRoom): OnlineRoom {
 
 function participantIdForSeat(room: OnlineRoom, playerId: PlayerId): string {
   return room.participantIds?.[playerId] ?? `player-${playerId}`;
+}
+
+function arrangeRoomSeats(
+  room: OnlineRoom,
+  playerIds: readonly PlayerId[],
+  oldSeatsForNewSeats: readonly PlayerId[],
+): OnlineRoom {
+  const seats: OnlineRoom["seats"] = {};
+  const playerNames: OnlineRoom["playerNames"] = {};
+  const participantIds: NonNullable<OnlineRoom["participantIds"]> = {};
+  playerIds.forEach((newSeat, index) => {
+    const oldSeat = oldSeatsForNewSeats[index];
+    if (room.seats[oldSeat]) seats[newSeat] = room.seats[oldSeat];
+    if (room.playerNames[oldSeat]) playerNames[newSeat] = room.playerNames[oldSeat];
+    participantIds[newSeat] = participantIdForSeat(room, oldSeat);
+  });
+  return { ...room, seats, playerNames, participantIds, joinOrder: [...playerIds] };
 }
 
 function randomizeRoomSeats(

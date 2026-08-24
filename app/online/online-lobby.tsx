@@ -12,6 +12,7 @@ import {
   sendOnlineChat,
   sendOnlineCommand,
   startOnlineNextGame,
+  startOnlineRoom,
 } from "../../src/online/client";
 import {
   failedRoomRefreshDelay,
@@ -85,11 +86,22 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
   const [room, setRoom] = useState<RoomView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lobbySeatOrder, setLobbySeatOrder] = useState<PlayerId[]>([]);
+  const [lobbyDealer, setLobbyDealer] = useState<PlayerId | "random">("random");
   const roomStatusRef = useRef<RoomView["status"] | null>(null);
 
   useEffect(() => {
     roomStatusRef.current = room?.status ?? null;
   }, [room?.status]);
+
+  const connectedLobbyPlayers = room?.status === "waiting"
+    ? room.session.game.players
+      .map((player) => player.id)
+      .filter((playerId) => room.connectedPlayers.includes(playerId))
+    : [];
+  const effectiveLobbySeatOrder = lobbySeatOrder.length === connectedLobbyPlayers.length
+    ? lobbySeatOrder
+    : connectedLobbyPlayers;
 
   useEffect(() => {
     if (entryMode !== "both") return;
@@ -295,6 +307,35 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     }
   }
 
+  function assignLobbySeat(index: number, playerId: PlayerId) {
+    setLobbySeatOrder((current) => {
+      const next = [...(current.length === connectedLobbyPlayers.length ? current : connectedLobbyPlayers)];
+      const otherIndex = next.indexOf(playerId);
+      if (otherIndex < 0 || otherIndex === index) return current;
+      [next[index], next[otherIndex]] = [next[otherIndex], next[index]];
+      return next;
+    });
+  }
+
+  async function startRoom() {
+    if (!access || !room) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const started = await startOnlineRoom(access.roomId, access.playerToken, {
+        dealer: lobbyDealer,
+        seatOrder: effectiveLobbySeatOrder,
+      });
+      remember(started.access);
+      roomStatusRef.current = started.room.status;
+      setRoom(started.room);
+    } catch (startError) {
+      setError(messageFrom(startError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function remember(nextAccess: RoomAccess) {
     sessionStorage.setItem(ACCESS_KEY, JSON.stringify(nextAccess));
     setAccess(nextAccess);
@@ -336,9 +377,59 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
           <div className="room-status-copy">
             <p className="eyebrow">Your seat</p>
             <h2>{room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
-            <p>{room?.status === "active" ? "The table is ready." : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
+            <p>{room && room.connectedPlayers.length === room.requiredPlayers
+              ? room.isHost ? "Everyone is here. Arrange the table, then start when ready." : "Everyone is here. Waiting for the host to start."
+              : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
           </div>
         </section>}
+
+        {room && room.status === "waiting" && room.connectedPlayers.length === room.requiredPlayers && (
+          <section className="lobby-start-panel" aria-label="Pre-game table setup">
+            <div className="lobby-start-heading">
+              <div>
+                <p className="eyebrow">Table setup</p>
+                <h2>{getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? "Choose the teams" : "Choose the turn order"}</h2>
+              </div>
+              {!room.isHost && <span>Only the host can change seats and start.</span>}
+            </div>
+            <div className={`lobby-seat-assignment ${getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? "is-team-game" : ""}`}>
+              {room.session.game.players.map((seat, index) => {
+                const occupant = effectiveLobbySeatOrder[index] ?? seat.id;
+                const teamNumber = seat.id === "P1" || seat.id === "P3" ? 1 : 2;
+                return (
+                  <label key={seat.id}>
+                    <span>{getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? `Team ${teamNumber}` : `Position ${index + 1}`} · {seat.id}</span>
+                    <select
+                      value={occupant}
+                      disabled={!room.isHost || busy}
+                      onChange={(event) => assignLobbySeat(index, event.target.value as PlayerId)}
+                    >
+                      {room.connectedPlayers.map((playerId) => (
+                        <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+            {room.isHost && (
+              <div className="lobby-start-actions">
+                <label>
+                  <span>First dealer</span>
+                  <select value={lobbyDealer} disabled={busy} onChange={(event) => setLobbyDealer(event.target.value as PlayerId | "random")}>
+                    <option value="random">Random</option>
+                    {room.connectedPlayers.map((playerId) => (
+                      <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="online-primary" type="button" disabled={busy} onClick={() => void startRoom()}>
+                  {busy ? "Starting…" : "Start Game"}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {!isGameRoom && <section className="seat-grid" aria-label="Room seats">
           {room ? Array.from({ length: room.requiredPlayers }, (_, index) => {

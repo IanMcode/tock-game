@@ -1512,16 +1512,7 @@ function describeDestinationOption(option: DestinationOption) {
 export function getBoardTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
   if (board.playerCount === 2) return getTwoPlayerTrackPoint(trackIndex, board);
   if (board.playerCount === 3) return getThreePlayerTrackPoint(trackIndex, board);
-  const vertices = getBoardVertices(board.playerCount);
-  const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
-  const edgeIndex = Math.floor(edgeProgress) % vertices.length;
-  const edgeOffset = edgeProgress - Math.floor(edgeProgress);
-  const from = vertices[edgeIndex];
-  const to = vertices[(edgeIndex + 1) % vertices.length];
-  return roundPoint({
-    x: from.x + (to.x - from.x) * edgeOffset,
-    y: from.y + (to.y - from.y) * edgeOffset,
-  });
+  return getFourPlayerTrackPoint(trackIndex, board);
 }
 
 export function getHomeLanePoint(owner: PlayerId, homeIndex: number, board: BoardDefinition) {
@@ -1557,13 +1548,12 @@ function getInwardTrackNormal(trackIndex: number, board: BoardDefinition, point:
     }
     return normal;
   }
-  const vertices = getBoardVertices(board.playerCount);
-  const edgeProgress = getBoardEdgeProgress(trackIndex, board, vertices.length);
-  const edgeIndex = Math.floor(edgeProgress) % vertices.length;
-  const from = vertices[edgeIndex];
-  const to = vertices[(edgeIndex + 1) % vertices.length];
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
+  const normalizedIndex = (trackIndex + board.trackSize) % board.trackSize;
+  const playerIndex = Math.floor(normalizedIndex / board.sectionSize);
+  const seatStart = getFourPlayerSeatPoint(playerIndex, "start");
+  const seatEnd = getFourPlayerSeatPoint(playerIndex, "end");
+  const dx = seatEnd.x - seatStart.x;
+  const dy = seatEnd.y - seatStart.y;
   const length = Math.hypot(dx, dy) || 1;
   let normal = { x: -dy / length, y: dx / length };
   const towardCenter = { x: 50 - point.x, y: 50 - point.y };
@@ -1633,6 +1623,36 @@ function getThreePlayerSeatPoint(playerIndex: number, endpoint: "start" | "end")
     x: 50 + x * Math.cos(radians) - y * Math.sin(radians),
     y: 50 + x * Math.sin(radians) + y * Math.cos(radians),
   });
+}
+
+function getFourPlayerTrackPoint(trackIndex: number, board: BoardDefinition): BoardPoint {
+  const normalizedIndex = (trackIndex + board.trackSize) % board.trackSize;
+  const playerIndex = Math.floor(normalizedIndex / board.sectionSize);
+  const sectionSpace = normalizedIndex % board.sectionSize + 1;
+  const seatStart = getFourPlayerSeatPoint(playerIndex, "start");
+  const seatEnd = getFourPlayerSeatPoint(playerIndex, "end");
+
+  if (sectionSpace >= 12) {
+    const progress = (sectionSpace - 12) / 6;
+    return roundPoint({
+      x: seatStart.x + (seatEnd.x - seatStart.x) * progress,
+      y: seatStart.y + (seatEnd.y - seatStart.y) * progress,
+    });
+  }
+
+  const previousSeatEnd = getFourPlayerSeatPoint((playerIndex + 3) % 4, "end");
+  const progress = sectionSpace / 12;
+  return roundPoint({
+    x: previousSeatEnd.x + (seatStart.x - previousSeatEnd.x) * progress,
+    y: previousSeatEnd.y + (seatStart.y - previousSeatEnd.y) * progress,
+  });
+}
+
+function getFourPlayerSeatPoint(playerIndex: number, endpoint: "start" | "end"): BoardPoint {
+  const base = endpoint === "start"
+    ? { x: 65, y: 90 }
+    : { x: 35, y: 90 };
+  return rotateBoardPoint(base, playerIndex * 90);
 }
 
 export function getBoardReservePoint(
@@ -1732,26 +1752,6 @@ export function getBoardPerspectiveRotation(viewer: PlayerId, board: BoardDefini
   const currentAngle = Math.atan2(-inward.y, -inward.x) * 180 / Math.PI;
   const rotation = 90 - currentAngle;
   return rotation > 180 ? rotation - 360 : rotation;
-}
-
-function getBoardEdgeProgress(
-  trackIndex: number,
-  board: BoardDefinition,
-  edgeCount: number,
-): number {
-  const perspectiveOffset = -11;
-  const shiftedIndex = (trackIndex + perspectiveOffset + board.trackSize) % board.trackSize;
-  return shiftedIndex / board.trackSize * edgeCount;
-}
-
-function getBoardVertices(playerCount: BoardPlayerCount): readonly BoardPoint[] {
-  if (playerCount === 2) {
-    return [{ x: 22, y: 10 }, { x: 78, y: 10 }, { x: 78, y: 90 }, { x: 22, y: 90 }];
-  }
-  if (playerCount === 3) {
-    return [{ x: 63.8564, y: 90 }, { x: 36.1436, y: 90 }, { x: 8.4308, y: 42 }];
-  }
-  return [{ x: 18, y: 16 }, { x: 82, y: 16 }, { x: 84, y: 84 }, { x: 16, y: 84 }];
 }
 
 function roundPoint(point: { x: number; y: number }) {

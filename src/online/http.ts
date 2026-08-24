@@ -31,6 +31,7 @@ export function onlineErrorResponse(error: unknown): Response {
       ROOM_NOT_FOUND: 404,
       ROOM_FULL: 409,
       ROOM_NOT_READY: 409,
+      HOST_ONLY: 403,
       INVALID_TOKEN: 401,
       SEAT_MISMATCH: 403,
       ROOM_CONFLICT: 409,

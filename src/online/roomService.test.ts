@@ -17,7 +17,11 @@ describe("online room service", () => {
 
     expect(second.access.playerId).toBe("P2");
     expect(fourth.access.playerId).toBe("P4");
-    expect(fourth.room.status).toBe("active");
+    expect(fourth.room.status).toBe("waiting");
+    expect(fourth.room.isHost).toBe(false);
+    const started = await service.startRoom("1234", host.access.playerToken);
+    expect(started.room.status).toBe("active");
+    expect(started.room.isHost).toBe(true);
     await expect(service.joinRoom("1234")).rejects.toThrowError(RoomError);
   });
 
@@ -38,6 +42,7 @@ describe("online room service", () => {
     const second = await service.joinRoom("1234");
     await service.joinRoom("1234");
     await service.joinRoom("1234");
+    await service.startRoom("1234", host.access.playerToken);
 
     await expectRoomError(() => service.submitCommand("1234", second.access.playerToken, {
       commandId: "spoofed",
@@ -79,10 +84,31 @@ describe("online room service", () => {
 
     expect(latest.requiredPlayers).toBe(playerCount);
     expect(latest.connectedPlayers).toHaveLength(playerCount);
-    expect(latest.status).toBe("active");
-    expect(latest.session.game.rulesetId).toBe(`free-for-all-${playerCount}`);
-    expect(latest.session.game.dealer).toBe("P1");
-    expect(latest.session.game.phase).toBe("play");
+    expect(latest.status).toBe("waiting");
+    const started = await service.startRoom("1234", host.access.playerToken);
+    expect(started.room.status).toBe("active");
+    expect(started.room.session.game.rulesetId).toBe(`free-for-all-${playerCount}`);
+    expect(started.room.session.game.dealer).toBe("P1");
+    expect(started.room.session.game.phase).toBe("play");
+  });
+
+  it("lets only the host arrange opposite-seat teams before starting", async () => {
+    const service = createTestService();
+    const host = await service.createRoom({ playerCount: 4, teams: true, playerName: "Ian" });
+    const second = await service.joinRoom("1234", "Omi");
+    await service.joinRoom("1234", "Sunny");
+    await service.joinRoom("1234", "Fern");
+
+    await expectRoomError(() => service.startRoom("1234", second.access.playerToken), "HOST_ONLY");
+    const started = await service.startRoom("1234", host.access.playerToken, {
+      dealer: "P2",
+      seatOrder: ["P1", "P3", "P2", "P4"],
+    });
+
+    expect(started.room.status).toBe("active");
+    expect(started.room.playerNames).toEqual({ P1: "Ian", P2: "Sunny", P3: "Omi", P4: "Fern" });
+    expect(started.room.session.game.dealer).toBe("P3");
+    expect(started.room.session.game.rulesetId).toBe("classic-partners-4");
   });
 
   it("supports creating a room without the protected-entry head start", async () => {

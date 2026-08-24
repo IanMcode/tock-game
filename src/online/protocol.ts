@@ -2,7 +2,7 @@ import type { CardMove } from "../game/turns";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
 import type { BoardPlayerCount } from "../game/definition";
-import type { CreateRoomOptions, StartNextGameOptions } from "./roomService";
+import type { CreateRoomOptions, StartNextGameOptions, StartRoomOptions } from "./roomService";
 
 export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (value === undefined || value === null) return {};
@@ -54,6 +54,20 @@ export function parseStartNextGameOptions(value: unknown): StartNextGameOptions 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") parsePlayerId(dealer);
   return { randomizeSeats, dealer: dealer as PlayerId | "random" };
+}
+
+export function parseStartRoomOptions(value: unknown): StartRoomOptions {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) throw new Error("Start options must be an object.");
+  const dealer = value.dealer ?? "random";
+  if (dealer !== "random") parsePlayerId(dealer);
+  if (value.seatOrder === undefined) return { dealer: dealer as PlayerId | "random" };
+  if (!Array.isArray(value.seatOrder)) throw new Error("Seat order must be a list of players.");
+  const seatOrder = value.seatOrder.map(parsePlayerId);
+  if (new Set(seatOrder).size !== seatOrder.length) {
+    throw new Error("Seat order cannot contain the same player more than once.");
+  }
+  return { dealer: dealer as PlayerId | "random", seatOrder };
 }
 
 export function parseChatMessage(value: unknown): { messageId: string; text: string } {
