@@ -83,8 +83,8 @@ Assigns the next open seat and returns its reconnect token. The room becomes
 
 `GET /api/rooms/{roomId}`
 
-With a valid Bearer token, returns that player's private view. Without a token,
-returns a spectator-safe view.
+With a valid Bearer token, returns that player's private view. A token is required;
+public spectator access is not currently enabled.
 
 ### Submit a command
 
@@ -109,20 +109,45 @@ a card index or `null` when the forced player has no card.
 
 ## Storage and real-time delivery
 
-When `DATABASE_URL` is present, production rooms use `NeonRoomStore`. The store
-creates its table and expiry index idempotently on first use, keeps room snapshots
-as validated versioned JSON, and uses an atomic storage version for joins and game
-commands. This prevents two server instances from both accepting a write based on
-the same room state. Player reconnect tokens are SHA-256 hashed before storage.
+When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are present,
+production rooms use `UpstashRoomStore`. Room creation and updates use atomic Lua
+scripts, so two server instances cannot both accept a write based on the same
+room version. Snapshots remain validated versioned JSON, and player reconnect
+tokens are SHA-256 hashed before storage.
 
-Rooms expire seven days after their last successful join or game command. Reads do
-not extend that lifetime. Local development and automated tests fall back to
-`InMemoryRoomStore` when `DATABASE_URL` is absent.
+Rooms expire seven days after their last successful write. Reads do not extend
+that lifetime. `NeonRoomStore` remains available when only `DATABASE_URL` is
+configured; local development and automated tests fall back to
+`InMemoryRoomStore` when neither durable store is configured.
 
-The current client polls `GET /api/rooms/{roomId}` and refreshes after a rejected
-stale command. Server-Sent Events or WebSockets can later replace polling as a
-notification layer. Notifications should only tell clients that a newer revision
-exists; authoritative state still comes from the same privacy-safe room view.
+When `ABLY_API_KEY` is configured, successful joins, commands, and chat messages
+publish a small `room-updated` notification. Each browser obtains a one-hour,
+subscribe-only token for its exact room from:
+
+`POST /api/rooms/{roomId}/realtime-token`
+
+The endpoint requires the player's Bearer token. The Ably API key remains on the
+server and the browser token cannot publish or subscribe to another room. A
+notification contains no private game state; it tells clients to retrieve the
+authoritative privacy-safe room view. The client refreshes after reconnecting to
+recover any missed event. While realtime is disconnected, a 30-second HTTP safety
+refresh is used. Hidden tabs and completed games disconnect and stop refreshing.
+
+## Vercel service setup
+
+1. In the Vercel project, open **Storage** or **Marketplace**, add an Upstash Redis
+   database on the free plan, and connect it to this project. Confirm that Vercel
+   added `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to Production.
+2. Create a free Ably app, copy one API key, and add it to the Vercel project as
+   the server-only `ABLY_API_KEY` environment variable. Do not prefix it with
+   `NEXT_PUBLIC_` and do not commit or share the value.
+3. Redeploy the latest production deployment so the build and server functions
+   receive the new variables. New rooms then use Redis; existing Neon rooms are
+   not migrated and their old four-digit codes may be allowed to expire.
+
+For local development, copy `.env.example` to `.env.local` and fill in only the
+services being tested. Vercel's Upstash integration can also pull its variables
+through the Vercel CLI.
 
 ## Production checklist
 
@@ -133,7 +158,7 @@ Before broad public use:
 3. Enforce allowed origins and HTTPS; never place player tokens in query strings.
 4. Add structured logs that exclude hands, draw piles, and player tokens.
 5. Add a cross-device reconnect/reclaim flow; tab-scoped reconnect is implemented.
-6. Replace polling with an SSE/WebSocket notification adapter if needed.
+6. Add operational monitoring for Ably connection failures and Redis command use.
 7. Add browser-level tests with isolated clients for every supported room size.
 
 Authentication, rankings, payments, public matchmaking, and chat remain outside the

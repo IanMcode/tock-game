@@ -1,4 +1,5 @@
 import type { CommandEnvelope } from "../game/session";
+import type { TokenRequest } from "ably";
 import type { CreateRoomOptions, RoomJoinResult, RoomView } from "./roomService";
 
 export type OnlineFetch = typeof fetch;
@@ -65,6 +66,17 @@ export async function sendOnlineChat(
       "content-type": "application/json",
     },
     body: JSON.stringify(message),
+  });
+}
+
+export async function requestRoomRealtimeToken(
+  roomId: string,
+  playerToken: string,
+  request: OnlineFetch = fetch,
+): Promise<TokenRequest> {
+  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/realtime-token`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${playerToken}` },
   });
 }
 

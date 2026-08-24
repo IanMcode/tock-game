@@ -1,6 +1,7 @@
 import { getBearerToken, jsonResponse, onlineErrorResponse } from "../../../../../src/online/http";
 import { parseChatMessage } from "../../../../../src/online/protocol";
 import { serverRoomService } from "../../../../../src/online/serverRoomService";
+import { notifyRoomUpdated } from "../../../../../src/online/realtimeServer";
 
 export const runtime = "nodejs";
 
@@ -12,12 +13,14 @@ export async function POST(
     const { roomId } = await context.params;
     const token = getBearerToken(request, true)!;
     const message = parseChatMessage(await request.json());
-    return jsonResponse(await serverRoomService.submitChatMessage(
+    const room = await serverRoomService.submitChatMessage(
       roomId,
       token,
       message.messageId,
       message.text,
-    ));
+    );
+    await notifyRoomUpdated(room);
+    return jsonResponse(room);
   } catch (error) {
     return onlineErrorResponse(error);
   }

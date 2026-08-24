@@ -55,13 +55,16 @@ The online lobby and remote table use a tested guest-room API:
 - create, join, read, and command Route Handlers under `/api/rooms`;
 - private hands, partner exchange, legal destination selection, split-seven moves,
   discards, player-chosen names, synchronized movement and dealing animations, shared play
-  history, polling, and revision-conflict recovery in the remote table;
-- durable Neon PostgreSQL rooms with atomic updates, hashed player tokens, and
-  seven-day expiry when `DATABASE_URL` is configured;
+  history, Ably realtime updates, and revision-conflict recovery in the remote table;
+- durable Upstash Redis rooms with atomic updates, hashed player tokens, and
+  seven-day expiry when the Upstash REST variables are configured;
+- a 30-second HTTP safety refresh only while realtime is disconnected, with all
+  network activity stopped for hidden tabs and completed games;
+- an existing Neon PostgreSQL adapter retained as a temporary fallback;
 - an in-memory fallback for local development and automated tests.
 
-The Neon schema is created automatically on first use. See [ONLINE.md](./ONLINE.md)
-for the API, security model, and remaining public-launch hardening work.
+See [ONLINE.md](./ONLINE.md) for service setup, the API and security model, and
+remaining public-launch hardening work.
 
 ## Verify
 

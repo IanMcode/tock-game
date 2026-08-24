@@ -1,6 +1,7 @@
 import { jsonResponse, onlineErrorResponse } from "../../../../../src/online/http";
 import { serverRoomService } from "../../../../../src/online/serverRoomService";
 import { parseJoinRoomOptions } from "../../../../../src/online/protocol";
+import { notifyRoomUpdated } from "../../../../../src/online/realtimeServer";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,9 @@ export async function POST(
     const { roomId } = await context.params;
     const text = await request.text();
     const { playerName } = parseJoinRoomOptions(text ? JSON.parse(text) : undefined);
-    return jsonResponse(await serverRoomService.joinRoom(roomId, playerName), { status: 201 });
+    const result = await serverRoomService.joinRoom(roomId, playerName);
+    await notifyRoomUpdated(result.room);
+    return jsonResponse(result, { status: 201 });
   } catch (error) {
     return onlineErrorResponse(error);
   }

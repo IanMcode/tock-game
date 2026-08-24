@@ -7,15 +7,20 @@ import {
   createOnlineRoom,
   joinOnlineRoom,
   readOnlineRoom,
+  requestRoomRealtimeToken,
   sendOnlineChat,
   sendOnlineCommand,
 } from "../../src/online/client";
 import {
-  ACTIVE_ROOM_REFRESH_DELAY,
   failedRoomRefreshDelay,
   shouldForgetRoomAfterError,
   shouldPauseRoomRefresh,
 } from "../../src/online/polling";
+import {
+  REALTIME_FALLBACK_REFRESH_DELAY,
+  ROOM_UPDATED_EVENT,
+  roomChannelName,
+} from "../../src/online/realtime";
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
@@ -53,7 +58,11 @@ const PLAYER_NAMES: Record<PlayerId, string> = {
   P4: "Fern",
 };
 
-export default function OnlineLobby() {
+type OnlineLobbyProps = {
+  realtimeEnabled?: boolean;
+};
+
+export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProps) {
   const [playerCount, setPlayerCount] = useState<BoardPlayerCount>(4);
   const [teams, setTeams] = useState(true);
   const [dealer, setDealer] = useState<PlayerId | "random">("random");
@@ -88,6 +97,14 @@ export default function OnlineLobby() {
     let cancelled = false;
     let refreshTimeout: number | undefined;
     let consecutiveFailures = 0;
+    let refreshInFlight = false;
+    let refreshQueued = false;
+    let realtimeConnected = false;
+    let realtimeStarting = false;
+    let realtimeClient: import("ably").Realtime | undefined;
+    let realtimeChannel: import("ably").RealtimeChannel | undefined;
+
+    const onRoomUpdated = () => void refresh();
 
     const clearRefreshTimeout = () => {
       if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
@@ -100,9 +117,74 @@ export default function OnlineLobby() {
       refreshTimeout = window.setTimeout(() => void refresh(), delay);
     };
 
+    const closeRealtime = () => {
+      realtimeConnected = false;
+      realtimeStarting = false;
+      if (realtimeChannel) realtimeChannel.unsubscribe(ROOM_UPDATED_EVENT, onRoomUpdated);
+      realtimeChannel = undefined;
+      realtimeClient?.close();
+      realtimeClient = undefined;
+    };
+
+    const connectRealtime = async () => {
+      if (
+        !realtimeEnabled ||
+        realtimeStarting ||
+        realtimeClient ||
+        cancelled ||
+        document.visibilityState !== "visible" ||
+        roomStatusRef.current === "complete"
+      ) return;
+      realtimeStarting = true;
+      try {
+        const { Realtime } = await import("ably");
+        if (cancelled || document.visibilityState !== "visible") return;
+        const client = new Realtime({
+          authCallback: (_params, callback) => {
+            void requestRoomRealtimeToken(access.roomId, access.playerToken).then(
+              (tokenRequest) => callback(null, tokenRequest),
+              (tokenError) => callback(
+                tokenError instanceof Error ? tokenError.message : "Unable to authenticate realtime updates.",
+                null,
+              ),
+            );
+          },
+        });
+        realtimeClient = client;
+        client.connection.on("connected", () => {
+          if (cancelled) return;
+          realtimeConnected = true;
+          consecutiveFailures = 0;
+          clearRefreshTimeout();
+          void refresh();
+        });
+        const onDisconnected = () => {
+          if (cancelled) return;
+          realtimeConnected = false;
+          scheduleRefresh(REALTIME_FALLBACK_REFRESH_DELAY);
+        };
+        client.connection.on("disconnected", onDisconnected);
+        client.connection.on("suspended", onDisconnected);
+        client.connection.on("failed", onDisconnected);
+        const channel = client.channels.get(roomChannelName(access.roomId));
+        realtimeChannel = channel;
+        await channel.subscribe(ROOM_UPDATED_EVENT, onRoomUpdated);
+      } catch {
+        closeRealtime();
+        scheduleRefresh(REALTIME_FALLBACK_REFRESH_DELAY);
+      } finally {
+        realtimeStarting = false;
+      }
+    };
+
     const refresh = async () => {
       clearRefreshTimeout();
       if (cancelled || document.visibilityState !== "visible" || roomStatusRef.current === "complete") return;
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
+      refreshInFlight = true;
       try {
         const next = await readOnlineRoom(access.roomId, access.playerToken);
         if (!cancelled) {
@@ -110,7 +192,11 @@ export default function OnlineLobby() {
           roomStatusRef.current = next.status;
           setRoom(next);
           setError(null);
-          if (next.status !== "complete") scheduleRefresh(ACTIVE_ROOM_REFRESH_DELAY);
+          if (next.status === "complete") {
+            closeRealtime();
+          } else if (!realtimeConnected) {
+            scheduleRefresh(REALTIME_FALLBACK_REFRESH_DELAY);
+          }
         }
       } catch (refreshError) {
         if (cancelled) return;
@@ -128,24 +214,36 @@ export default function OnlineLobby() {
           return;
         }
         scheduleRefresh(failedRoomRefreshDelay(consecutiveFailures));
+      } finally {
+        refreshInFlight = false;
+        if (refreshQueued && !cancelled) {
+          refreshQueued = false;
+          queueMicrotask(() => void refresh());
+        }
       }
     };
     const resumeVisibleRoom = () => {
       if (document.visibilityState === "visible") {
         consecutiveFailures = 0;
+        void connectRealtime();
         void refresh();
       } else {
         clearRefreshTimeout();
+        closeRealtime();
       }
     };
-    if (document.visibilityState === "visible") void refresh();
+    if (document.visibilityState === "visible") {
+      void connectRealtime();
+      void refresh();
+    }
     document.addEventListener("visibilitychange", resumeVisibleRoom);
     return () => {
       cancelled = true;
       clearRefreshTimeout();
+      closeRealtime();
       document.removeEventListener("visibilitychange", resumeVisibleRoom);
     };
-  }, [access]);
+  }, [access, realtimeEnabled]);
 
   async function createRoom() {
     setBusy(true);
