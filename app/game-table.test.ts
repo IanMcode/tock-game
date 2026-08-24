@@ -8,6 +8,7 @@ import {
   getBoardReserveGridRotation,
   getBoardReservePoint,
   getBoardTrackPoint,
+  getBoardTurnMarkerPoint,
   getHomeLanePoint,
   type BoardPoint,
 } from "./game-table";
@@ -47,6 +48,18 @@ describe("player board perspective", () => {
       const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
       const reserve = getBoardReservePoint(playerId, board);
       expect(Math.hypot(reserve.x - entry.x, reserve.y - entry.y)).toBeGreaterThan(15);
+    }
+  });
+
+  it("places the turn marker just beyond each entry space", () => {
+    for (const board of Object.values(BOARD_DEFINITIONS)) {
+      for (const playerId of board.playerIds) {
+        const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
+        const marker = getBoardTurnMarkerPoint(playerId, board);
+        expect(Math.hypot(marker.x - 50, marker.y - 50)).toBeGreaterThan(
+          Math.hypot(entry.x - 50, entry.y - 50),
+        );
+      }
     }
   });
 

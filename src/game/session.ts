@@ -1,4 +1,8 @@
 import { selectExchangeCard } from "./deals";
+import { applyPieceMove, type AtomicMove } from "./actions";
+import { getRulesetDefinition } from "./definition";
+import { getMoveAnimationFrames } from "./moveAnimation";
+import { getAllPieces } from "./occupancy";
 import { discardCardForTurn, playCardForTurn, type CardMove } from "./turns";
 import type { Card, GameState, PlayerId } from "./types";
 import { assertValidGameState } from "./validation";
@@ -19,7 +23,10 @@ export type GameEvent = {
   revision: number;
   command: GameCommand;
   card?: Card | null;
+  movedPieces?: MovedPieceDetail[];
 };
+
+export type MovedPieceDetail = { pieceId: string; spaces: number };
 
 export type GameSession = {
   id: string;
@@ -80,6 +87,9 @@ export function applySessionCommand(
 
   let game: GameState;
   const card = getCommandCard(session.game, envelope.command);
+  const movedPieces = envelope.command.type === "play-card"
+    ? getMovedPieceDetails(session.game, envelope.command.move)
+    : undefined;
   try {
     game = applyGameCommand(session.game, envelope.command);
     assertValidGameState(game);
@@ -102,8 +112,31 @@ export function applySessionCommand(
       revision,
       command: envelope.command,
       ...(envelope.command.type === "select-exchange-card" ? {} : { card }),
+      ...(movedPieces ? { movedPieces } : {}),
     }],
   };
+}
+
+function getMovedPieceDetails(game: GameState, move: CardMove): MovedPieceDetail[] {
+  const board = getRulesetDefinition(game.rulesetId).board;
+  let pieces = getAllPieces(game);
+  const details = new Map<string, number>();
+  const record = (atomicMove: AtomicMove) => {
+    if (atomicMove.kind === "swap") {
+      details.set(atomicMove.pieceId, 0);
+      details.set(atomicMove.targetPieceId, 0);
+      return;
+    }
+    const spaces = atomicMove.kind === "enter"
+      ? 0
+      : getMoveAnimationFrames(pieces, atomicMove, board).length;
+    details.set(atomicMove.pieceId, (details.get(atomicMove.pieceId) ?? 0) + spaces);
+    pieces = applyPieceMove(pieces, atomicMove);
+  };
+
+  if (move.kind === "split7") move.steps.forEach(record);
+  else record(move);
+  return [...details].map(([pieceId, spaces]) => ({ pieceId, spaces }));
 }
 
 function getCommandCard(game: GameState, command: GameCommand): Card | null {

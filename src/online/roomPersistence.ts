@@ -130,6 +130,17 @@ function validateEvent(value: unknown, expectedRevision: number): asserts value 
       throw new Error("The stored room has an invalid played card.");
     }
   }
+  if (
+    "movedPieces" in value &&
+    (!Array.isArray(value.movedPieces) || value.movedPieces.some((detail) =>
+      !isRecord(detail) ||
+      typeof detail.pieceId !== "string" ||
+      !Number.isInteger(detail.spaces) ||
+      Number(detail.spaces) < 0
+    ))
+  ) {
+    throw new Error("The stored room has invalid movement details.");
+  }
 }
 
 function parseJson(value: string): unknown {

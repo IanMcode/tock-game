@@ -17,10 +17,31 @@ describe("online play history", () => {
         destination: { zone: "track", index: 8, isEntryProtected: false },
         capturedPieceId: "P2-3",
       },
+      movedPieces: [{ pieceId: "P1-2", spaces: 5 }],
     };
 
     expect(describePublicGameEvent(event, { P1: "Ian", P2: "Jon" })).toBe(
-      "Ian played 5♥ and moved forward, eliminating Jon's piece 3 and returning it to reserve.",
+      "Ian played 5♥ on their 2nd pawn, moving it forward 5 spots, eliminating Jon's piece 3 and returning it to reserve.",
+    );
+  });
+
+  it("identifies the pawn and distance of a forward move", () => {
+    const event: PublicGameEvent = {
+      revision: 5,
+      actor: "P1",
+      type: "play",
+      card: { rank: "10", suit: "clubs" },
+      move: {
+        kind: "forward",
+        pieceId: "P1-2",
+        route: "track",
+        destination: { zone: "track", index: 16, isEntryProtected: false },
+      },
+      movedPieces: [{ pieceId: "P1-2", spaces: 10 }],
+    };
+
+    expect(describePublicGameEvent(event, { P1: "Poppy" })).toBe(
+      "Poppy played 10♣ on their 2nd pawn, moving it forward 10 spots.",
     );
   });
 
@@ -49,10 +70,14 @@ describe("online play history", () => {
           step("P1-2", 10),
         ],
       },
+      movedPieces: [
+        { pieceId: "P1-1", spaces: 3 },
+        { pieceId: "P1-2", spaces: 4 },
+      ],
     };
 
-    expect(describePublicGameEvent(event, { P1: "Ian", P2: "Jon", P3: "Omi" })).toContain(
-      "eliminating Jon's piece 1 and Omi's piece 4 and returning them to reserve",
-    );
+    const description = describePublicGameEvent(event, { P1: "Ian", P2: "Jon", P3: "Omi" });
+    expect(description).toContain("their 1st pawn 3 spots and their 2nd pawn 4 spots");
+    expect(description).toContain("eliminating Jon's piece 1 and Omi's piece 4 and returning them to reserve");
   });
 });

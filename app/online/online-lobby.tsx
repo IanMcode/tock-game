@@ -865,6 +865,7 @@ function OnlineRoomTable({
           dealer={game.dealer}
           dealIndex={game.dealIndex}
           dealCount={ruleset.dealSchedule.length}
+          currentPlayerId={game.currentPlayer}
           selectedPieceId={selectedPieceId}
           destinationMoves={destinationMoves}
           showSpaceNumbers={showNumbers}

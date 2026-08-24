@@ -571,6 +571,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           dealer={game.dealer}
           dealIndex={game.dealIndex}
           dealCount={ruleset.dealSchedule.length}
+          currentPlayerId={game.currentPlayer}
           selectedPieceId={selectedPieceId}
           destinationMoves={destinationMoves}
           showSpaceNumbers={showSpaceNumbers}
@@ -996,6 +997,7 @@ export function Board({
   dealer,
   dealIndex,
   dealCount,
+  currentPlayerId,
   selectedPieceId,
   destinationMoves,
   showSpaceNumbers,
@@ -1023,6 +1025,7 @@ export function Board({
   dealer: PlayerId;
   dealIndex: GameState["dealIndex"];
   dealCount: number;
+  currentPlayerId?: PlayerId;
   selectedPieceId: string | null;
   destinationMoves: readonly DestinationOption[];
   showSpaceNumbers: boolean;
@@ -1066,6 +1069,9 @@ export function Board({
     : [];
   const cardFlightOrigin = recentCardActor
     ? getBoardReserveGridPoint(recentCardActor, boardDefinition)
+    : null;
+  const turnMarkerPoint = currentPlayerId
+    ? getBoardTurnMarkerPoint(currentPlayerId, boardDefinition)
     : null;
 
   const renderReserve = (owner: PlayerId, inOpponentRow = false) => {
@@ -1178,6 +1184,18 @@ export function Board({
           >
             <PlayingCardGraphic card={recentCard} />
           </span>
+        )}
+        {currentPlayerId && turnMarkerPoint && (
+          <span
+            className="board-turn-marker"
+            style={{
+              left: `${turnMarkerPoint.x}%`,
+              top: `${turnMarkerPoint.y}%`,
+              "--turn-player": playerColorVar(currentPlayerId),
+            } as React.CSSProperties}
+            role="img"
+            aria-label={`${playerNames?.[currentPlayerId] ?? PLAYER_META[currentPlayerId].name}'s turn`}
+          />
         )}
         {useBoardReserveGrids && activePlayerIds.map(renderReserveGrid)}
         {!useBoardReserveGrids && activePlayerIds.map((owner) => {
@@ -1669,6 +1687,17 @@ export function getBoardReserveGridPoint(owner: PlayerId, board: BoardDefinition
 
 export function getBoardReserveGridRotation(owner: PlayerId, board: BoardDefinition): number {
   return -getBoardPerspectiveRotation(owner, board);
+}
+
+export function getBoardTurnMarkerPoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
+  const entry = getBoardTrackPoint(getEntryIndex(owner, board), board);
+  const fromCenter = { x: entry.x - 50, y: entry.y - 50 };
+  const length = Math.hypot(fromCenter.x, fromCenter.y) || 1;
+  const offset = board.playerCount === 3 ? 4.2 : 3.4;
+  return roundPoint({
+    x: entry.x + fromCenter.x / length * offset,
+    y: entry.y + fromCenter.y / length * offset,
+  });
 }
 
 function rotateBoardPoint(point: BoardPoint, degrees: number): BoardPoint {
