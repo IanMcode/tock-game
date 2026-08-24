@@ -466,10 +466,7 @@ function OnlineRoomTable({
   const [displayPieces, setDisplayPieces] = useState<Piece[]>(() => [...pieces]);
   const displayPiecesRef = useRef<Piece[]>([...pieces]);
   const displayedRevisionRef = useRef(room.session.revision);
-  const locallyAnimatedRevisionRef = useRef<number | null>(null);
   const animationRunRef = useRef(0);
-  const locallyPresentedCardRef = useRef(false);
-  const localCardRollbackRef = useRef<PresentedCard[] | null>(null);
   const [displayedCards, setDisplayedCards] = useState<PresentedCard[]>(() =>
     getPresentedCards(room.session.events ?? []));
   const [incomingCard, setIncomingCard] = useState<PresentedCard | null>(null);
@@ -570,17 +567,6 @@ function OnlineRoomTable({
     const previousRevision = displayedRevisionRef.current;
     displayedRevisionRef.current = targetRevision;
     const finalPieces = pieces.map((piece) => ({ ...piece, position: { ...piece.position } }));
-    const targetEvent = (room.session.events ?? []).find((event) => event.revision === targetRevision);
-    const endsDealerRound = targetEvent?.startsNewDealerRound === true;
-    if (locallyAnimatedRevisionRef.current === targetRevision) {
-      locallyAnimatedRevisionRef.current = null;
-      setVisualPieces(finalPieces);
-      setDisplayedCards((current) => endsDealerRound
-        ? current
-        : getPresentedCards(room.session.events ?? []));
-      setIncomingCard(null);
-      return;
-    }
 
     const unseenTurns = getUnseenAnimationTurns(
       room.session.events ?? [],
@@ -661,6 +647,7 @@ function OnlineRoomTable({
     (current, step) => applyPieceMove(current, step),
     pieces,
   ), [pieces, splitSteps]);
+  const renderedPieces = isSplitSeven && !busy ? previewPieces : displayPieces;
   const matchingSplitMoves = useMemo(() => !isSplitSeven ? [] : (legalMoves as SplitSevenMove[]).filter(
     (move) => splitSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
   ), [isSplitSeven, legalMoves, splitSteps]);
@@ -686,13 +673,7 @@ function OnlineRoomTable({
   );
   const hasSelection = selectedCardIndex !== null || selectedPieceId !== null || splitSteps.length > 0 || destinationMoves.length > 0;
 
-  function resetSelection(restorePresentedCard = true) {
-    if (restorePresentedCard && localCardRollbackRef.current) {
-      setDisplayedCards(localCardRollbackRef.current);
-      setIncomingCard(null);
-    }
-    locallyPresentedCardRef.current = false;
-    localCardRollbackRef.current = null;
+  function resetSelection() {
     setSelectedCardIndex(null);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -701,12 +682,6 @@ function OnlineRoomTable({
 
   function chooseCard(index: number) {
     if (busy || isAnimating || isDealing) return;
-    if (localCardRollbackRef.current) {
-      setDisplayedCards(localCardRollbackRef.current);
-      setIncomingCard(null);
-      locallyPresentedCardRef.current = false;
-      localCardRollbackRef.current = null;
-    }
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -715,14 +690,7 @@ function OnlineRoomTable({
 
   async function discardCard(index: number | null) {
     if (busy || isAnimating || isDealing || !isMyTurn) return;
-    const card = index === null ? null : hand[index] ?? null;
-    setIsAnimating(true);
-    try {
-      if (card) await presentLocalCard(card);
-      await submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
-    } finally {
-      setIsAnimating(false);
-    }
+    await submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
   }
 
   function choosePiece(pieceId: string) {
@@ -741,57 +709,42 @@ function OnlineRoomTable({
     ).map((move) => ({ move })));
   }
 
-  async function presentLocalCard(card: Card) {
-    if (locallyPresentedCardRef.current) return;
-    localCardRollbackRef.current = displayedCards;
-    locallyPresentedCardRef.current = true;
-    await presentCard({
-      card,
-      actor: access.playerId,
-      key: `local-${room.session.revision + 1}`,
-    }, () => locallyPresentedCardRef.current);
-  }
-
   async function chooseDestination(option: DestinationOption) {
     if (busy || isAnimating || isDealing || !selectedCard) return;
-    const animationMoves = option.splitSteps ?? [option.move];
-    setIsAnimating(true);
     setDestinationMoves([]);
 
-    try {
-      await presentLocalCard(selectedCard);
-      if (!locallyPresentedCardRef.current) return;
-      const animatedPieces = await animateOnlineMoves({
-        startingPieces: isSplitSeven ? previewPieces : displayPiecesRef.current,
-        moves: animationMoves,
-        board: ruleset.board,
-        setHoppingPieces,
-        setSwappingPieces,
-        setCapturingPieceIds,
-      });
-
-      if (isSplitSeven && option.splitSteps) {
-        const nextSteps = [...splitSteps, ...option.splitSteps];
-        if (nextSteps.length < 7) {
-          setSplitSteps(nextSteps);
-          setSelectedPieceId(null);
-          return;
-        }
+    if (isSplitSeven && option.splitSteps) {
+      const nextSteps = [...splitSteps, ...option.splitSteps];
+      if (nextSteps.length >= 7) {
         const complete = matchingSplitMoves.find((move) =>
           nextSteps.every((step, index) => JSON.stringify(move.steps[index]) === JSON.stringify(step)),
         );
         if (complete) await playMove(complete);
         return;
       }
-      displayPiecesRef.current = animatedPieces;
-      setDisplayPieces(animatedPieces);
-      await playMove(option.move);
-    } finally {
-      setHoppingPieces([]);
-      setSwappingPieces([]);
-      setCapturingPieceIds([]);
-      setIsAnimating(false);
+
+      setIsAnimating(true);
+      try {
+        await animateOnlineMoves({
+          startingPieces: previewPieces,
+          moves: option.splitSteps,
+          board: ruleset.board,
+          setHoppingPieces,
+          setSwappingPieces,
+          setCapturingPieceIds,
+        });
+        setSplitSteps(nextSteps);
+        setSelectedPieceId(null);
+      } finally {
+        setHoppingPieces([]);
+        setSwappingPieces([]);
+        setCapturingPieceIds([]);
+        setIsAnimating(false);
+      }
+      return;
     }
+
+    await playMove(option.move);
   }
 
   async function playMove(move: CardMove) {
@@ -808,18 +761,12 @@ function OnlineRoomTable({
         expectedRevision: room.session.revision,
         command,
       });
-      if ((command.type === "play-card" || command.type === "discard-card") && locallyPresentedCardRef.current) {
-        locallyAnimatedRevisionRef.current = next.session.revision;
-      }
       onRoom(next);
-      resetSelection(false);
+      resetSelection();
     } catch (submitError) {
       displayPiecesRef.current = [...pieces];
       setDisplayPieces([...pieces]);
-      if (localCardRollbackRef.current) setDisplayedCards(localCardRollbackRef.current);
       setIncomingCard(null);
-      locallyPresentedCardRef.current = false;
-      localCardRollbackRef.current = null;
       setCommandError(messageFrom(submitError));
       try {
         onRoom(await readOnlineRoom(access.roomId, access.playerToken));
@@ -1037,7 +984,7 @@ function OnlineRoomTable({
               <BoardReserve
                 key={`${playerId}-status`}
                 owner={playerId}
-                pieces={isSplitSeven ? previewPieces : displayPieces}
+                pieces={renderedPieces}
                 player={boardPlayers.find((player) => player.id === playerId)}
                 playerName={room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}
                 dealer={game.dealer}
@@ -1056,7 +1003,7 @@ function OnlineRoomTable({
 
         <div className="online-board-stage">
         <Board
-          pieces={isSplitSeven ? previewPieces : displayPieces}
+          pieces={renderedPieces}
           boardDefinition={ruleset.board}
           teamMode={ruleset.exchange === "partners"}
           activePieceIds={activePieceIds}
