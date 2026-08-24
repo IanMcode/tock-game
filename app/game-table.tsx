@@ -1003,6 +1003,8 @@ export function Board({
   onPieceClick,
   onDestinationClick,
   recentCard,
+  recentCardActor,
+  recentCardRevision,
   perspectivePlayerId,
   externalReservePlayerId,
   reservePresentation = "cards",
@@ -1028,6 +1030,8 @@ export function Board({
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
   recentCard?: Card | null;
+  recentCardActor?: PlayerId | null;
+  recentCardRevision?: number;
   perspectivePlayerId?: PlayerId;
   externalReservePlayerId?: PlayerId;
   reservePresentation?: "cards" | "board-grid";
@@ -1060,6 +1064,9 @@ export function Board({
         return leftSeat - rightSeat;
       })
     : [];
+  const cardFlightOrigin = recentCardActor
+    ? getBoardReserveGridPoint(recentCardActor, boardDefinition)
+    : null;
 
   const renderReserve = (owner: PlayerId, inOpponentRow = false) => {
     const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
@@ -1150,7 +1157,11 @@ export function Board({
       >
         <div className={`board-center ${recentCard ? "has-recent-card" : ""}`}>
           {recentCard ? (
-            <PlayingCardGraphic card={recentCard} />
+            <PlayingCardGraphic
+              card={recentCard}
+              className={recentCardActor ? "table-card-receiving" : ""}
+              key={recentCardRevision ?? `${recentCard.rank}-${recentCard.suit}`}
+            />
           ) : (
             <>
               <span>TOCK</span>
@@ -1158,6 +1169,16 @@ export function Board({
             </>
           )}
         </div>
+        {recentCard && cardFlightOrigin && (
+          <span
+            className="board-card-flight"
+            key={`card-flight-${recentCardRevision ?? `${recentCard.rank}-${recentCard.suit}`}`}
+            style={{ left: `${cardFlightOrigin.x}%`, top: `${cardFlightOrigin.y}%` }}
+            aria-hidden="true"
+          >
+            <PlayingCardGraphic card={recentCard} />
+          </span>
+        )}
         {useBoardReserveGrids && activePlayerIds.map(renderReserveGrid)}
         {!useBoardReserveGrids && activePlayerIds.map((owner) => {
           if (owner === externalReservePlayerId || (useOpponentReserveRow && owner !== perspectivePlayerId)) return null;

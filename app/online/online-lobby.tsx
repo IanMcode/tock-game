@@ -583,6 +583,7 @@ function OnlineRoomTable({
   const canDiscard = selectedCardIndex !== null && (
     forcedDiscard || playableIndexes.length === 0 || (onlyFivesPlayable && selectedCard?.rank !== "5")
   );
+  const hasSelection = selectedCardIndex !== null || selectedPieceId !== null || splitSteps.length > 0 || destinationMoves.length > 0;
 
   function resetSelection() {
     setSelectedCardIndex(null);
@@ -597,6 +598,11 @@ function OnlineRoomTable({
     setSelectedPieceId(null);
     setSplitSteps([]);
     setDestinationMoves([]);
+  }
+
+  function discardCard(index: number | null) {
+    if (busy || isDealing || !isMyTurn) return;
+    void submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
   }
 
   function choosePiece(pieceId: string) {
@@ -728,11 +734,12 @@ function OnlineRoomTable({
   }
 
   const handPanel = (
-    <div className="online-hand-panel">
+    <div className={`online-hand-panel ${isMyTurn ? "is-my-turn" : ""} ${forcedDiscard ? "is-forced-discard" : ""}`}>
       <div>
         <p className="eyebrow">Your hand</p>
         <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
       </div>
+      {forcedDiscard && <strong className="forced-discard-prompt">10 played · discard one card</strong>}
       <div className="online-hand">
         {hand.map((card, index) => (
           <button
@@ -741,6 +748,10 @@ function OnlineRoomTable({
             disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
             style={{ "--deal-card-index": index } as React.CSSProperties}
             onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
+            onDoubleClick={() => {
+              if (forcedDiscard) discardCard(index);
+            }}
+            title={forcedDiscard ? "Double-click to discard this card" : undefined}
             key={`${card.rank}-${card.suit}-${index}`}
           >
             <span>{card.rank}</span>
@@ -750,16 +761,20 @@ function OnlineRoomTable({
         {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
       </div>
       {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
-      {isMyTurn && game.phase === "play" && (
+      {isMyTurn && game.phase === "play" && <div className="online-hand-actions">
+        <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !hasSelection} onClick={resetSelection}>
+          Cancel selection
+        </button>
         <button
           className="online-discard"
           type="button"
           disabled={busy || isDealing || (!canDiscard && !(forcedDiscard && hand.length === 0))}
-          onClick={() => void submit({ type: "discard-card", actor: access.playerId, cardIndex: hand.length === 0 ? null : selectedCardIndex })}
+          onClick={() => discardCard(hand.length === 0 ? null : selectedCardIndex)}
         >
-          {forcedDiscard ? "Complete forced discard" : "Discard selected card"}
+          Discard selected card
         </button>
-      )}
+      </div>}
+      {forcedDiscard && hand.length > 0 && <p>Choose a card, then discard—or double-click it.</p>}
       {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
     </div>
   );
@@ -857,6 +872,8 @@ function OnlineRoomTable({
           onPieceClick={choosePiece}
           onDestinationClick={(option) => void chooseDestination(option)}
           recentCard={latestCard}
+          recentCardActor={latestEvent?.card ? latestEvent.actor : null}
+          recentCardRevision={latestEvent?.card ? latestEvent.revision : undefined}
           perspectivePlayerId={access.playerId}
           externalReservePlayerId={access.playerId}
           reservePresentation={useThreePlayerBoardLayout ? "board-grid" : "cards"}
