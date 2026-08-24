@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PublicGameEvent } from "../game/view";
-import { getUnseenAnimationMoves } from "./animation";
+import { getUnseenAnimationMoves, getUnseenAnimationTurns } from "./animation";
 
 const forward = (pieceId: string, index: number) => ({
   kind: "forward" as const,
@@ -33,5 +33,17 @@ describe("online animation event replay", () => {
     }];
 
     expect(getUnseenAnimationMoves(events, 7, 8)).toEqual(steps);
+  });
+
+  it("keeps cards and their moves grouped in turn order", () => {
+    const events: PublicGameEvent[] = [
+      { revision: 4, actor: "P1", type: "discard", card: { rank: "10", suit: "hearts" } },
+      { revision: 5, actor: "P2", type: "play", card: { rank: "5", suit: "clubs" }, move: forward("P2-1", 8) },
+    ];
+
+    expect(getUnseenAnimationTurns(events, 3, 5)).toEqual([
+      { revision: 4, event: events[0], moves: [] },
+      { revision: 5, event: events[1], moves: [forward("P2-1", 8)] },
+    ]);
   });
 });

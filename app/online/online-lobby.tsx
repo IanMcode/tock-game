@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -24,7 +24,7 @@ import {
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
-import { getUnseenAnimationMoves } from "../../src/online/animation";
+import { getUnseenAnimationTurns } from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
 import { getGameStatistics } from "../../src/online/statistics";
 import {
@@ -49,9 +49,11 @@ import type { SplitSevenMove } from "../../src/game/specialMoves";
 import type { Card, Piece } from "../../src/game/types";
 import type { GameCommand } from "../../src/game/session";
 import type { CardMove } from "../../src/game/turns";
+import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAY_LOG_ENTRY_LIMIT = 6;
+type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
 const PLAYER_NAMES: Record<PlayerId, string> = {
   P1: "Poppy",
   P2: "River",
@@ -458,6 +460,11 @@ function OnlineRoomTable({
   const displayedRevisionRef = useRef(room.session.revision);
   const locallyAnimatedRevisionRef = useRef<number | null>(null);
   const animationRunRef = useRef(0);
+  const locallyPresentedCardRef = useRef(false);
+  const localCardRollbackRef = useRef<PresentedCard[] | null>(null);
+  const [displayedCards, setDisplayedCards] = useState<PresentedCard[]>(() =>
+    getPresentedCards(room.session.events ?? []));
+  const [incomingCard, setIncomingCard] = useState<PresentedCard | null>(null);
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
@@ -469,6 +476,28 @@ function OnlineRoomTable({
   );
   const latestEvent = recentEvents[0];
   const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
+  const presentCard = useCallback(async (
+    presentation: PresentedCard,
+    shouldContinue: () => boolean = () => true,
+  ) => {
+    setIncomingCard(presentation);
+    await waitForOnlineAnimation(ONLINE_CARD_PLAY_DURATION);
+    if (!shouldContinue()) {
+      setIncomingCard((current) => current?.key === presentation.key ? null : current);
+      return false;
+    }
+    setDisplayedCards((current) => [
+      presentation,
+      ...current.filter((candidate) => candidate.key !== presentation.key),
+    ].slice(0, 2));
+    await waitForOnlineAnimation(ONLINE_CARD_SETTLE_DURATION);
+    if (!shouldContinue()) {
+      setIncomingCard((current) => current?.key === presentation.key ? null : current);
+      return false;
+    }
+    setIncomingCard((current) => current?.key === presentation.key ? null : current);
+    return true;
+  }, []);
   const gameStatistics = useMemo(
     () => getGameStatistics(room.session.events ?? [], game.players.map((player) => player.id)),
     [game.players, room.session.events],
@@ -499,17 +528,20 @@ function OnlineRoomTable({
     if (locallyAnimatedRevisionRef.current === targetRevision) {
       locallyAnimatedRevisionRef.current = null;
       setVisualPieces(finalPieces);
+      setDisplayedCards(getPresentedCards(room.session.events ?? []));
+      setIncomingCard(null);
       return;
     }
 
-    const unseenMoves = getUnseenAnimationMoves(
+    const unseenTurns = getUnseenAnimationTurns(
       room.session.events ?? [],
       previousRevision,
       targetRevision,
     );
 
-    if (unseenMoves.length === 0) {
+    if (unseenTurns.length === 0) {
       setVisualPieces(finalPieces);
+      setDisplayedCards(getPresentedCards(room.session.events ?? []));
       return;
     }
 
@@ -520,18 +552,33 @@ function OnlineRoomTable({
     setSplitSteps([]);
     setDestinationMoves([]);
 
-    void animateOnlineMoves({
-      startingPieces: displayPiecesRef.current,
-      moves: unseenMoves,
-      board: ruleset.board,
-      setHoppingPieces,
-      setSwappingPieces,
-      setCapturingPieceIds,
-      onPiecesChanged: setVisualPieces,
-      shouldContinue: () => animationRunRef.current === runId,
-    }).then(() => {
+    void (async () => {
+      let animatedPieces = displayPiecesRef.current;
+      for (const turn of unseenTurns) {
+        if (!turn.event.card || animationRunRef.current !== runId) return animatedPieces;
+        await presentCard({
+          card: turn.event.card,
+          actor: turn.event.actor,
+          key: turn.revision,
+        }, () => animationRunRef.current === runId);
+        if (animationRunRef.current !== runId) return animatedPieces;
+        if (turn.moves.length === 0) continue;
+        animatedPieces = await animateOnlineMoves({
+          startingPieces: animatedPieces,
+          moves: turn.moves,
+          board: ruleset.board,
+          setHoppingPieces,
+          setSwappingPieces,
+          setCapturingPieceIds,
+          onPiecesChanged: setVisualPieces,
+          shouldContinue: () => animationRunRef.current === runId,
+        });
+      }
+      return animatedPieces;
+    })().then(() => {
       if (animationRunRef.current !== runId) return;
       setVisualPieces(finalPieces);
+      setDisplayedCards(getPresentedCards(room.session.events ?? []));
       setHoppingPieces([]);
       setSwappingPieces([]);
       setCapturingPieceIds([]);
@@ -539,13 +586,15 @@ function OnlineRoomTable({
     }).catch((animationError) => {
       if (animationRunRef.current !== runId) return;
       setVisualPieces(finalPieces);
+      setDisplayedCards(getPresentedCards(room.session.events ?? []));
+      setIncomingCard(null);
       setHoppingPieces([]);
       setSwappingPieces([]);
       setCapturingPieceIds([]);
       setIsAnimating(false);
       setCommandError(messageFrom(animationError));
     });
-  }, [pieces, room.session.events, room.session.revision, ruleset.board]);
+  }, [pieces, presentCard, room.session.events, room.session.revision, ruleset.board]);
   const legalMoves = useMemo(() =>
     selectedCard && isMyTurn && !forcedDiscard
       ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
@@ -585,7 +634,13 @@ function OnlineRoomTable({
   );
   const hasSelection = selectedCardIndex !== null || selectedPieceId !== null || splitSteps.length > 0 || destinationMoves.length > 0;
 
-  function resetSelection() {
+  function resetSelection(restorePresentedCard = true) {
+    if (restorePresentedCard && localCardRollbackRef.current) {
+      setDisplayedCards(localCardRollbackRef.current);
+      setIncomingCard(null);
+    }
+    locallyPresentedCardRef.current = false;
+    localCardRollbackRef.current = null;
     setSelectedCardIndex(null);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -594,15 +649,28 @@ function OnlineRoomTable({
 
   function chooseCard(index: number) {
     if (busy || isAnimating || isDealing) return;
+    if (localCardRollbackRef.current) {
+      setDisplayedCards(localCardRollbackRef.current);
+      setIncomingCard(null);
+      locallyPresentedCardRef.current = false;
+      localCardRollbackRef.current = null;
+    }
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
     setDestinationMoves([]);
   }
 
-  function discardCard(index: number | null) {
-    if (busy || isDealing || !isMyTurn) return;
-    void submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
+  async function discardCard(index: number | null) {
+    if (busy || isAnimating || isDealing || !isMyTurn) return;
+    const card = index === null ? null : hand[index] ?? null;
+    setIsAnimating(true);
+    try {
+      if (card) await presentLocalCard(card);
+      await submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
+    } finally {
+      setIsAnimating(false);
+    }
   }
 
   function choosePiece(pieceId: string) {
@@ -621,13 +689,26 @@ function OnlineRoomTable({
     ).map((move) => ({ move })));
   }
 
+  async function presentLocalCard(card: Card) {
+    if (locallyPresentedCardRef.current) return;
+    localCardRollbackRef.current = displayedCards;
+    locallyPresentedCardRef.current = true;
+    await presentCard({
+      card,
+      actor: access.playerId,
+      key: `local-${room.session.revision + 1}`,
+    }, () => locallyPresentedCardRef.current);
+  }
+
   async function chooseDestination(option: DestinationOption) {
-    if (busy || isAnimating || isDealing) return;
+    if (busy || isAnimating || isDealing || !selectedCard) return;
     const animationMoves = option.splitSteps ?? [option.move];
     setIsAnimating(true);
     setDestinationMoves([]);
 
     try {
+      await presentLocalCard(selectedCard);
+      if (!locallyPresentedCardRef.current) return;
       const animatedPieces = await animateOnlineMoves({
         startingPieces: isSplitSeven ? previewPieces : displayPiecesRef.current,
         moves: animationMoves,
@@ -675,12 +756,18 @@ function OnlineRoomTable({
         expectedRevision: room.session.revision,
         command,
       });
-      if (command.type === "play-card") locallyAnimatedRevisionRef.current = next.session.revision;
+      if ((command.type === "play-card" || command.type === "discard-card") && locallyPresentedCardRef.current) {
+        locallyAnimatedRevisionRef.current = next.session.revision;
+      }
       onRoom(next);
-      resetSelection();
+      resetSelection(false);
     } catch (submitError) {
       displayPiecesRef.current = [...pieces];
       setDisplayPieces([...pieces]);
+      if (localCardRollbackRef.current) setDisplayedCards(localCardRollbackRef.current);
+      setIncomingCard(null);
+      locallyPresentedCardRef.current = false;
+      localCardRollbackRef.current = null;
       setCommandError(messageFrom(submitError));
       try {
         onRoom(await readOnlineRoom(access.roomId, access.playerToken));
@@ -762,7 +849,7 @@ function OnlineRoomTable({
       </div>
       {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
       {isMyTurn && game.phase === "play" && <div className="online-hand-actions">
-        <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !hasSelection} onClick={resetSelection}>
+        <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !hasSelection} onClick={() => resetSelection()}>
           Cancel selection
         </button>
         <button
@@ -853,9 +940,11 @@ function OnlineRoomTable({
           onToggleSpaceNumbers={() => setShowNumbers((shown) => !shown)}
           onPieceClick={choosePiece}
           onDestinationClick={(option) => void chooseDestination(option)}
-          recentCard={latestCard}
-          recentCardActor={latestEvent?.card ? latestEvent.actor : null}
-          recentCardRevision={latestEvent?.card ? latestEvent.revision : undefined}
+          recentCard={displayedCards[0]?.card ?? null}
+          previousCard={displayedCards[1]?.card ?? null}
+          incomingCard={incomingCard?.card ?? null}
+          incomingCardActor={incomingCard?.actor ?? null}
+          incomingCardKey={incomingCard?.key}
           perspectivePlayerId={access.playerId}
           externalReservePlayerId={access.playerId}
           reservePresentation="board-grid"
@@ -981,7 +1070,19 @@ const ONLINE_APPEARANCE = {
 
 const ONLINE_HOP_DURATION = 130;
 const ONLINE_SWAP_DURATION = 720;
+const ONLINE_CARD_PLAY_DURATION = 720;
+const ONLINE_CARD_SETTLE_DURATION = 34;
 const ONLINE_DEAL_DURATION = 1_050;
+
+function getPresentedCards(events: readonly PublicGameEvent[]): PresentedCard[] {
+  const cards: PresentedCard[] = [];
+  for (let index = events.length - 1; index >= 0 && cards.length < 2; index -= 1) {
+    const event = events[index];
+    if (!event?.card) continue;
+    cards.push({ card: event.card, actor: event.actor, key: event.revision });
+  }
+  return cards;
+}
 
 type OnlineAnimationOptions = {
   startingPieces: readonly Piece[];

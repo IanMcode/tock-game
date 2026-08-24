@@ -1006,8 +1006,10 @@ export function Board({
   onPieceClick,
   onDestinationClick,
   recentCard,
-  recentCardActor,
-  recentCardRevision,
+  previousCard,
+  incomingCard,
+  incomingCardActor,
+  incomingCardKey,
   perspectivePlayerId,
   externalReservePlayerId,
   reservePresentation = "cards",
@@ -1034,8 +1036,10 @@ export function Board({
   onPieceClick: (pieceId: string) => void;
   onDestinationClick: (option: DestinationOption) => void;
   recentCard?: Card | null;
-  recentCardActor?: PlayerId | null;
-  recentCardRevision?: number;
+  previousCard?: Card | null;
+  incomingCard?: Card | null;
+  incomingCardActor?: PlayerId | null;
+  incomingCardKey?: string | number;
   perspectivePlayerId?: PlayerId;
   externalReservePlayerId?: PlayerId;
   reservePresentation?: "cards" | "board-grid";
@@ -1068,8 +1072,8 @@ export function Board({
         return leftSeat - rightSeat;
       })
     : [];
-  const cardFlightOrigin = recentCardActor
-    ? getBoardReserveGridPoint(recentCardActor, boardDefinition)
+  const cardFlightOrigin = incomingCardActor
+    ? getBoardReserveGridPoint(incomingCardActor, boardDefinition)
     : null;
   const turnMarkerPoint = currentPlayerId
     ? getBoardTurnMarkerPoint(currentPlayerId, boardDefinition)
@@ -1162,13 +1166,12 @@ export function Board({
           "--counter-rotation": `${-perspectiveRotation}deg`,
         } as React.CSSProperties}
       >
-        <div className={`board-center ${recentCard ? "has-recent-card" : ""}`}>
+        <div className={`board-center ${recentCard || incomingCard ? "has-recent-card" : ""}`}>
           {recentCard ? (
-            <PlayingCardGraphic
-              card={recentCard}
-              className={recentCardActor ? "table-card-receiving" : ""}
-              key={recentCardRevision ?? `${recentCard.rank}-${recentCard.suit}`}
-            />
+            <span className="board-card-stack">
+              {previousCard && <PlayingCardGraphic card={previousCard} className="table-card-previous" />}
+              <PlayingCardGraphic card={recentCard} className="table-card-current" />
+            </span>
           ) : (
             <>
               <span>TOCK</span>
@@ -1176,14 +1179,14 @@ export function Board({
             </>
           )}
         </div>
-        {recentCard && cardFlightOrigin && (
+        {incomingCard && cardFlightOrigin && (
           <span
             className="board-card-flight"
-            key={`card-flight-${recentCardRevision ?? `${recentCard.rank}-${recentCard.suit}`}`}
+            key={`card-flight-${incomingCardKey ?? `${incomingCard.rank}-${incomingCard.suit}`}`}
             style={{ left: `${cardFlightOrigin.x}%`, top: `${cardFlightOrigin.y}%` }}
             aria-hidden="true"
           >
-            <PlayingCardGraphic card={recentCard} />
+            <PlayingCardGraphic card={incomingCard} />
           </span>
         )}
         {currentPlayerId && turnMarkerPoint && (
