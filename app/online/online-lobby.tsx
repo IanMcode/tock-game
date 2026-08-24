@@ -24,7 +24,11 @@ import {
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
-import { getUnseenAnimationTurns } from "../../src/online/animation";
+import {
+  getLatestAnimationTurn,
+  getReplayStartingPieces,
+  getUnseenAnimationTurns,
+} from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
 import { getGameStatistics } from "../../src/online/statistics";
 import {
@@ -443,6 +447,8 @@ function OnlineRoomTable({
   const [capturingPieceIds, setCapturingPieceIds] = useState<string[]>([]);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [isDealing, setIsDealing] = useState(false);
+  const [pendingDealKey, setPendingDealKey] = useState<string | null>(null);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [victoryPanel, setVictoryPanel] = useState<"rematch" | "statistics" | null>(null);
@@ -470,12 +476,31 @@ function OnlineRoomTable({
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
+  const setVisualPieces = useCallback((next: readonly Piece[]) => {
+    const copy = next.map((piece) => ({ ...piece, position: { ...piece.position } }));
+    displayPiecesRef.current = copy;
+    setDisplayPieces(copy);
+  }, []);
   const recentEvents = useMemo(
     () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-PLAY_LOG_ENTRY_LIMIT).reverse(),
     [room.session.events],
   );
   const latestEvent = recentEvents[0];
   const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
+  const latestAnimationTurn = useMemo(
+    () => getLatestAnimationTurn(room.session.events ?? []),
+    [room.session.events],
+  );
+  const replayStartingPieces = useMemo(
+    () => latestAnimationTurn
+      ? getReplayStartingPieces(pieces, latestAnimationTurn.event)
+      : null,
+    [latestAnimationTurn, pieces],
+  );
+  const canReplayLastTurn = Boolean(
+    latestAnimationTurn &&
+    (latestAnimationTurn.moves.length === 0 || replayStartingPieces),
+  );
   const presentCard = useCallback(async (
     presentation: PresentedCard,
     shouldContinue: () => boolean = () => true,
@@ -507,10 +532,25 @@ function OnlineRoomTable({
   useEffect(() => {
     if (previousDealKey.current === dealKey) return;
     previousDealKey.current = dealKey;
-    setIsDealing(true);
-    const timeout = window.setTimeout(() => setIsDealing(false), ONLINE_DEAL_DURATION);
-    return () => window.clearTimeout(timeout);
+    setPendingDealKey(dealKey);
   }, [dealKey]);
+
+  useEffect(() => {
+    if (!pendingDealKey || isAnimating || incomingCard || isDealing) return;
+    const pauseTimeout = window.setTimeout(() => {
+      setIsDealing(true);
+    }, ONLINE_POST_TURN_DEAL_PAUSE);
+    return () => window.clearTimeout(pauseTimeout);
+  }, [incomingCard, isAnimating, isDealing, pendingDealKey]);
+
+  useEffect(() => {
+    if (!isDealing) return;
+    const dealTimeout = window.setTimeout(() => {
+      setIsDealing(false);
+      setPendingDealKey(null);
+    }, ONLINE_DEAL_DURATION);
+    return () => window.clearTimeout(dealTimeout);
+  }, [isDealing]);
 
   useEffect(() => {
     const targetRevision = room.session.revision;
@@ -519,12 +559,6 @@ function OnlineRoomTable({
     const previousRevision = displayedRevisionRef.current;
     displayedRevisionRef.current = targetRevision;
     const finalPieces = pieces.map((piece) => ({ ...piece, position: { ...piece.position } }));
-    const setVisualPieces = (next: readonly Piece[]) => {
-      const copy = next.map((piece) => ({ ...piece, position: { ...piece.position } }));
-      displayPiecesRef.current = copy;
-      setDisplayPieces(copy);
-    };
-
     if (locallyAnimatedRevisionRef.current === targetRevision) {
       locallyAnimatedRevisionRef.current = null;
       setVisualPieces(finalPieces);
@@ -594,7 +628,7 @@ function OnlineRoomTable({
       setIsAnimating(false);
       setCommandError(messageFrom(animationError));
     });
-  }, [pieces, presentCard, room.session.events, room.session.revision, ruleset.board]);
+  }, [pieces, presentCard, room.session.events, room.session.revision, ruleset.board, setVisualPieces]);
   const legalMoves = useMemo(() =>
     selectedCard && isMyTurn && !forcedDiscard
       ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
@@ -796,6 +830,77 @@ function OnlineRoomTable({
       setCommandError(messageFrom(chatError));
     } finally {
       setChatBusy(false);
+    }
+  }
+
+  async function replayLastTurn() {
+    if (
+      busy ||
+      isAnimating ||
+      isDealing ||
+      pendingDealKey ||
+      !latestAnimationTurn?.event.card ||
+      !canReplayLastTurn ||
+      !replayStartingPieces
+    ) return;
+
+    const turn = latestAnimationTurn;
+    const replayCard = turn.event.card;
+    if (!replayCard) return;
+    const runId = ++animationRunRef.current;
+    const finalPieces = pieces.map((piece) => ({ ...piece, position: { ...piece.position } }));
+    const finalCards = getPresentedCards(room.session.events ?? []);
+    const priorCards = getPresentedCards(
+      (room.session.events ?? []).filter((event) => event.revision < turn.revision),
+    );
+    const shouldContinue = () => animationRunRef.current === runId;
+
+    resetSelection();
+    setIsReplaying(true);
+    setIsAnimating(true);
+    setIncomingCard(null);
+    setDisplayedCards(priorCards);
+    setVisualPieces(replayStartingPieces);
+
+    try {
+      await waitForOnlineAnimation(ONLINE_REPLAY_RESET_PAUSE);
+      if (!shouldContinue()) return;
+      const cardPresented = await presentCard({
+        card: replayCard,
+        actor: turn.event.actor,
+        key: `replay-${turn.revision}-${runId}`,
+      }, shouldContinue);
+      if (!cardPresented || !shouldContinue()) return;
+      if (turn.moves.length > 0) {
+        await animateOnlineMoves({
+          startingPieces: replayStartingPieces,
+          moves: turn.moves,
+          board: ruleset.board,
+          setHoppingPieces,
+          setSwappingPieces,
+          setCapturingPieceIds,
+          onPiecesChanged: setVisualPieces,
+          shouldContinue,
+        });
+      }
+      if (!shouldContinue()) return;
+      await waitForOnlineAnimation(ONLINE_REPLAY_END_PAUSE);
+      if (!shouldContinue()) return;
+      setVisualPieces(finalPieces);
+      setDisplayedCards(finalCards);
+    } catch (replayError) {
+      if (shouldContinue()) setCommandError(messageFrom(replayError));
+    } finally {
+      setIsReplaying(false);
+      if (shouldContinue()) {
+        setVisualPieces(finalPieces);
+        setDisplayedCards(finalCards);
+        setIncomingCard(null);
+        setHoppingPieces([]);
+        setSwappingPieces([]);
+        setCapturingPieceIds([]);
+        setIsAnimating(false);
+      }
     }
   }
 
@@ -1018,7 +1123,17 @@ function OnlineRoomTable({
             <p className="eyebrow">Play log</p>
             <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
           </div>
-          {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
+          <div className="online-log-actions">
+            <button
+              type="button"
+              className="online-replay-turn"
+              disabled={busy || isAnimating || isDealing || Boolean(pendingDealKey) || !canReplayLastTurn}
+              onClick={() => void replayLastTurn()}
+            >
+              {isReplaying ? "Replaying…" : "Replay last turn"}
+            </button>
+            {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
+          </div>
         </div>
         <div className="online-log-window">
           {recentEvents.map((event) => (
@@ -1073,6 +1188,9 @@ const ONLINE_SWAP_DURATION = 720;
 const ONLINE_CARD_PLAY_DURATION = 720;
 const ONLINE_CARD_SETTLE_DURATION = 34;
 const ONLINE_DEAL_DURATION = 1_050;
+const ONLINE_POST_TURN_DEAL_PAUSE = 420;
+const ONLINE_REPLAY_RESET_PAUSE = 320;
+const ONLINE_REPLAY_END_PAUSE = 240;
 
 function getPresentedCards(events: readonly PublicGameEvent[]): PresentedCard[] {
   const cards: PresentedCard[] = [];

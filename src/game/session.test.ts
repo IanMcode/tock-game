@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createGame } from "./createGame";
+import { getLegalBasicCardMoves } from "./cardMoves";
 import {
   applySessionCommand,
   createGameSession,
@@ -35,6 +36,32 @@ describe("authoritative game sessions", () => {
 
     expect(next.events[0].card).toEqual(card);
     expect(next.events[0].command).toEqual({ type: "discard-card", actor: "P1", cardIndex: 0 });
+  });
+
+  it("records the pre-move positions needed for a local visual replay", () => {
+    const game = createGame({ playerCount: 2, teams: false, shuffle: false, dealer: "P2" });
+    const player = game.players[0];
+    const cardIndex = player.hand.findIndex((card) =>
+      getLegalBasicCardMoves(player.pieces.concat(game.players[1].pieces), "P1", card, game.rulesetId).length > 0);
+    const card = player.hand[cardIndex];
+    const move = getLegalBasicCardMoves(
+      game.players.flatMap((candidate) => candidate.pieces),
+      "P1",
+      card,
+      game.rulesetId,
+    )[0];
+    const session = createGameSession("ROOM01", game);
+    const next = applySessionCommand(session, {
+      commandId: "play-1",
+      expectedRevision: 0,
+      command: { type: "play-card", actor: "P1", cardIndex, move },
+    });
+
+    expect(next.events[0].piecePositionsBefore).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        pieceId: move.kind === "split7" ? move.steps[0].pieceId : move.pieceId,
+      }),
+    ]));
   });
 
   it("returns the existing session when the same command is retried", () => {

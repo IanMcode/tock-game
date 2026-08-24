@@ -422,6 +422,10 @@ button { font: inherit; }
 .online-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .online-log-heading > div { display: grid; gap: 4px; }
 .online-log-heading strong { font-family: Georgia, serif; font-size: 18px; font-weight: 500; }
+.online-log-heading > .online-log-actions { display: flex; align-items: center; gap: 8px; }
+.online-replay-turn { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--green); background: white; cursor: pointer; font: inherit; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.online-replay-turn:hover:not(:disabled) { border-color: var(--green); background: #f2f8f4; }
+.online-replay-turn:disabled { cursor: default; opacity: .42; }
 .online-log-card { position: relative; width: 40px; aspect-ratio: .7; flex: 0 0 auto; display: block; padding: 4px; border: 1px solid #d7d1c5; border-radius: 6px; color: #21332d; background: #fffefa; box-shadow: 0 4px 10px rgba(42,47,42,.13); }
 .online-log-card.red { color: #c73c35; }
 .online-log-card .table-card-corner { font-size: 8px; }

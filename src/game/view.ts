@@ -1,4 +1,4 @@
-import type { GameSession, MovedPieceDetail } from "./session";
+import type { GameSession, MovedPieceDetail, PiecePositionBefore } from "./session";
 import type { CardMove } from "./turns";
 import type {
   Card,
@@ -45,6 +45,7 @@ export type PublicGameEvent = {
   card: Card | null;
   move?: CardMove;
   movedPieces?: MovedPieceDetail[];
+  piecePositionsBefore?: PiecePositionBefore[];
 };
 
 export function createSessionView(
@@ -77,6 +78,12 @@ export function createSessionView(
           card: event.card ?? null,
           move: cloneCardMove(event.command.move),
           ...(event.movedPieces ? { movedPieces: event.movedPieces.map((detail) => ({ ...detail })) } : {}),
+          ...(event.piecePositionsBefore ? {
+            piecePositionsBefore: event.piecePositionsBefore.map((detail) => ({
+              pieceId: detail.pieceId,
+              position: { ...detail.position },
+            })),
+          } : {}),
         };
       }
       return {

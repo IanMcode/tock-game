@@ -141,6 +141,26 @@ function validateEvent(value: unknown, expectedRevision: number): asserts value 
   ) {
     throw new Error("The stored room has invalid movement details.");
   }
+  if (
+    "piecePositionsBefore" in value &&
+    (!Array.isArray(value.piecePositionsBefore) || value.piecePositionsBefore.some((detail) =>
+      !isRecord(detail) ||
+      typeof detail.pieceId !== "string" ||
+      !isPiecePosition(detail.position)
+    ))
+  ) {
+    throw new Error("The stored room has invalid replay positions.");
+  }
+}
+
+function isPiecePosition(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.zone !== "string") return false;
+  if (value.zone === "reserve") return true;
+  if (value.zone === "home") return Number.isInteger(value.index) && Number(value.index) >= 0;
+  return value.zone === "track" &&
+    Number.isInteger(value.index) &&
+    Number(value.index) >= 0 &&
+    typeof value.isEntryProtected === "boolean";
 }
 
 function parseJson(value: string): unknown {

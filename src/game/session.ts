@@ -4,7 +4,7 @@ import { getRulesetDefinition } from "./definition";
 import { getMoveAnimationFrames } from "./moveAnimation";
 import { getAllPieces } from "./occupancy";
 import { discardCardForTurn, playCardForTurn, type CardMove } from "./turns";
-import type { Card, GameState, PlayerId } from "./types";
+import type { Card, GameState, PiecePosition, PlayerId } from "./types";
 import { assertValidGameState } from "./validation";
 
 export type GameCommand =
@@ -24,9 +24,11 @@ export type GameEvent = {
   command: GameCommand;
   card?: Card | null;
   movedPieces?: MovedPieceDetail[];
+  piecePositionsBefore?: PiecePositionBefore[];
 };
 
 export type MovedPieceDetail = { pieceId: string; spaces: number };
+export type PiecePositionBefore = { pieceId: string; position: PiecePosition };
 
 export type GameSession = {
   id: string;
@@ -90,6 +92,9 @@ export function applySessionCommand(
   const movedPieces = envelope.command.type === "play-card"
     ? getMovedPieceDetails(session.game, envelope.command.move)
     : undefined;
+  const piecePositionsBefore = envelope.command.type === "play-card"
+    ? getPiecePositionsBefore(session.game, envelope.command.move)
+    : undefined;
   try {
     game = applyGameCommand(session.game, envelope.command);
     assertValidGameState(game);
@@ -113,8 +118,25 @@ export function applySessionCommand(
       command: envelope.command,
       ...(envelope.command.type === "select-exchange-card" ? {} : { card }),
       ...(movedPieces ? { movedPieces } : {}),
+      ...(piecePositionsBefore ? { piecePositionsBefore } : {}),
     }],
   };
+}
+
+function getPiecePositionsBefore(game: GameState, move: CardMove): PiecePositionBefore[] {
+  const affectedPieceIds = new Set<string>();
+  const record = (atomicMove: AtomicMove) => {
+    affectedPieceIds.add(atomicMove.pieceId);
+    if (atomicMove.kind === "swap") affectedPieceIds.add(atomicMove.targetPieceId);
+    else if (atomicMove.capturedPieceId) affectedPieceIds.add(atomicMove.capturedPieceId);
+  };
+
+  if (move.kind === "split7") move.steps.forEach(record);
+  else record(move);
+
+  return getAllPieces(game)
+    .filter((piece) => affectedPieceIds.has(piece.id))
+    .map((piece) => ({ pieceId: piece.id, position: { ...piece.position } }));
 }
 
 function getMovedPieceDetails(game: GameState, move: CardMove): MovedPieceDetail[] {

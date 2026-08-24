@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { PublicGameEvent } from "../game/view";
-import { getUnseenAnimationMoves, getUnseenAnimationTurns } from "./animation";
+import {
+  getLatestAnimationTurn,
+  getReplayStartingPieces,
+  getUnseenAnimationMoves,
+  getUnseenAnimationTurns,
+} from "./animation";
+import type { Piece } from "../game/types";
 
 const forward = (pieceId: string, index: number) => ({
   kind: "forward" as const,
@@ -44,6 +50,44 @@ describe("online animation event replay", () => {
     expect(getUnseenAnimationTurns(events, 3, 5)).toEqual([
       { revision: 4, event: events[0], moves: [] },
       { revision: 5, event: events[1], moves: [forward("P2-1", 8)] },
+    ]);
+  });
+
+  it("finds the latest card turn even when exchange events follow it", () => {
+    const events: PublicGameEvent[] = [
+      { revision: 4, actor: "P1", type: "play", card: { rank: "5", suit: "clubs" }, move: forward("P1-1", 5) },
+      { revision: 5, actor: "P2", type: "exchange", card: null },
+    ];
+
+    expect(getLatestAnimationTurn(events)).toEqual({
+      revision: 4,
+      event: events[0],
+      moves: [forward("P1-1", 5)],
+    });
+  });
+
+  it("restores only the involved pieces to their pre-move positions", () => {
+    const pieces: Piece[] = [
+      { id: "P1-1", owner: "P1", position: { zone: "track", index: 8, isEntryProtected: false } },
+      { id: "P2-1", owner: "P2", position: { zone: "reserve" } },
+      { id: "P2-2", owner: "P2", position: { zone: "track", index: 11, isEntryProtected: false } },
+    ];
+    const event: PublicGameEvent = {
+      revision: 6,
+      actor: "P1",
+      type: "play",
+      card: { rank: "5", suit: "clubs" },
+      move: { ...forward("P1-1", 8), capturedPieceId: "P2-1" },
+      piecePositionsBefore: [
+        { pieceId: "P1-1", position: { zone: "track", index: 3, isEntryProtected: false } },
+        { pieceId: "P2-1", position: { zone: "track", index: 8, isEntryProtected: false } },
+      ],
+    };
+
+    expect(getReplayStartingPieces(pieces, event)).toEqual([
+      { id: "P1-1", owner: "P1", position: { zone: "track", index: 3, isEntryProtected: false } },
+      { id: "P2-1", owner: "P2", position: { zone: "track", index: 8, isEntryProtected: false } },
+      pieces[2],
     ]);
   });
 });
