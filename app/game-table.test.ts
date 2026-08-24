@@ -5,6 +5,7 @@ import { BOARD_DEFINITIONS, getBoardTrackIndex } from "../src/game/definition";
 import {
   getBoardPerspectiveRotation,
   getBoardReserveGridPoint,
+  getBoardReserveGridRotation,
   getBoardReservePoint,
   getBoardTrackPoint,
   getHomeLanePoint,
@@ -75,6 +76,19 @@ describe("player board perspective", () => {
         reserveGrid.x - point.x,
         reserveGrid.y - point.y,
       )))).toBeGreaterThan(10);
+    }
+  });
+
+  it("aligns three-player reserve grids with their board sectors", () => {
+    const board = BOARD_DEFINITIONS[3];
+
+    for (const viewer of board.playerIds) {
+      const perspective = getBoardPerspectiveRotation(viewer, board);
+      for (const owner of board.playerIds) {
+        const screenRotation = perspective + getBoardReserveGridRotation(owner, board);
+        const smallestRotation = Math.abs(((screenRotation + 180) % 360 + 360) % 360 - 180);
+        expect(smallestRotation).toBeCloseTo(owner === viewer ? 0 : 120, 4);
+      }
     }
   });
 

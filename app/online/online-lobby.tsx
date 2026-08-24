@@ -31,6 +31,7 @@ import {
   Board,
   BoardReserve,
   PlayingCardGraphic,
+  SpaceNumberToggle,
   getBoardTrackPoint,
   getPiecePoint,
   getSwapControlPoint,
@@ -290,25 +291,17 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
 
   if (access) {
     const isGameRoom = room?.status === "active" || room?.status === "complete";
-    const viewerName = room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId];
     return (
       <main className={`online-shell ${isGameRoom ? "online-shell-active" : ""}`}>
-        <header className={`online-header ${isGameRoom ? "online-game-header" : ""}`}>
+        {!isGameRoom && <header className="online-header">
           <div>
-            <p className="eyebrow">Online room{isGameRoom ? ` · ${access.roomId}` : ""}</p>
-            <h1>{isGameRoom ? `${viewerName} · ${access.playerId}` : access.roomId}</h1>
+            <p className="eyebrow">Online room</p>
+            <h1>{access.roomId}</h1>
           </div>
           <div className="online-header-actions">
-            {isGameRoom && (
-              <>
-                <span>{room?.connectedPlayers.length ?? 0} players connected</span>
-                <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
-                <button type="button" onClick={leaveRoom}>Leave room</button>
-              </>
-            )}
             <Link className="quiet-button" href="/">Local table</Link>
           </div>
-        </header>
+        </header>}
 
         {!isGameRoom && <section className="room-card">
           <div className="room-code-block">
@@ -338,7 +331,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
         </section>}
 
         {room && room.status !== "waiting" && (
-          <OnlineRoomTable access={access} room={room} onRoom={setRoom} onAccess={remember} />
+          <OnlineRoomTable access={access} room={room} onRoom={setRoom} onAccess={remember} onLeaveRoom={leaveRoom} />
         )}
         {error && <p className="online-error" role="alert">{error}</p>}
         {!isGameRoom && <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>}
@@ -428,11 +421,13 @@ function OnlineRoomTable({
   room,
   onRoom,
   onAccess,
+  onLeaveRoom,
 }: {
   access: RoomAccess;
   room: RoomView;
   onRoom: (room: RoomView) => void;
   onAccess: (access: RoomAccess) => void;
+  onLeaveRoom: () => void;
 }) {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
@@ -792,6 +787,7 @@ function OnlineRoomTable({
         />
       )}
       {handPanel}
+      <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
     </div>
   );
 
@@ -803,6 +799,19 @@ function OnlineRoomTable({
     } as React.CSSProperties}>
       <div className="online-game-viewport">
         <div className={`online-status-rail ${useThreePlayerBoardLayout ? "has-player-status" : ""}`}>
+          <div className="online-room-turn-card">
+            <div>
+              <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
+              <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
+              <span>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
+              {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+            </div>
+            <div className="online-room-actions">
+              <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
+              <button type="button" onClick={onLeaveRoom}>Leave</button>
+              <Link href="/">Local</Link>
+            </div>
+          </div>
           {useThreePlayerBoardLayout && (
             <div className="online-player-status-list" aria-label="Players at the table">
               {ruleset.board.playerIds.map((playerId) => (
@@ -825,13 +834,6 @@ function OnlineRoomTable({
               ))}
             </div>
           )}
-          <div className="online-turn-heading">
-            <div>
-              <p className="eyebrow">Remote table · revision {room.session.revision}</p>
-              <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
-            </div>
-            {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
-          </div>
         </div>
 
         <div className="online-board-stage">
@@ -858,6 +860,7 @@ function OnlineRoomTable({
           perspectivePlayerId={access.playerId}
           externalReservePlayerId={access.playerId}
           reservePresentation={useThreePlayerBoardLayout ? "board-grid" : "cards"}
+          showToolbar={false}
           footerContent={localPlayerDock}
         />
         {game.winningTeam && (

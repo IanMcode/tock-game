@@ -1006,6 +1006,7 @@ export function Board({
   perspectivePlayerId,
   externalReservePlayerId,
   reservePresentation = "cards",
+  showToolbar = true,
   footerContent,
 }: {
   pieces: readonly Piece[];
@@ -1030,6 +1031,7 @@ export function Board({
   perspectivePlayerId?: PlayerId;
   externalReservePlayerId?: PlayerId;
   reservePresentation?: "cards" | "board-grid";
+  showToolbar?: boolean;
   footerContent?: React.ReactNode;
 }) {
   const animatedPieceIds = new Set([
@@ -1086,6 +1088,8 @@ export function Board({
     const playerName = playerNames?.[owner] ?? PLAYER_META[owner].name;
     const reservePoint = getBoardReserveGridPoint(owner, boardDefinition);
     const ownerPieces = pieces.filter((piece) => piece.owner === owner);
+    const reserveGridRotation = getBoardReserveGridRotation(owner, boardDefinition);
+    const reservePieceRotation = -(perspectiveRotation + reserveGridRotation);
 
     return (
       <div
@@ -1097,6 +1101,8 @@ export function Board({
           "--reserve": playerColorVar(owner),
           "--reserve-soft": playerSoftVar(owner),
           "--player-shape": playerShapeVar(owner),
+          "--reserve-grid-rotation": `${reserveGridRotation}deg`,
+          "--reserve-piece-rotation": `${reservePieceRotation}deg`,
         } as React.CSSProperties}
         aria-label={`${playerName}'s pieces waiting to enter`}
       >
@@ -1120,21 +1126,15 @@ export function Board({
 
   return (
     <div className="board-wrap">
-      <div className="board-toolbar">
-        <div>
-          <p className="eyebrow">The playing board</p>
-          <span>{boardDefinition.trackSize} track spaces · {boardDefinition.playerCount} home lanes</span>
+      {showToolbar && (
+        <div className="board-toolbar">
+          <div>
+            <p className="eyebrow">The playing board</p>
+            <span>{boardDefinition.trackSize} track spaces · {boardDefinition.playerCount} home lanes</span>
+          </div>
+          <SpaceNumberToggle shown={showSpaceNumbers} onToggle={onToggleSpaceNumbers} />
         </div>
-        <button
-          className="number-toggle"
-          type="button"
-          aria-pressed={showSpaceNumbers}
-          onClick={onToggleSpaceNumbers}
-        >
-          <i aria-hidden="true"><span /></i>
-          Space numbers
-        </button>
-      </div>
+      )}
       {useOpponentReserveRow && (
         <div className={`board-opponent-row opponents-${opponentReserveOwners.length}`} aria-label="Opponents">
           {opponentReserveOwners.map((owner) => renderReserve(owner, true))}
@@ -1330,6 +1330,20 @@ export function Board({
         <span className="protection-key"><b>✦</b> Protected entry</span>
       </div>
     </div>
+  );
+}
+
+export function SpaceNumberToggle({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className="number-toggle"
+      type="button"
+      aria-pressed={shown}
+      onClick={onToggle}
+    >
+      <i aria-hidden="true"><span /></i>
+      Space numbers
+    </button>
   );
 }
 
@@ -1630,6 +1644,10 @@ export function getBoardReserveGridPoint(owner: PlayerId, board: BoardDefinition
     x: homeEntrance.x + inward.x * inwardDistance + towardSpaceTwelve.x * edgeDistance,
     y: homeEntrance.y + inward.y * inwardDistance + towardSpaceTwelve.y * edgeDistance,
   });
+}
+
+export function getBoardReserveGridRotation(owner: PlayerId, board: BoardDefinition): number {
+  return -getBoardPerspectiveRotation(owner, board);
 }
 
 function rotateBoardPoint(point: BoardPoint, degrees: number): BoardPoint {
