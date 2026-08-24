@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { OnlineRequestError } from "./client";
 import {
   failedRoomRefreshDelay,
+  MAX_CONSECUTIVE_ROOM_REFRESH_FAILURES,
   MAX_FAILED_ROOM_REFRESH_DELAY,
   shouldForgetRoomAfterError,
+  shouldPauseRoomRefresh,
 } from "./polling";
 
 describe("online room polling policy", () => {
@@ -31,5 +33,10 @@ describe("online room polling policy", () => {
       MAX_FAILED_ROOM_REFRESH_DELAY,
     ]);
     expect(failedRoomRefreshDelay(20)).toBe(MAX_FAILED_ROOM_REFRESH_DELAY);
+  });
+
+  it("pauses automatic refresh after repeated failures", () => {
+    expect(shouldPauseRoomRefresh(MAX_CONSECUTIVE_ROOM_REFRESH_FAILURES - 1)).toBe(false);
+    expect(shouldPauseRoomRefresh(MAX_CONSECUTIVE_ROOM_REFRESH_FAILURES)).toBe(true);
   });
 });

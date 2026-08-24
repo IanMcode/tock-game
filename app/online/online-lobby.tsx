@@ -14,6 +14,7 @@ import {
   ACTIVE_ROOM_REFRESH_DELAY,
   failedRoomRefreshDelay,
   shouldForgetRoomAfterError,
+  shouldPauseRoomRefresh,
 } from "../../src/online/polling";
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
@@ -122,6 +123,10 @@ export default function OnlineLobby() {
           return;
         }
         consecutiveFailures += 1;
+        if (shouldPauseRoomRefresh(consecutiveFailures)) {
+          setError(`${messageFrom(refreshError)} Automatic refresh has paused; reload this page to try again.`);
+          return;
+        }
         scheduleRefresh(failedRoomRefreshDelay(consecutiveFailures));
       }
     };

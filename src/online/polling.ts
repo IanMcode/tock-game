@@ -2,6 +2,7 @@ import { OnlineRequestError } from "./client";
 
 export const ACTIVE_ROOM_REFRESH_DELAY = 750;
 export const MAX_FAILED_ROOM_REFRESH_DELAY = 30_000;
+export const MAX_CONSECUTIVE_ROOM_REFRESH_FAILURES = 6;
 
 const TERMINAL_ROOM_ERROR_CODES = new Set([
   "INVALID_AUTHORIZATION",
@@ -17,4 +18,8 @@ export function shouldForgetRoomAfterError(error: unknown): boolean {
 export function failedRoomRefreshDelay(consecutiveFailures: number): number {
   const exponent = Math.max(1, Math.floor(consecutiveFailures));
   return Math.min(ACTIVE_ROOM_REFRESH_DELAY * (2 ** exponent), MAX_FAILED_ROOM_REFRESH_DELAY);
+}
+
+export function shouldPauseRoomRefresh(consecutiveFailures: number): boolean {
+  return consecutiveFailures >= MAX_CONSECUTIVE_ROOM_REFRESH_FAILURES;
 }
