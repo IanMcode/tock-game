@@ -8,6 +8,7 @@ import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
 import { getLegalBasicCardMoves } from "../src/game/cardMoves";
 import { createGame } from "../src/game/createGame";
 import {
+  getBoardTrackIndex,
   getRulesetDefinition,
   type BoardDefinition,
   type BoardPlayerCount,
@@ -1691,12 +1692,17 @@ export function getBoardReserveGridRotation(owner: PlayerId, board: BoardDefinit
 
 export function getBoardTurnMarkerPoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
   const entry = getBoardTrackPoint(getEntryIndex(owner, board), board);
-  const fromCenter = { x: entry.x - 50, y: entry.y - 50 };
+  const spaceTwelve = getBoardTrackPoint(getBoardTrackIndex(board, owner, 12), board);
+  const edgeMidpoint = {
+    x: (entry.x + spaceTwelve.x) / 2,
+    y: (entry.y + spaceTwelve.y) / 2,
+  };
+  const fromCenter = { x: edgeMidpoint.x - 50, y: edgeMidpoint.y - 50 };
   const length = Math.hypot(fromCenter.x, fromCenter.y) || 1;
   const offset = board.playerCount === 3 ? 4.2 : 3.4;
   return roundPoint({
-    x: entry.x + fromCenter.x / length * offset,
-    y: entry.y + fromCenter.y / length * offset,
+    x: edgeMidpoint.x + fromCenter.x / length * offset,
+    y: edgeMidpoint.y + fromCenter.y / length * offset,
   });
 }
 

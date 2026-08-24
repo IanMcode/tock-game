@@ -778,29 +778,12 @@ function OnlineRoomTable({
       {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
     </div>
   );
-  const useThreePlayerBoardLayout = ruleset.board.playerCount === 3;
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
     ...swappingPieces.map((animated) => animated.piece.id),
   ]);
   const localPlayerDock = (
-    <div className={`online-local-player-dock ${useThreePlayerBoardLayout ? "is-hand-only" : ""}`}>
-      {!useThreePlayerBoardLayout && (
-        <BoardReserve
-          owner={access.playerId}
-          pieces={isSplitSeven ? previewPieces : displayPieces}
-          player={boardPlayers.find((player) => player.id === access.playerId)}
-          playerName={room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}
-          dealer={game.dealer}
-          dealIndex={game.dealIndex}
-          dealCount={ruleset.dealSchedule.length}
-          activePieceIds={activePieceIds}
-          animatedPieceIds={animatedPieceIds}
-          selectedPieceId={selectedPieceId}
-          capturingPieceIds={capturingPieceIds}
-          onPieceClick={choosePiece}
-        />
-      )}
+    <div className="online-local-player-dock is-hand-only">
       {handPanel}
       <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
     </div>
@@ -813,7 +796,7 @@ function OnlineRoomTable({
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
     } as React.CSSProperties}>
       <div className="online-game-viewport">
-        <div className={`online-status-rail ${useThreePlayerBoardLayout ? "has-player-status" : ""}`}>
+        <div className="online-status-rail has-player-status">
           <div className="online-room-turn-card">
             <div>
               <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
@@ -827,28 +810,26 @@ function OnlineRoomTable({
               <Link href="/">Local</Link>
             </div>
           </div>
-          {useThreePlayerBoardLayout && (
-            <div className="online-player-status-list" aria-label="Players at the table">
-              {ruleset.board.playerIds.map((playerId) => (
-                <BoardReserve
-                  key={`${playerId}-status`}
-                  owner={playerId}
-                  pieces={isSplitSeven ? previewPieces : displayPieces}
-                  player={boardPlayers.find((player) => player.id === playerId)}
-                  playerName={room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}
-                  dealer={game.dealer}
-                  dealIndex={game.dealIndex}
-                  dealCount={ruleset.dealSchedule.length}
-                  activePieceIds={activePieceIds}
-                  animatedPieceIds={animatedPieceIds}
-                  selectedPieceId={selectedPieceId}
-                  capturingPieceIds={capturingPieceIds}
-                  onPieceClick={choosePiece}
-                  showReservePieces={false}
-                />
-              ))}
-            </div>
-          )}
+          <div className="online-player-status-list" aria-label="Players at the table">
+            {ruleset.board.playerIds.map((playerId) => (
+              <BoardReserve
+                key={`${playerId}-status`}
+                owner={playerId}
+                pieces={isSplitSeven ? previewPieces : displayPieces}
+                player={boardPlayers.find((player) => player.id === playerId)}
+                playerName={room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}
+                dealer={game.dealer}
+                dealIndex={game.dealIndex}
+                dealCount={ruleset.dealSchedule.length}
+                activePieceIds={activePieceIds}
+                animatedPieceIds={animatedPieceIds}
+                selectedPieceId={selectedPieceId}
+                capturingPieceIds={capturingPieceIds}
+                onPieceClick={choosePiece}
+                showReservePieces={false}
+              />
+            ))}
+          </div>
         </div>
 
         <div className="online-board-stage">
@@ -877,7 +858,7 @@ function OnlineRoomTable({
           recentCardRevision={latestEvent?.card ? latestEvent.revision : undefined}
           perspectivePlayerId={access.playerId}
           externalReservePlayerId={access.playerId}
-          reservePresentation={useThreePlayerBoardLayout ? "board-grid" : "cards"}
+          reservePresentation="board-grid"
           showToolbar={false}
           footerContent={localPlayerDock}
         />

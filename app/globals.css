@@ -506,9 +506,9 @@ button { font: inherit; }
   .online-shell-active .online-turn-heading h2 { margin-top: 2px; font-size: 21px; }
   .online-shell-active .online-board-stage { grid-area: board; min-height: 0; height: 100%; }
   .online-shell-active .online-board-stage .board-wrap { position: relative; height: 100%; grid-template-rows: minmax(0,1fr) auto auto; padding: 8px 10px; }
-  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 205px), 1040px); }
+  .online-shell-active .online-table .board { width: min(100%, calc(100svh - 155px), 1120px); }
   .online-shell-active .online-table .board-3 { width: min(100%, calc(100svh - 155px), 1120px); }
-  .online-shell-active .online-table .board-2 { width: min(100%, calc((100svh - 185px) * .9), 720px); }
+  .online-shell-active .online-table .board-2 { width: min(100%, calc((100svh - 155px) * .9), 920px); }
   .online-shell-active .online-play-log { grid-area: log; grid-template-columns: 1fr; align-content: start; min-height: 0; margin-top: 0; }
   .online-shell-active .online-chat { grid-area: chat; }
   .online-shell-active .online-log-window { max-height: none; }

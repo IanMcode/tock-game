@@ -51,14 +51,23 @@ describe("player board perspective", () => {
     }
   });
 
-  it("places the turn marker just beyond each entry space", () => {
+  it("centers the turn marker beyond each player's 12–18 edge", () => {
     for (const board of Object.values(BOARD_DEFINITIONS)) {
       for (const playerId of board.playerIds) {
         const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
+        const spaceTwelve = getBoardTrackPoint(getBoardTrackIndex(board, playerId, 12), board);
+        const midpoint = {
+          x: (entry.x + spaceTwelve.x) / 2,
+          y: (entry.y + spaceTwelve.y) / 2,
+        };
         const marker = getBoardTurnMarkerPoint(playerId, board);
         expect(Math.hypot(marker.x - 50, marker.y - 50)).toBeGreaterThan(
-          Math.hypot(entry.x - 50, entry.y - 50),
+          Math.hypot(midpoint.x - 50, midpoint.y - 50),
         );
+        expect(Math.abs(
+          (midpoint.x - 50) * (marker.y - midpoint.y)
+          - (midpoint.y - 50) * (marker.x - midpoint.x),
+        )).toBeLessThan(0.01);
       }
     }
   });
