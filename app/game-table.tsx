@@ -1699,10 +1699,16 @@ export function getBoardTurnMarkerPoint(owner: PlayerId, board: BoardDefinition)
   };
   const fromCenter = { x: edgeMidpoint.x - 50, y: edgeMidpoint.y - 50 };
   const length = Math.hypot(fromCenter.x, fromCenter.y) || 1;
-  const offset = board.playerCount === 3 ? 4.2 : 3.4;
+  const boundaryDistance = board.playerCount === 3
+    ? 50
+    : length * Math.min(
+      fromCenter.x === 0 ? Number.POSITIVE_INFINITY : 50 / Math.abs(fromCenter.x),
+      fromCenter.y === 0 ? Number.POSITIVE_INFINITY : 50 / Math.abs(fromCenter.y),
+    );
+  const markerDistance = boundaryDistance - 2.8;
   return roundPoint({
-    x: edgeMidpoint.x + fromCenter.x / length * offset,
-    y: edgeMidpoint.y + fromCenter.y / length * offset,
+    x: 50 + fromCenter.x / length * markerDistance,
+    y: 50 + fromCenter.y / length * markerDistance,
   });
 }
 

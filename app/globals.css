@@ -89,14 +89,14 @@ button { font: inherit; }
 .table-card-bottom { right: 10%; bottom: 8%; transform: rotate(180deg); }
 @keyframes center-card-arrive { from { opacity: 0; transform: rotate(-45deg) translateY(-18%) scale(.72); } }
 .table-card.table-card-receiving { animation: center-card-reveal .9s linear both; }
-@keyframes center-card-reveal { 0%, 64% { opacity: 0; } 65%, 100% { opacity: 1; } }
+@keyframes center-card-reveal { 0%, 88% { opacity: 0; } 100% { opacity: 1; } }
 .board-card-flight { position: absolute; z-index: 12; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); pointer-events: none; animation: card-to-center .9s cubic-bezier(.2,.72,.22,1) both; }
 .board-card-flight .table-card { width: 14.6cqw; animation: none; }
 @keyframes card-to-center {
-  0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--counter-rotation)) scale(.55); }
-  16% { opacity: 1; }
-  65%, 82% { left: 50%; top: 50%; opacity: 1; transform: translate(-50%,-50%) rotate(var(--counter-rotation)) scale(1); }
-  83%, 100% { left: 50%; top: 50%; opacity: 0; transform: translate(-50%,-50%) rotate(var(--counter-rotation)) scale(1); }
+  0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); }
+  8% { opacity: 1; }
+  88% { left: 50%; top: 50%; opacity: 1; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); }
+  100% { left: 50%; top: 50%; opacity: 0; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); }
 }
 .board-reserve { position: absolute; z-index: 3; width: 22%; min-height: 13%; display: grid; align-content: center; gap: 3px; padding: 7px 8px; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); border: 1px solid color-mix(in srgb, var(--reserve) 35%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--reserve-soft) 84%, white); box-shadow: 0 4px 12px rgba(25,55,43,.09); }
 .reserve-heading { min-height: 25px; display: flex; align-items: center; justify-content: center; gap: 7px; }
