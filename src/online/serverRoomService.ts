@@ -1,14 +1,14 @@
 import { InMemoryRoomStore, RoomService } from "./roomService";
 import { NeonRoomStore } from "./neonRoomStore";
 import { UpstashRoomStore } from "./upstashRoomStore";
+import { getUpstashEnvironment } from "./environment";
 
 const globalRooms = globalThis as typeof globalThis & {
   __tockRoomService?: RoomService;
 };
 
 const databaseUrl = process.env.DATABASE_URL;
-const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
-const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const { url: upstashUrl, token: upstashToken } = getUpstashEnvironment();
 
 export const serverRoomService = globalRooms.__tockRoomService ?? new RoomService(
   upstashUrl && upstashToken

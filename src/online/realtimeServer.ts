@@ -3,6 +3,7 @@ import { Rest, type TokenParams, type TokenRequest } from "ably";
 import type { PlayerId } from "../game/types";
 import type { RoomView } from "./roomService";
 import { ROOM_UPDATED_EVENT, roomChannelName, roomRealtimeClientId } from "./realtime";
+import { getAblyApiKey } from "./environment";
 
 const TOKEN_LIFETIME_MS = 60 * 60 * 1_000;
 
@@ -11,7 +12,7 @@ const globalRealtime = globalThis as typeof globalThis & {
 };
 
 export function isRealtimeConfigured(): boolean {
-  return Boolean(process.env.ABLY_API_KEY?.trim());
+  return Boolean(getAblyApiKey());
 }
 
 export async function createRoomRealtimeToken(
@@ -45,7 +46,7 @@ export async function notifyRoomUpdated(room: RoomView): Promise<void> {
 
 function getAblyRest(): Rest {
   if (globalRealtime.__tockAblyRest) return globalRealtime.__tockAblyRest;
-  const apiKey = process.env.ABLY_API_KEY?.trim();
+  const apiKey = getAblyApiKey();
   if (!apiKey) throw new Error("ABLY_API_KEY is not configured.");
   const client = new Rest(apiKey);
   globalRealtime.__tockAblyRest = client;

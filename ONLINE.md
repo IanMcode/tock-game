@@ -109,8 +109,9 @@ a card index or `null` when the forced player has no card.
 
 ## Storage and real-time delivery
 
-When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are present,
-production rooms use `UpstashRoomStore`. Room creation and updates use atomic Lua
+When `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or Vercel's
+`KV_REST_API_URL`/`KV_REST_API_TOKEN` pair is present, production rooms use
+`UpstashRoomStore`. Room creation and updates use atomic Lua
 scripts, so two server instances cannot both accept a write based on the same
 room version. Snapshots remain validated versioned JSON, and player reconnect
 tokens are SHA-256 hashed before storage.
@@ -137,7 +138,7 @@ refresh is used. Hidden tabs and completed games disconnect and stop refreshing.
 
 1. In the Vercel project, open **Storage** or **Marketplace**, add an Upstash Redis
    database on the free plan, and connect it to this project. Confirm that Vercel
-   added `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to Production.
+   added either supported Redis variable pair to Production.
 2. Create a free Ably app, copy one API key, and add it to the Vercel project as
    the server-only `ABLY_API_KEY` environment variable. Do not prefix it with
    `NEXT_PUBLIC_` and do not commit or share the value.
