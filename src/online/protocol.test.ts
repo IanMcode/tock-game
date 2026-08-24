@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions } from "./protocol";
+import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions, parseStartNextGameOptions } from "./protocol";
 
 describe("online command protocol", () => {
   it("parses room rules and dealer selection", () => {
@@ -9,8 +9,17 @@ describe("online command protocol", () => {
       teams: false,
       dealer: "P2",
       randomizeSeats: false,
+      startWithPieceOnEntry: true,
     });
     expect(parseCreateRoomOptions(undefined)).toEqual({});
+  });
+
+  it("parses in-room next-game options", () => {
+    expect(parseStartNextGameOptions({ dealer: "P3", randomizeSeats: true })).toEqual({
+      dealer: "P3",
+      randomizeSeats: true,
+    });
+    expect(() => parseStartNextGameOptions({ dealer: "P9" })).toThrow("valid player");
   });
 
   it("rejects invalid room combinations", () => {

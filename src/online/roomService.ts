@@ -10,6 +10,8 @@ import {
 } from "../game/session";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import { createSessionView, type GameSessionView } from "../game/view";
+import { getRulesetDefinition } from "../game/definition";
+import { getGameStatistics, type PlayerGameStatistics } from "./statistics";
 
 export type RoomStatus = "waiting" | "active" | "complete";
 
@@ -27,6 +29,28 @@ export type OnlineRoom = {
   playerNames: Partial<Record<PlayerId, string>>;
   chatMessages: ChatMessage[];
   session: GameSession;
+  participantIds?: Partial<Record<PlayerId, string>>;
+  matchHistory?: MatchGameRecord[];
+  currentGameNumber?: number;
+  configuration?: RoomConfiguration;
+};
+
+export type RoomConfiguration = {
+  teams: boolean;
+  startWithPieceOnEntry: boolean;
+};
+
+export type MatchPlayerResult = PlayerGameStatistics & {
+  participantId: string;
+  playerName: string;
+  seatId: PlayerId;
+};
+
+export type MatchGameRecord = {
+  gameNumber: number;
+  winnerParticipantIds: string[];
+  players: MatchPlayerResult[];
+  completedAt: number;
 };
 
 export type StoredRoom = {
@@ -42,6 +66,9 @@ export type RoomView = {
   chatMessages: ChatMessage[];
   requiredPlayers: number;
   session: GameSessionView;
+  viewerPlayerId: PlayerId | null;
+  matchHistory: MatchGameRecord[];
+  currentGameNumber: number;
 };
 
 export type RoomAccess = {
@@ -60,6 +87,12 @@ export type CreateRoomOptions = {
   teams?: boolean;
   dealer?: PlayerId | "random";
   playerName?: string;
+  randomizeSeats?: boolean;
+  startWithPieceOnEntry?: boolean;
+};
+
+export type StartNextGameOptions = {
+  dealer?: PlayerId | "random";
   randomizeSeats?: boolean;
 };
 
@@ -141,6 +174,7 @@ export class RoomService {
       randomState: this.randomState(),
       playerCount,
       teams,
+      startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
       ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
     });
     const joinOrder = options.randomizeSeats
@@ -157,6 +191,15 @@ export class RoomService {
         playerNames: { [playerId]: normalizePlayerName(options.playerName, playerId) },
         chatMessages: [],
         session: createGameSession(roomId, game),
+        participantIds: Object.fromEntries(
+          game.players.map((player) => [player.id, `player-${player.id}`]),
+        ),
+        matchHistory: [],
+        currentGameNumber: 1,
+        configuration: {
+          teams,
+          startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
+        },
       };
       if (await this.store.create(room)) {
         return {
@@ -183,6 +226,10 @@ export class RoomService {
         playerNames: {
           ...stored.room.playerNames,
           [playerId]: normalizePlayerName(playerName, playerId),
+        },
+        participantIds: {
+          ...stored.room.participantIds,
+          [playerId]: stored.room.participantIds?.[playerId] ?? `player-${playerId}`,
         },
       };
       if (await this.store.save(next, stored.version)) {
@@ -217,7 +264,10 @@ export class RoomService {
       throw new RoomError("SEAT_MISMATCH", "The command actor does not match this player token.");
     }
 
-    const next = { ...room, session: applySessionCommand(room.session, envelope) };
+    const nextSession = applySessionCommand(room.session, envelope);
+    const next = nextSession.game.winningTeam && !room.session.game.winningTeam
+      ? recordCompletedGame({ ...room, session: nextSession })
+      : { ...room, session: nextSession };
     if (!await this.store.save(next, stored.version)) {
       throw new SessionCommandError(
         "REVISION_CONFLICT",
@@ -225,6 +275,57 @@ export class RoomService {
       );
     }
     return this.view(next, playerId);
+  }
+
+  async startNextGame(
+    roomId: string,
+    playerToken: string,
+    options: StartNextGameOptions = {},
+  ): Promise<RoomJoinResult> {
+    const stored = await this.getRoom(roomId);
+    await this.playerForToken(stored.room, playerToken);
+    if (this.status(stored.room) !== "complete") {
+      throw new RoomError("ROOM_NOT_READY", "A new game can only begin after the current game is complete.");
+    }
+
+    const completedRoom = recordCompletedGame(stored.room);
+    const playerIds = completedRoom.session.game.players.map((player) => player.id);
+    const ruleset = getRulesetDefinition(completedRoom.session.game.rulesetId);
+    const configuration = completedRoom.configuration ?? {
+      teams: ruleset.exchange === "partners",
+      startWithPieceOnEntry: true,
+    };
+    const selectedDealerParticipant = options.dealer && options.dealer !== "random"
+      ? participantIdForSeat(completedRoom, options.dealer)
+      : null;
+    const rotated = options.randomizeSeats
+      ? rotateRoomSeats(completedRoom, playerIds, this.randomState())
+      : completedRoom;
+    const dealer = selectedDealerParticipant
+      ? playerIds.find((playerId) => participantIdForSeat(rotated, playerId) === selectedDealerParticipant)
+      : undefined;
+    const game = createGame({
+      randomState: this.randomState(),
+      playerCount: ruleset.board.playerCount,
+      teams: configuration.teams,
+      startWithPieceOnEntry: configuration.startWithPieceOnEntry,
+      ...(dealer ? { dealer } : {}),
+    });
+    const next: OnlineRoom = {
+      ...rotated,
+      chatMessages: [],
+      session: createGameSession(rotated.id, game),
+      currentGameNumber: (completedRoom.currentGameNumber ?? 1) + 1,
+      configuration,
+    };
+    if (!await this.store.save(next, stored.version)) {
+      throw new RoomError("ROOM_CONFLICT", "Another player started the next game first.");
+    }
+    const nextPlayerId = await this.playerForToken(next, playerToken);
+    return {
+      access: { roomId: next.id, playerId: nextPlayerId, playerToken },
+      room: this.view(next, nextPlayerId),
+    };
   }
 
   async submitChatMessage(
@@ -281,6 +382,9 @@ export class RoomService {
       chatMessages: room.chatMessages.map((message) => ({ ...message })),
       requiredPlayers: room.session.game.players.length,
       session: createSessionView(room.session, viewer),
+      viewerPlayerId: viewer,
+      matchHistory: cloneMatchHistory(room.matchHistory ?? []),
+      currentGameNumber: room.currentGameNumber ?? 1,
     };
   }
 
@@ -288,6 +392,65 @@ export class RoomService {
     if (room.session.game.winningTeam) return "complete";
     return room.session.game.players.every((player) => Boolean(room.seats[player.id])) ? "active" : "waiting";
   }
+}
+
+function recordCompletedGame(room: OnlineRoom): OnlineRoom {
+  if (!room.session.game.winningTeam) return room;
+  const gameNumber = room.currentGameNumber ?? 1;
+  const history = room.matchHistory ?? [];
+  if (history.some((game) => game.gameNumber === gameNumber)) return room;
+  const playerIds = room.session.game.players.map((player) => player.id);
+  const statistics = getGameStatistics(createSessionView(room.session, null).events, playerIds);
+  const players = statistics.map((player) => ({
+    ...player,
+    eliminatedPlayers: { ...player.eliminatedPlayers },
+    participantId: participantIdForSeat(room, player.playerId),
+    playerName: room.playerNames[player.playerId] ?? DEFAULT_PLAYER_NAMES[player.playerId],
+    seatId: player.playerId,
+  }));
+  return {
+    ...room,
+    matchHistory: [...history, {
+      gameNumber,
+      winnerParticipantIds: room.session.game.winningTeam.map((playerId) => participantIdForSeat(room, playerId)),
+      players,
+      completedAt: Date.now(),
+    }],
+  };
+}
+
+function participantIdForSeat(room: OnlineRoom, playerId: PlayerId): string {
+  return room.participantIds?.[playerId] ?? `player-${playerId}`;
+}
+
+function rotateRoomSeats(
+  room: OnlineRoom,
+  playerIds: readonly PlayerId[],
+  randomState: number,
+): OnlineRoom {
+  if (playerIds.length < 2) return room;
+  const offset = 1 + (Math.abs(randomState) % (playerIds.length - 1));
+  const seats: OnlineRoom["seats"] = {};
+  const playerNames: OnlineRoom["playerNames"] = {};
+  const participantIds: NonNullable<OnlineRoom["participantIds"]> = {};
+  playerIds.forEach((oldSeat, index) => {
+    const newSeat = playerIds[(index + offset) % playerIds.length];
+    if (room.seats[oldSeat]) seats[newSeat] = room.seats[oldSeat];
+    if (room.playerNames[oldSeat]) playerNames[newSeat] = room.playerNames[oldSeat];
+    participantIds[newSeat] = participantIdForSeat(room, oldSeat);
+  });
+  return { ...room, seats, playerNames, participantIds, joinOrder: [...playerIds] };
+}
+
+function cloneMatchHistory(history: readonly MatchGameRecord[]): MatchGameRecord[] {
+  return history.map((game) => ({
+    ...game,
+    winnerParticipantIds: [...game.winnerParticipantIds],
+    players: game.players.map((player) => ({
+      ...player,
+      eliminatedPlayers: { ...player.eliminatedPlayers },
+    })),
+  }));
 }
 
 export async function hashPlayerToken(token: string): Promise<string> {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
   createOnlineRoom,
@@ -10,6 +11,7 @@ import {
   requestRoomRealtimeToken,
   sendOnlineChat,
   sendOnlineCommand,
+  startOnlineNextGame,
 } from "../../src/online/client";
 import {
   failedRoomRefreshDelay,
@@ -23,7 +25,7 @@ import {
 } from "../../src/online/realtime";
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
-import type { RoomAccess, RoomView } from "../../src/online/roomService";
+import type { MatchGameRecord, RoomAccess, RoomView } from "../../src/online/roomService";
 import {
   getCurrentDealerRoundEvents,
   getLatestAnimationTurn,
@@ -31,7 +33,6 @@ import {
   getUnseenAnimationTurns,
 } from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
-import { getGameStatistics } from "../../src/online/statistics";
 import {
   Board,
   BoardReserve,
@@ -68,12 +69,15 @@ const PLAYER_NAMES: Record<PlayerId, string> = {
 
 type OnlineLobbyProps = {
   realtimeEnabled?: boolean;
+  entryMode?: "both" | "create" | "join";
 };
 
-export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProps) {
+export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both" }: OnlineLobbyProps) {
+  const router = useRouter();
   const [playerCount, setPlayerCount] = useState<BoardPlayerCount>(4);
   const [teams, setTeams] = useState(true);
   const [dealer, setDealer] = useState<PlayerId | "random">("random");
+  const [startWithPieceOnEntry, setStartWithPieceOnEntry] = useState(true);
   const [hostName, setHostName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -88,6 +92,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
   }, [room?.status]);
 
   useEffect(() => {
+    if (entryMode !== "both") return;
     const timeout = window.setTimeout(() => {
       const saved = sessionStorage.getItem(ACCESS_KEY);
       if (!saved) return;
@@ -98,7 +103,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
       }
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [entryMode]);
 
   useEffect(() => {
     if (!access) return;
@@ -112,7 +117,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
     let realtimeClient: import("ably").Realtime | undefined;
     let realtimeChannel: import("ably").RealtimeChannel | undefined;
 
-    const onRoomUpdated = () => void refresh();
+    const onRoomUpdated = () => void refresh(true);
 
     const clearRefreshTimeout = () => {
       if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
@@ -140,8 +145,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
         realtimeStarting ||
         realtimeClient ||
         cancelled ||
-        document.visibilityState !== "visible" ||
-        roomStatusRef.current === "complete"
+        document.visibilityState !== "visible"
       ) return;
       realtimeStarting = true;
       try {
@@ -164,7 +168,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
           realtimeConnected = true;
           consecutiveFailures = 0;
           clearRefreshTimeout();
-          void refresh();
+          void refresh(true);
         });
         const onDisconnected = () => {
           if (cancelled) return;
@@ -185,9 +189,13 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
       }
     };
 
-    const refresh = async () => {
+    const refresh = async (allowCompletedRoom = false) => {
       clearRefreshTimeout();
-      if (cancelled || document.visibilityState !== "visible" || roomStatusRef.current === "complete") return;
+      if (
+        cancelled ||
+        document.visibilityState !== "visible" ||
+        (roomStatusRef.current === "complete" && !allowCompletedRoom)
+      ) return;
       if (refreshInFlight) {
         refreshQueued = true;
         return;
@@ -199,10 +207,13 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
           consecutiveFailures = 0;
           roomStatusRef.current = next.status;
           setRoom(next);
+          if (next.viewerPlayerId && next.viewerPlayerId !== access.playerId) {
+            const nextAccess = { ...access, playerId: next.viewerPlayerId };
+            sessionStorage.setItem(ACCESS_KEY, JSON.stringify(nextAccess));
+            setAccess(nextAccess);
+          }
           setError(null);
-          if (next.status === "complete") {
-            closeRealtime();
-          } else if (!realtimeConnected) {
+          if (next.status !== "complete" && !realtimeConnected) {
             scheduleRefresh(REALTIME_FALLBACK_REFRESH_DELAY);
           }
         }
@@ -257,10 +268,11 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
     setBusy(true);
     setError(null);
     try {
-      remember((await createOnlineRoom({
+      enterRoom((await createOnlineRoom({
         playerCount,
         teams,
         dealer,
+        startWithPieceOnEntry,
         ...(hostName.trim() ? { playerName: hostName.trim() } : {}),
       })).access);
     } catch (createError) {
@@ -275,7 +287,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
     setBusy(true);
     setError(null);
     try {
-      remember((await joinOnlineRoom(joinCode, joinName.trim() || undefined)).access);
+      enterRoom((await joinOnlineRoom(joinCode, joinName.trim() || undefined)).access);
     } catch (joinError) {
       setError(messageFrom(joinError));
     } finally {
@@ -286,6 +298,11 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
   function remember(nextAccess: RoomAccess) {
     sessionStorage.setItem(ACCESS_KEY, JSON.stringify(nextAccess));
     setAccess(nextAccess);
+  }
+
+  function enterRoom(nextAccess: RoomAccess) {
+    remember(nextAccess);
+    if (entryMode !== "both") router.replace("/online");
   }
 
   function leaveRoom() {
@@ -306,7 +323,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
             <h1>{access.roomId}</h1>
           </div>
           <div className="online-header-actions">
-            <Link className="quiet-button" href="/">Local table</Link>
+            <Link className="quiet-button" href="/">Home</Link>
           </div>
         </header>}
 
@@ -338,7 +355,7 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
         </section>}
 
         {room && room.status !== "waiting" && (
-          <OnlineRoomTable access={access} room={room} onRoom={setRoom} onAccess={remember} onLeaveRoom={leaveRoom} />
+          <OnlineRoomTable key={`game-${room.currentGameNumber}`} access={access} room={room} onRoom={setRoom} onAccess={remember} onLeaveRoom={leaveRoom} />
         )}
         {error && <p className="online-error" role="alert">{error}</p>}
         {!isGameRoom && <button className="leave-room-button" type="button" onClick={leaveRoom}>Forget this room on this tab</button>}
@@ -347,23 +364,25 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
   }
 
   const activePlayerIds = (["P1", "P2", "P3", "P4"] as const).slice(0, playerCount);
+  const isCreatePage = entryMode === "create";
+  const isJoinPage = entryMode === "join";
   return (
-    <main className="online-shell">
+    <main className={`online-shell online-entry-shell online-entry-${entryMode}`}>
       <header className="online-header">
         <div>
-          <p className="eyebrow">Guest multiplayer</p>
-          <h1>Play Tock online</h1>
+          <p className="eyebrow">{isJoinPage ? "Have a code?" : isCreatePage ? "Host a private table" : "Guest multiplayer"}</p>
+          <h1>{isJoinPage ? "Join a game" : isCreatePage ? "Create a game" : "Play Tock online"}</h1>
         </div>
-        <Link className="quiet-button" href="/">Local table</Link>
+        <Link className="quiet-button" href="/">Back home</Link>
       </header>
 
       <div className="online-options-grid">
-        <section className="online-panel">
+        {!isJoinPage && <form className="online-panel" onSubmit={(event) => { event.preventDefault(); void createRoom(); }}>
           <p className="eyebrow">Host a table</p>
-          <h2>Create room</h2>
+          <h2>Game details</h2>
           <label>
             <span>Your name</span>
-            <input value={hostName} maxLength={24} autoComplete="nickname" onChange={(event) => setHostName(event.target.value)} placeholder="Poppy" />
+            <input required value={hostName} maxLength={24} autoComplete="nickname" onChange={(event) => setHostName(event.target.value)} placeholder="Your name" />
           </label>
           <label>
             <span>Players</span>
@@ -378,10 +397,21 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
               <option value={4}>4 players</option>
             </select>
           </label>
-          <label className="online-check">
-            <input type="checkbox" checked={teams} disabled={playerCount !== 4} onChange={(event) => setTeams(event.target.checked)} />
-            <span>Opposite-seat teams</span>
-          </label>
+          <fieldset className="online-variants">
+            <legend>Variant rules</legend>
+            <label className="online-check">
+              <input type="checkbox" checked={teams} disabled={playerCount !== 4} onChange={(event) => setTeams(event.target.checked)} />
+              <span><strong>Opposite-seat teams</strong><small>Available for four-player games.</small></span>
+            </label>
+            <label className="online-check">
+              <input type="checkbox" checked={startWithPieceOnEntry} onChange={(event) => setStartWithPieceOnEntry(event.target.checked)} />
+              <span><strong>Head start</strong><small>Begin with each player’s first piece protected on entry.</small></span>
+            </label>
+            <label className="online-check is-coming-soon">
+              <input type="checkbox" disabled />
+              <span><strong>More variants</strong><small>Additional rule choices are coming soon.</small></span>
+            </label>
+          </fieldset>
           <label>
             <span>First dealer</span>
             <select value={dealer} onChange={(event) => setDealer(event.target.value as PlayerId | "random")}>
@@ -389,15 +419,15 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
               {activePlayerIds.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_NAMES[playerId]}</option>)}
             </select>
           </label>
-          <button className="online-primary" type="button" disabled={busy} onClick={createRoom}>Create private room</button>
-        </section>
+          <button className="online-primary" type="submit" disabled={busy}>{busy ? "Creating game…" : "Create Game"}</button>
+        </form>}
 
-        <section className="online-panel">
+        {!isCreatePage && <form className="online-panel" onSubmit={(event) => { event.preventDefault(); void joinRoom(); }}>
           <p className="eyebrow">Have a code?</p>
-          <h2>Join room</h2>
+          <h2>Join a private game</h2>
           <label>
             <span>Your name</span>
-            <input value={joinName} maxLength={24} autoComplete="nickname" onChange={(event) => setJoinName(event.target.value)} placeholder="River" />
+            <input required value={joinName} maxLength={24} autoComplete="nickname" onChange={(event) => setJoinName(event.target.value)} placeholder="Your name" />
           </label>
           <label>
             <span>Four-digit room code</span>
@@ -410,9 +440,9 @@ export default function OnlineLobby({ realtimeEnabled = false }: OnlineLobbyProp
               placeholder="2048"
             />
           </label>
-          <button className="online-primary" type="button" disabled={busy || !/^\d{4}$/.test(joinCode)} onClick={joinRoom}>Join next open seat</button>
+          <button className="online-primary" type="submit" disabled={busy || !/^\d{4}$/.test(joinCode)}>{busy ? "Joining game…" : "Join Game"}</button>
           <p className="online-help">Your reconnect token stays in this browser tab. Share only the room code.</p>
-        </section>
+        </form>}
       </div>
       {error && <p className="online-error" role="alert">{error}</p>}
     </main>
@@ -455,7 +485,6 @@ function OnlineRoomTable({
   const [chatBusy, setChatBusy] = useState(false);
   const [victoryPanel, setVictoryPanel] = useState<"rematch" | "statistics" | null>(null);
   const [rematchRandomizeSeats, setRematchRandomizeSeats] = useState(true);
-  const [rematchTeams, setRematchTeams] = useState(() => getRulesetDefinition(room.session.game.rulesetId).exchange === "partners");
   const [rematchDealer, setRematchDealer] = useState<PlayerId | "random">("random");
   const [rematchBusy, setRematchBusy] = useState(false);
   const game = room.session.game;
@@ -523,10 +552,7 @@ function OnlineRoomTable({
     setIncomingCard((current) => current?.key === presentation.key ? null : current);
     return true;
   }, []);
-  const gameStatistics = useMemo(
-    () => getGameStatistics(room.session.events ?? [], game.players.map((player) => player.id)),
-    [game.players, room.session.events],
-  );
+  const matchTotals = useMemo(() => getMatchTotals(room.matchHistory), [room.matchHistory]);
   const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_NAMES[playerId]) ?? [];
 
   useEffect(() => {
@@ -874,15 +900,12 @@ function OnlineRoomTable({
     setRematchBusy(true);
     setCommandError(null);
     try {
-      const next = await createOnlineRoom({
-        playerCount: ruleset.board.playerCount,
-        teams: ruleset.board.playerCount === 4 && rematchTeams,
+      const next = await startOnlineNextGame(access.roomId, access.playerToken, {
         dealer: rematchDealer,
         randomizeSeats: rematchRandomizeSeats,
-        playerName: room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId],
       });
-      onRoom(next.room);
       onAccess(next.access);
+      onRoom(next.room);
     } catch (rematchError) {
       setCommandError(messageFrom(rematchError));
     } finally {
@@ -976,7 +999,7 @@ function OnlineRoomTable({
             <div className="online-room-actions">
               <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
               <button type="button" onClick={onLeaveRoom}>Leave</button>
-              <Link href="/">Local</Link>
+              <Link href="/">Home</Link>
             </div>
           </div>
           <div className="online-player-status-list" aria-label="Players at the table">
@@ -1039,8 +1062,8 @@ function OnlineRoomTable({
             <h2>{winnerNames.join(" and ")} Win!</h2>
             <p>{winnerNames.length > 1 ? "Every team piece made it home." : "All four pieces made it home first."}</p>
             <div className="online-victory-actions">
-              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "rematch" ? null : "rematch")}>Quickstart a new game</button>
-              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "statistics" ? null : "statistics")}>Show game statistics</button>
+              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "rematch" ? null : "rematch")}>Play another game</button>
+              <button type="button" onClick={() => setVictoryPanel((panel) => panel === "statistics" ? null : "statistics")}>Show match statistics</button>
             </div>
             {victoryPanel === "rematch" && (
               <form className="online-rematch-options" onSubmit={(event) => void createRematch(event)}>
@@ -1048,15 +1071,7 @@ function OnlineRoomTable({
                   <input type="checkbox" checked={rematchRandomizeSeats} onChange={(event) => setRematchRandomizeSeats(event.target.checked)} />
                   <span>Randomize player positions</span>
                 </label>
-                {ruleset.board.playerCount === 4 ? (
-                  <label>
-                    <span>Game format</span>
-                    <select value={rematchTeams ? "teams" : "free-for-all"} onChange={(event) => setRematchTeams(event.target.value === "teams")}>
-                      <option value="teams">Keep or make opposite-seat teams</option>
-                      <option value="free-for-all">Free for all</option>
-                    </select>
-                  </label>
-                ) : <p>This player count will remain free for all.</p>}
+                <p>{ruleset.exchange === "partners" ? "Current teams stay together and remain seated opposite one another." : "This game remains free for all."}</p>
                 <label>
                   <span>First dealer</span>
                   <select value={rematchDealer} onChange={(event) => setRematchDealer(event.target.value as PlayerId | "random")}>
@@ -1064,24 +1079,53 @@ function OnlineRoomTable({
                     {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_NAMES[player.id]} ({player.id})</option>)}
                   </select>
                 </label>
-                <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Creating room…" : "Create rematch room"}</button>
-                <small>A fresh room code will be created for the other players to join.</small>
+                <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Starting next game…" : "Start next game"}</button>
+                <small>The same players and room code stay connected. The board, hands, deck, play log, and chat reset.</small>
               </form>
             )}
             {victoryPanel === "statistics" && (
-              <div className="online-statistics">
-                {gameStatistics.map((player) => (
-                  <article key={player.playerId}>
-                    <strong>{room.playerNames[player.playerId] ?? PLAYER_NAMES[player.playerId]}</strong>
-                    <span>Jacks played: {player.jacksPlayed}</span>
-                    <span>Out cards (A/K): {player.outCardsPlayed}</span>
-                    <span>Pieces eliminated: {player.eliminations}</span>
-                    <small>{Object.entries(player.eliminatedPlayers).length
-                      ? Object.entries(player.eliminatedPlayers).map(([playerId, count]) => `${room.playerNames[playerId as PlayerId] ?? PLAYER_NAMES[playerId as PlayerId]} ×${count}`).join(" · ")
-                      : "No opposing pieces eliminated"}</small>
-                  </article>
-                ))}
-                <p>More detailed statistics can be added as the game history expands.</p>
+              <div className="online-statistics online-match-statistics">
+                <h3>Match overall · {room.matchHistory.length} {room.matchHistory.length === 1 ? "game" : "games"}</h3>
+                <div className="online-stat-grid">
+                  {matchTotals.map((player) => (
+                    <article key={player.participantId}>
+                      <strong>{player.playerName}</strong>
+                      <span>Games won: {player.gamesWon}</span>
+                      <span>Jacks played: {player.jacksPlayed}</span>
+                      <span>Out cards (A/K): {player.outCardsPlayed}</span>
+                      <span>Pieces eliminated: {player.eliminations}</span>
+                      <small>{player.eliminatedPlayers.length
+                        ? player.eliminatedPlayers.map((target) => `${target.playerName} ×${target.count}`).join(" · ")
+                        : "No opposing pieces eliminated"}</small>
+                    </article>
+                  ))}
+                </div>
+                {[...room.matchHistory].reverse().map((matchGame) => {
+                  const winners = matchGame.players
+                    .filter((player) => matchGame.winnerParticipantIds.includes(player.participantId))
+                    .map((player) => player.playerName);
+                  return (
+                    <section className="online-game-statistics" key={matchGame.gameNumber}>
+                      <h3>Game {matchGame.gameNumber} · {winners.join(" and ")} {winners.length > 1 ? "win" : "wins"}</h3>
+                      <div className="online-stat-grid">
+                        {matchGame.players.map((player) => (
+                          <article key={player.participantId}>
+                            <strong>{player.playerName}</strong>
+                            <span>Jacks played: {player.jacksPlayed}</span>
+                            <span>Out cards (A/K): {player.outCardsPlayed}</span>
+                            <span>Pieces eliminated: {player.eliminations}</span>
+                            <small>{Object.entries(player.eliminatedPlayers).length
+                              ? Object.entries(player.eliminatedPlayers).map(([playerId, count]) => {
+                                  const target = matchGame.players.find((candidate) => candidate.seatId === playerId);
+                                  return `${target?.playerName ?? PLAYER_NAMES[playerId as PlayerId]} ×${count}`;
+                                }).join(" · ")
+                              : "No opposing pieces eliminated"}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1151,6 +1195,52 @@ function OnlineRoomTable({
       {commandError && <p className="online-error" role="alert">{commandError}</p>}
     </section>
   );
+}
+
+type MatchTotal = {
+  participantId: string;
+  playerName: string;
+  gamesWon: number;
+  jacksPlayed: number;
+  outCardsPlayed: number;
+  eliminations: number;
+  eliminatedPlayers: Array<{ participantId: string; playerName: string; count: number }>;
+};
+
+function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
+  const totals = new Map<string, Omit<MatchTotal, "eliminatedPlayers"> & { eliminated: Map<string, { playerName: string; count: number }> }>();
+  for (const game of history) {
+    for (const player of game.players) {
+      const total = totals.get(player.participantId) ?? {
+        participantId: player.participantId,
+        playerName: player.playerName,
+        gamesWon: 0,
+        jacksPlayed: 0,
+        outCardsPlayed: 0,
+        eliminations: 0,
+        eliminated: new Map(),
+      };
+      total.playerName = player.playerName;
+      if (game.winnerParticipantIds.includes(player.participantId)) total.gamesWon += 1;
+      total.jacksPlayed += player.jacksPlayed;
+      total.outCardsPlayed += player.outCardsPlayed;
+      total.eliminations += player.eliminations;
+      for (const [seatId, count] of Object.entries(player.eliminatedPlayers)) {
+        const target = game.players.find((candidate) => candidate.seatId === seatId);
+        if (!target) continue;
+        const previous = total.eliminated.get(target.participantId);
+        total.eliminated.set(target.participantId, {
+          playerName: target.playerName,
+          count: (previous?.count ?? 0) + count,
+        });
+      }
+      totals.set(player.participantId, total);
+    }
+  }
+  return [...totals.values()].map(({ eliminated, ...total }) => ({
+    ...total,
+    eliminatedPlayers: [...eliminated].map(([participantId, result]) => ({ participantId, ...result })),
+  }));
 }
 
 const ONLINE_APPEARANCE = {

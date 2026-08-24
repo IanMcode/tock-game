@@ -85,6 +85,19 @@ describe("online room service", () => {
     expect(latest.session.game.phase).toBe("play");
   });
 
+  it("supports creating a room without the protected-entry head start", async () => {
+    const service = createTestService();
+    const host = await service.createRoom({
+      playerCount: 2,
+      teams: false,
+      startWithPieceOnEntry: false,
+    });
+
+    expect(host.room.session.game.players.every((player) =>
+      player.pieces.every((piece) => piece.position.zone === "reserve"),
+    )).toBe(true);
+  });
+
   it("stores only hashed player credentials", async () => {
     const store = new InMemoryRoomStore();
     const service = new RoomService(store, {
@@ -144,6 +157,51 @@ describe("online room service", () => {
       text: "Good luck!",
     })]);
     expect((await service.getRoomView("1234", host.access.playerToken)).chatMessages).toEqual(updated.chatMessages);
+  });
+
+  it("starts the next game in the same room while retaining match history and opposite teams", async () => {
+    const store = new InMemoryRoomStore();
+    let token = 0;
+    const service = new RoomService(store, {
+      createRoomId: () => "1234",
+      createPlayerToken: () => `token-${++token}`,
+      createRandomState: () => 12_345,
+    });
+    const host = await service.createRoom({ playerCount: 4, teams: true, playerName: "Ian" });
+    await service.joinRoom("1234", "Omi");
+    await service.joinRoom("1234", "Sunny");
+    await service.joinRoom("1234", "Fern");
+    const stored = await store.get("1234");
+    expect(stored).toBeDefined();
+    const completed = {
+      ...stored!.room,
+      chatMessages: [{ id: "old-chat", playerId: "P1" as const, text: "Good game", sentAt: 1 }],
+      session: {
+        ...stored!.room.session,
+        game: { ...stored!.room.session.game, winningTeam: ["P1", "P3"] as ["P1", "P3"] },
+      },
+    };
+    expect(await store.save(completed, stored!.version)).toBe(true);
+
+    const next = await service.startNextGame("1234", host.access.playerToken, {
+      dealer: "P2",
+      randomizeSeats: true,
+    });
+
+    expect(next.access.roomId).toBe("1234");
+    expect(next.access.playerId).toBe("P2");
+    expect(next.room.currentGameNumber).toBe(2);
+    expect(next.room.status).toBe("active");
+    expect(next.room.chatMessages).toEqual([]);
+    expect(next.room.session.revision).toBe(0);
+    expect(next.room.session.game.dealer).toBe("P3");
+    expect(next.room.matchHistory).toHaveLength(1);
+    expect(next.room.matchHistory[0]).toEqual(expect.objectContaining({
+      gameNumber: 1,
+      winnerParticipantIds: ["player-P1", "player-P3"],
+    }));
+    expect(next.room.playerNames.P2).toBe("Ian");
+    expect(next.room.playerNames.P4).toBe("Sunny");
   });
 
   it("rejects a stale atomic store update", async () => {

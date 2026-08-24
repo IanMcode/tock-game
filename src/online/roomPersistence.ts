@@ -1,6 +1,7 @@
 import { deserializeGameSnapshot, GAME_SNAPSHOT_VERSION } from "../game/persistence";
 import type { GameEvent, GameSession } from "../game/session";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
+import { getRulesetDefinition } from "../game/definition";
 import { parseCommandEnvelope } from "./protocol";
 import { DEFAULT_PLAYER_NAMES, type OnlineRoom } from "./roomService";
 
@@ -23,6 +24,8 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
   }
 
   const storedRoom = record.room as OnlineRoom;
+  const storedSession = storedRoom.session as GameSession;
+  const ruleset = getRulesetDefinition(storedSession.game.rulesetId);
   const room = {
     ...storedRoom,
     chatMessages: Array.isArray(storedRoom.chatMessages) ? storedRoom.chatMessages : [],
@@ -32,6 +35,21 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
           PLAYER_IDS.filter((playerId) => Boolean(storedRoom.seats?.[playerId]))
             .map((playerId) => [playerId, DEFAULT_PLAYER_NAMES[playerId]]),
         ),
+    participantIds: isRecord(storedRoom.participantIds)
+      ? storedRoom.participantIds
+      : Object.fromEntries(
+          storedSession.game.players.map((player) => [player.id, `player-${player.id}`]),
+        ),
+    matchHistory: Array.isArray(storedRoom.matchHistory) ? storedRoom.matchHistory : [],
+    currentGameNumber: Number.isSafeInteger(storedRoom.currentGameNumber) && Number(storedRoom.currentGameNumber) > 0
+      ? storedRoom.currentGameNumber
+      : 1,
+    configuration: isRecord(storedRoom.configuration)
+      ? storedRoom.configuration
+      : {
+          teams: ruleset.exchange === "partners",
+          startWithPieceOnEntry: true,
+        },
   } as OnlineRoom;
   validateRoom(room);
   return room;
@@ -46,6 +64,18 @@ function validateRoom(room: OnlineRoom): void {
   if (!isRecord(session.game)) throw new Error("The stored room has an invalid game.");
   if (!isRecord(room.seats)) throw new Error("The stored room has invalid seats.");
   if (!isRecord(room.playerNames)) throw new Error("The stored room has invalid player names.");
+  if (!isRecord(room.participantIds)) throw new Error("The stored room has invalid match participants.");
+  if (!Array.isArray(room.matchHistory)) throw new Error("The stored room has invalid match history.");
+  if (!Number.isSafeInteger(room.currentGameNumber) || Number(room.currentGameNumber) < 1) {
+    throw new Error("The stored room has an invalid game number.");
+  }
+  if (
+    !isRecord(room.configuration) ||
+    typeof room.configuration.teams !== "boolean" ||
+    typeof room.configuration.startWithPieceOnEntry !== "boolean"
+  ) {
+    throw new Error("The stored room has invalid game configuration.");
+  }
   if (room.joinOrder !== undefined && (
     !Array.isArray(room.joinOrder) ||
     room.joinOrder.length !== session.game.players.length ||
@@ -75,6 +105,15 @@ function validateRoom(room: OnlineRoom): void {
       throw new Error("The stored room has an invalid player name.");
     }
   }
+
+  for (const player of session.game.players) {
+    const participantId = room.participantIds?.[player.id];
+    if (typeof participantId !== "string" || !participantId || participantId.length > 64) {
+      throw new Error("The stored room has an invalid match participant.");
+    }
+  }
+
+  for (const game of room.matchHistory ?? []) validateMatchGame(game);
 
   for (const message of room.chatMessages) {
     if (
@@ -110,6 +149,36 @@ function validateRoom(room: OnlineRoom): void {
   }));
 
   session.events.forEach((event, index) => validateEvent(event, index + 1));
+}
+
+function validateMatchGame(value: unknown): void {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.gameNumber) ||
+    Number(value.gameNumber) < 1 ||
+    !Number.isSafeInteger(value.completedAt) ||
+    Number(value.completedAt) < 0 ||
+    !Array.isArray(value.winnerParticipantIds) ||
+    value.winnerParticipantIds.some((participantId) => typeof participantId !== "string" || !participantId) ||
+    !Array.isArray(value.players)
+  ) {
+    throw new Error("The stored room has an invalid match game.");
+  }
+  for (const player of value.players) {
+    if (
+      !isRecord(player) ||
+      typeof player.participantId !== "string" ||
+      typeof player.playerName !== "string" ||
+      !PLAYER_IDS.includes(player.seatId as PlayerId) ||
+      player.playerId !== player.seatId ||
+      !Number.isSafeInteger(player.jacksPlayed) ||
+      !Number.isSafeInteger(player.outCardsPlayed) ||
+      !Number.isSafeInteger(player.eliminations) ||
+      !isRecord(player.eliminatedPlayers)
+    ) {
+      throw new Error("The stored room has invalid match statistics.");
+    }
+  }
 }
 
 function validateEvent(value: unknown, expectedRevision: number): asserts value is GameEvent {

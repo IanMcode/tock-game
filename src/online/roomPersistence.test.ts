@@ -42,5 +42,9 @@ async function createRoom(): Promise<OnlineRoom> {
     playerNames: { P1: "Ian" },
     chatMessages: [],
     session: createGameSession(id, createGame({ randomState: 12_345 })),
+    participantIds: { P1: "player-P1", P2: "player-P2", P3: "player-P3", P4: "player-P4" },
+    matchHistory: [],
+    currentGameNumber: 1,
+    configuration: { teams: true, startWithPieceOnEntry: true },
   };
 }

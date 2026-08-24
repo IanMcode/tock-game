@@ -2,7 +2,7 @@ import type { CardMove } from "../game/turns";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
 import type { BoardPlayerCount } from "../game/definition";
-import type { CreateRoomOptions } from "./roomService";
+import type { CreateRoomOptions, StartNextGameOptions } from "./roomService";
 
 export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (value === undefined || value === null) return {};
@@ -17,6 +17,10 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (teams && playerCount !== 4) throw new Error("Team play requires four players.");
   const randomizeSeats = value.randomizeSeats ?? false;
   if (typeof randomizeSeats !== "boolean") throw new Error("Randomize seats must be true or false.");
+  const startWithPieceOnEntry = value.startWithPieceOnEntry ?? true;
+  if (typeof startWithPieceOnEntry !== "boolean") {
+    throw new Error("Start-with-piece-on-entry must be true or false.");
+  }
 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") {
@@ -31,6 +35,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     teams,
     dealer: dealer as PlayerId | "random",
     randomizeSeats,
+    startWithPieceOnEntry,
     ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
   };
 }
@@ -39,6 +44,16 @@ export function parseJoinRoomOptions(value: unknown): { playerName?: string } {
   if (value === undefined || value === null) return {};
   if (!isRecord(value)) throw new Error("Join options must be an object.");
   return value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) };
+}
+
+export function parseStartNextGameOptions(value: unknown): StartNextGameOptions {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) throw new Error("Next-game options must be an object.");
+  const randomizeSeats = value.randomizeSeats ?? false;
+  if (typeof randomizeSeats !== "boolean") throw new Error("Randomize seats must be true or false.");
+  const dealer = value.dealer ?? "random";
+  if (dealer !== "random") parsePlayerId(dealer);
+  return { randomizeSeats, dealer: dealer as PlayerId | "random" };
 }
 
 export function parseChatMessage(value: unknown): { messageId: string; text: string } {
