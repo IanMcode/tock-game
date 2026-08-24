@@ -10,6 +10,11 @@ import {
   sendOnlineChat,
   sendOnlineCommand,
 } from "../../src/online/client";
+import {
+  ACTIVE_ROOM_REFRESH_DELAY,
+  failedRoomRefreshDelay,
+  shouldForgetRoomAfterError,
+} from "../../src/online/polling";
 import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
@@ -40,7 +45,6 @@ import type { CardMove } from "../../src/game/turns";
 
 const ACCESS_KEY = "tock-online-room-access";
 const PLAY_LOG_ENTRY_LIMIT = 6;
-const ONLINE_REFRESH_INTERVAL = 750;
 const PLAYER_NAMES: Record<PlayerId, string> = {
   P1: "Poppy",
   P2: "River",
@@ -81,32 +85,59 @@ export default function OnlineLobby() {
   useEffect(() => {
     if (!access) return;
     let cancelled = false;
-    let refreshInFlight = false;
+    let refreshTimeout: number | undefined;
+    let consecutiveFailures = 0;
+
+    const clearRefreshTimeout = () => {
+      if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
+      refreshTimeout = undefined;
+    };
+
+    const scheduleRefresh = (delay: number) => {
+      clearRefreshTimeout();
+      if (cancelled || document.visibilityState !== "visible" || roomStatusRef.current === "complete") return;
+      refreshTimeout = window.setTimeout(() => void refresh(), delay);
+    };
+
     const refresh = async () => {
-      if (document.visibilityState !== "visible" || roomStatusRef.current === "complete" || refreshInFlight) return;
-      refreshInFlight = true;
+      clearRefreshTimeout();
+      if (cancelled || document.visibilityState !== "visible" || roomStatusRef.current === "complete") return;
       try {
         const next = await readOnlineRoom(access.roomId, access.playerToken);
         if (!cancelled) {
+          consecutiveFailures = 0;
           roomStatusRef.current = next.status;
           setRoom(next);
           setError(null);
+          if (next.status !== "complete") scheduleRefresh(ACTIVE_ROOM_REFRESH_DELAY);
         }
       } catch (refreshError) {
-        if (!cancelled) setError(messageFrom(refreshError));
-      } finally {
-        refreshInFlight = false;
+        if (cancelled) return;
+        setError(messageFrom(refreshError));
+        if (shouldForgetRoomAfterError(refreshError)) {
+          sessionStorage.removeItem(ACCESS_KEY);
+          roomStatusRef.current = null;
+          setAccess(null);
+          setRoom(null);
+          return;
+        }
+        consecutiveFailures += 1;
+        scheduleRefresh(failedRoomRefreshDelay(consecutiveFailures));
       }
     };
     const resumeVisibleRoom = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") {
+        consecutiveFailures = 0;
+        void refresh();
+      } else {
+        clearRefreshTimeout();
+      }
     };
-    void refresh();
-    const interval = window.setInterval(refresh, ONLINE_REFRESH_INTERVAL);
+    if (document.visibilityState === "visible") void refresh();
     document.addEventListener("visibilitychange", resumeVisibleRoom);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      clearRefreshTimeout();
       document.removeEventListener("visibilitychange", resumeVisibleRoom);
     };
   }, [access]);

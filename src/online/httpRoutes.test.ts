@@ -71,6 +71,18 @@ describe("online room HTTP routes", () => {
     expect(body.error.code).toBe("PLAYER_TOKEN_REQUIRED");
   });
 
+  it("requires a player token when reading a room", async () => {
+    const created = await readJson<RoomJoinResult>(await createRoom(emptyCreateRequest()));
+    const response = await getRoom(
+      new Request(`http://localhost/api/rooms/${created.access.roomId}`),
+      context(created.access.roomId),
+    );
+    const body = await readJson<{ error: { code: string } }>(response);
+
+    expect(response.status).toBe(401);
+    expect(body.error.code).toBe("PLAYER_TOKEN_REQUIRED");
+  });
+
   it("creates a configured smaller room", async () => {
     const response = await createRoom(new Request("http://localhost/api/rooms", {
       method: "POST",

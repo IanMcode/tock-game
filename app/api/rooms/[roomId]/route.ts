@@ -10,7 +10,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { roomId } = await context.params;
-    const token = getBearerToken(request, false);
+    const token = getBearerToken(request, true);
     return jsonResponse(await serverRoomService.getRoomView(roomId, token));
   } catch (error) {
     return onlineErrorResponse(error);

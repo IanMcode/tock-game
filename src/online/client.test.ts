@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createOnlineRoom, joinOnlineRoom, readOnlineRoom, sendOnlineChat } from "./client";
+import { createOnlineRoom, joinOnlineRoom, OnlineRequestError, readOnlineRoom, sendOnlineChat } from "./client";
 
 describe("online browser client", () => {
   it("sends room configuration as JSON", async () => {
@@ -45,9 +45,11 @@ describe("online browser client", () => {
 
   it("surfaces API error messages", async () => {
     const request = vi.fn(async () => Response.json({
-      error: { message: "Room is full." },
+      error: { code: "ROOM_FULL", message: "Room is full." },
     }, { status: 409 }));
 
-    await expect(readOnlineRoom("FULL", undefined, request as typeof fetch)).rejects.toThrow("Room is full");
+    const error = await readOnlineRoom("FULL", "secret", request as typeof fetch).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(OnlineRequestError);
+    expect(error).toMatchObject({ status: 409, code: "ROOM_FULL", message: "Room is full." });
   });
 });

@@ -28,11 +28,11 @@ export async function joinOnlineRoom(
 
 export async function readOnlineRoom(
   roomId: string,
-  playerToken?: string,
+  playerToken: string,
   request: OnlineFetch = fetch,
 ): Promise<RoomView> {
   return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}`, {
-    headers: playerToken ? { authorization: `Bearer ${playerToken}` } : undefined,
+    headers: { authorization: `Bearer ${playerToken}` },
   });
 }
 
@@ -73,10 +73,26 @@ async function requestJson<T>(request: OnlineFetch, input: string, init?: Reques
   const body: unknown = await response.json();
   if (!response.ok) {
     const error = isRecord(body) && isRecord(body.error) ? body.error : undefined;
+    const code = typeof error?.code === "string" ? error.code : "ONLINE_REQUEST_FAILED";
     const message = typeof error?.message === "string" ? error.message : undefined;
-    throw new Error(message ?? `Online request failed with status ${response.status}.`);
+    throw new OnlineRequestError(
+      response.status,
+      code,
+      message ?? `Online request failed with status ${response.status}.`,
+    );
   }
   return body as T;
+}
+
+export class OnlineRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "OnlineRequestError";
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
