@@ -49,20 +49,32 @@ describe("player board perspective", () => {
     }
   });
 
-  it("keeps the three-player reserve grids inside the board near each entry", () => {
+  it("anchors three-player reserve grids beside home and clear of the 12–18 edge", () => {
     const board = BOARD_DEFINITIONS[3];
 
     for (const playerId of board.playerIds) {
-      const entry = getBoardTrackPoint(getEntryIndex(playerId, board), board);
-      const reserveGrid = getBoardReserveGridPoint(playerId, board);
-      const distanceFromEntry = Math.hypot(reserveGrid.x - entry.x, reserveGrid.y - entry.y);
+      const rotation = getBoardPerspectiveRotation(playerId, board);
+      const reserveGrid = rotatePoint(getBoardReserveGridPoint(playerId, board), rotation);
+      const entry = rotatePoint(getBoardTrackPoint(getEntryIndex(playerId, board), board), rotation);
+      const homeSpaces = Array.from({ length: board.homeSize }, (_, index) =>
+        rotatePoint(getHomeLanePoint(playerId, index, board), rotation));
+      const playerEdge = [18, 17, 16, 15, 14, 13, 12].map((space) =>
+        rotatePoint(getBoardTrackPoint(getBoardTrackIndex(board, playerId, space), board), rotation));
 
       expect(reserveGrid.x).toBeGreaterThan(8);
       expect(reserveGrid.x).toBeLessThan(92);
       expect(reserveGrid.y).toBeGreaterThan(8);
       expect(reserveGrid.y).toBeLessThan(92);
-      expect(distanceFromEntry).toBeGreaterThan(8);
-      expect(distanceFromEntry).toBeLessThan(15);
+      expect(reserveGrid.x).toBeGreaterThan(Math.max(...homeSpaces.map((point) => point.x)) + 8);
+      expect(reserveGrid.y).toBeLessThan(entry.y - 7);
+      expect(Math.min(...playerEdge.map((point) => Math.hypot(
+        reserveGrid.x - point.x,
+        reserveGrid.y - point.y,
+      )))).toBeGreaterThan(8);
+      expect(Math.min(...homeSpaces.map((point) => Math.hypot(
+        reserveGrid.x - point.x,
+        reserveGrid.y - point.y,
+      )))).toBeGreaterThan(10);
     }
   });
 

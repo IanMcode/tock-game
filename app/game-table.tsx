@@ -1611,19 +1611,24 @@ export function getBoardReservePoint(
 export function getBoardReserveGridPoint(owner: PlayerId, board: BoardDefinition): BoardPoint {
   const entryIndex = getEntryIndex(owner, board);
   const entry = getBoardTrackPoint(entryIndex, board);
-  const next = getBoardTrackPoint((entryIndex + 1) % board.trackSize, board);
-  const inward = getInwardTrackNormal(entryIndex, board, entry);
-  const tangentLength = Math.hypot(next.x - entry.x, next.y - entry.y) || 1;
-  const towardNext = {
-    x: (next.x - entry.x) / tangentLength,
-    y: (next.y - entry.y) / tangentLength,
+  const homeEntranceIndex = getHomeEntranceIndex(owner, board);
+  const homeEntrance = getBoardTrackPoint(homeEntranceIndex, board);
+  const inward = getInwardTrackNormal(homeEntranceIndex, board, homeEntrance);
+  const alongPlayerEdgeLength = Math.hypot(
+    homeEntrance.x - entry.x,
+    homeEntrance.y - entry.y,
+  ) || 1;
+  const towardSpaceTwelve = {
+    x: (homeEntrance.x - entry.x) / alongPlayerEdgeLength,
+    y: (homeEntrance.y - entry.y) / alongPlayerEdgeLength,
   };
-  const inwardDistance = board.playerCount === 3 ? 9 : getBoardSpaceSize(board) * 2.1;
-  const forwardDistance = board.playerCount === 3 ? 5 : getBoardSpaceSize(board) * 1.2;
+  const spaceSize = getBoardSpaceSize(board);
+  const inwardDistance = spaceSize * 2.3;
+  const edgeDistance = spaceSize * 2.7;
 
   return roundPoint({
-    x: entry.x + inward.x * inwardDistance + towardNext.x * forwardDistance,
-    y: entry.y + inward.y * inwardDistance + towardNext.y * forwardDistance,
+    x: homeEntrance.x + inward.x * inwardDistance + towardSpaceTwelve.x * edgeDistance,
+    y: homeEntrance.y + inward.y * inwardDistance + towardSpaceTwelve.y * edgeDistance,
   });
 }
 
