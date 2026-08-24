@@ -41,6 +41,13 @@ export function getLatestAnimationTurn(
   return getUnseenAnimationTurns(events, event.revision - 1, event.revision)[0] ?? null;
 }
 
+export function getCurrentDealerRoundEvents(
+  events: readonly PublicGameEvent[],
+): PublicGameEvent[] {
+  const reshuffleIndex = events.findLastIndex((event) => event.startsNewDealerRound === true);
+  return events.slice(reshuffleIndex + 1);
+}
+
 export function getReplayStartingPieces(
   pieces: readonly Piece[],
   event: PublicGameEvent,

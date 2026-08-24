@@ -25,6 +25,7 @@ import type { BoardPlayerCount } from "../../src/game/definition";
 import type { PlayerId } from "../../src/game/types";
 import type { RoomAccess, RoomView } from "../../src/online/roomService";
 import {
+  getCurrentDealerRoundEvents,
   getLatestAnimationTurn,
   getReplayStartingPieces,
   getUnseenAnimationTurns,
@@ -448,6 +449,7 @@ function OnlineRoomTable({
   const [commandError, setCommandError] = useState<string | null>(null);
   const [isDealing, setIsDealing] = useState(false);
   const [pendingDealKey, setPendingDealKey] = useState<string | null>(null);
+  const [pendingDealClearsCards, setPendingDealClearsCards] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -476,6 +478,7 @@ function OnlineRoomTable({
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
+  const previousDealer = useRef(game.dealer);
   const setVisualPieces = useCallback((next: readonly Piece[]) => {
     const copy = next.map((piece) => ({ ...piece, position: { ...piece.position } }));
     displayPiecesRef.current = copy;
@@ -531,23 +534,31 @@ function OnlineRoomTable({
 
   useEffect(() => {
     if (previousDealKey.current === dealKey) return;
+    const dealerChanged = previousDealer.current !== game.dealer;
     previousDealKey.current = dealKey;
+    previousDealer.current = game.dealer;
     setPendingDealKey(dealKey);
-  }, [dealKey]);
+    setPendingDealClearsCards(dealerChanged);
+  }, [dealKey, game.dealer]);
 
   useEffect(() => {
     if (!pendingDealKey || isAnimating || incomingCard || isDealing) return;
     const pauseTimeout = window.setTimeout(() => {
+      if (pendingDealClearsCards) {
+        setDisplayedCards([]);
+        setIncomingCard(null);
+      }
       setIsDealing(true);
     }, ONLINE_POST_TURN_DEAL_PAUSE);
     return () => window.clearTimeout(pauseTimeout);
-  }, [incomingCard, isAnimating, isDealing, pendingDealKey]);
+  }, [incomingCard, isAnimating, isDealing, pendingDealClearsCards, pendingDealKey]);
 
   useEffect(() => {
     if (!isDealing) return;
     const dealTimeout = window.setTimeout(() => {
       setIsDealing(false);
       setPendingDealKey(null);
+      setPendingDealClearsCards(false);
     }, ONLINE_DEAL_DURATION);
     return () => window.clearTimeout(dealTimeout);
   }, [isDealing]);
@@ -559,10 +570,14 @@ function OnlineRoomTable({
     const previousRevision = displayedRevisionRef.current;
     displayedRevisionRef.current = targetRevision;
     const finalPieces = pieces.map((piece) => ({ ...piece, position: { ...piece.position } }));
+    const targetEvent = (room.session.events ?? []).find((event) => event.revision === targetRevision);
+    const endsDealerRound = targetEvent?.startsNewDealerRound === true;
     if (locallyAnimatedRevisionRef.current === targetRevision) {
       locallyAnimatedRevisionRef.current = null;
       setVisualPieces(finalPieces);
-      setDisplayedCards(getPresentedCards(room.session.events ?? []));
+      setDisplayedCards((current) => endsDealerRound
+        ? current
+        : getPresentedCards(room.session.events ?? []));
       setIncomingCard(null);
       return;
     }
@@ -612,7 +627,9 @@ function OnlineRoomTable({
     })().then(() => {
       if (animationRunRef.current !== runId) return;
       setVisualPieces(finalPieces);
-      setDisplayedCards(getPresentedCards(room.session.events ?? []));
+      if (!unseenTurns.some((turn) => turn.event.startsNewDealerRound)) {
+        setDisplayedCards(getPresentedCards(room.session.events ?? []));
+      }
       setHoppingPieces([]);
       setSwappingPieces([]);
       setCapturingPieceIds([]);
@@ -663,6 +680,7 @@ function OnlineRoomTable({
   }));
   const alreadyExchanged = Boolean(game.exchangeSelections[access.playerId]);
   const onlyFivesPlayable = playableIndexes.length > 0 && playableIndexes.every((index) => hand[index]?.rank === "5");
+  const mustDiscardForNoLegalMove = isMyTurn && !forcedDiscard && hand.length > 0 && playableIndexes.length === 0;
   const canDiscard = selectedCardIndex !== null && (
     forcedDiscard || playableIndexes.length === 0 || (onlyFivesPlayable && selectedCard?.rank !== "5")
   );
@@ -941,9 +959,14 @@ function OnlineRoomTable({
             style={{ "--deal-card-index": index } as React.CSSProperties}
             onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
             onDoubleClick={() => {
-              if (forcedDiscard) discardCard(index);
+              const canDoubleClickDiscard = forcedDiscard ||
+                playableIndexes.length === 0 ||
+                (onlyFivesPlayable && card.rank !== "5");
+              if (canDoubleClickDiscard) discardCard(index);
             }}
-            title={forcedDiscard ? "Double-click to discard this card" : undefined}
+            title={forcedDiscard || mustDiscardForNoLegalMove || (onlyFivesPlayable && card.rank !== "5")
+              ? "Double-click to discard this card"
+              : undefined}
             key={`${card.rank}-${card.suit}-${index}`}
           >
             <span>{card.rank}</span>
@@ -967,7 +990,14 @@ function OnlineRoomTable({
         </button>
       </div>}
       {forcedDiscard && hand.length > 0 && <p>Choose a card, then discard—or double-click it.</p>}
-      {selectedCard && isMyTurn && !forcedDiscard && <p>{destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>}
+      {mustDiscardForNoLegalMove && <p>No legal moves are available. You must discard—double-click a card, or select it and use the discard button.</p>}
+      {selectedCard && isMyTurn && !forcedDiscard && !mustDiscardForNoLegalMove && (
+        <p>{legalMoves.length === 0
+          ? canDiscard
+            ? "This card has no legal move and may be discarded—double-click it or use the discard button."
+            : "This card has no legal move while another card can be played. Choose a different card."
+          : destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>
+      )}
     </div>
   );
   const animatedPieceIds = new Set([
@@ -1194,8 +1224,9 @@ const ONLINE_REPLAY_END_PAUSE = 240;
 
 function getPresentedCards(events: readonly PublicGameEvent[]): PresentedCard[] {
   const cards: PresentedCard[] = [];
-  for (let index = events.length - 1; index >= 0 && cards.length < 2; index -= 1) {
-    const event = events[index];
+  const currentRoundEvents = getCurrentDealerRoundEvents(events);
+  for (let index = currentRoundEvents.length - 1; index >= 0 && cards.length < 2; index -= 1) {
+    const event = currentRoundEvents[index];
     if (!event?.card) continue;
     cards.push({ card: event.card, actor: event.actor, key: event.revision });
   }

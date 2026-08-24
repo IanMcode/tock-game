@@ -151,6 +151,9 @@ function validateEvent(value: unknown, expectedRevision: number): asserts value 
   ) {
     throw new Error("The stored room has invalid replay positions.");
   }
+  if ("startsNewDealerRound" in value && value.startsNewDealerRound !== true) {
+    throw new Error("The stored room has an invalid dealer-round marker.");
+  }
 }
 
 function isPiecePosition(value: unknown): boolean {

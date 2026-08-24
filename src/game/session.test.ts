@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createGame } from "./createGame";
 import { getLegalBasicCardMoves } from "./cardMoves";
+import { getRulesetDefinition } from "./definition";
 import {
   applySessionCommand,
   createGameSession,
@@ -62,6 +63,33 @@ describe("authoritative game sessions", () => {
         pieceId: move.kind === "split7" ? move.steps[0].pieceId : move.pieceId,
       }),
     ]));
+  });
+
+  it("marks the final turn before the dealer rotates and the deck reshuffles", () => {
+    const created = createGame({ playerCount: 2, teams: false, shuffle: false, dealer: "P2" });
+    const deck = [...created.players.flatMap((player) => player.hand), ...created.drawPile];
+    const finalCard = deck[0];
+    const game = {
+      ...created,
+      currentPlayer: "P1" as const,
+      forcedDiscardPlayer: "P1" as const,
+      dealIndex: getRulesetDefinition(created.rulesetId).dealSchedule.length - 1,
+      drawPile: [],
+      discardPile: deck.slice(1),
+      players: created.players.map((player) => ({
+        ...player,
+        hand: player.id === "P1" ? [finalCard] : [],
+      })),
+    };
+    const session = createGameSession("ROOM01", game);
+    const next = applySessionCommand(session, {
+      commandId: "final-discard",
+      expectedRevision: 0,
+      command: { type: "discard-card", actor: "P1", cardIndex: 0 },
+    });
+
+    expect(next.game.dealer).not.toBe(game.dealer);
+    expect(next.events[0].startsNewDealerRound).toBe(true);
   });
 
   it("returns the existing session when the same command is retried", () => {

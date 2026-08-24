@@ -25,6 +25,7 @@ export type GameEvent = {
   card?: Card | null;
   movedPieces?: MovedPieceDetail[];
   piecePositionsBefore?: PiecePositionBefore[];
+  startsNewDealerRound?: boolean;
 };
 
 export type MovedPieceDetail = { pieceId: string; spaces: number };
@@ -108,6 +109,7 @@ export function applySessionCommand(
   }
 
   const revision = session.revision + 1;
+  const startsNewDealerRound = game.dealer !== session.game.dealer;
   return {
     ...session,
     revision,
@@ -119,6 +121,7 @@ export function applySessionCommand(
       ...(envelope.command.type === "select-exchange-card" ? {} : { card }),
       ...(movedPieces ? { movedPieces } : {}),
       ...(piecePositionsBefore ? { piecePositionsBefore } : {}),
+      ...(startsNewDealerRound ? { startsNewDealerRound: true } : {}),
     }],
   };
 }

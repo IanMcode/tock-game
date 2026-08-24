@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PublicGameEvent } from "../game/view";
 import {
   getLatestAnimationTurn,
+  getCurrentDealerRoundEvents,
   getReplayStartingPieces,
   getUnseenAnimationMoves,
   getUnseenAnimationTurns,
@@ -89,5 +90,15 @@ describe("online animation event replay", () => {
       { id: "P2-1", owner: "P2", position: { zone: "track", index: 8, isEntryProtected: false } },
       pieces[2],
     ]);
+  });
+
+  it("starts the visible center pile after the latest dealer reshuffle", () => {
+    const events: PublicGameEvent[] = [
+      { revision: 4, actor: "P1", type: "play", card: { rank: "5", suit: "clubs" }, startsNewDealerRound: true },
+      { revision: 5, actor: "P2", type: "exchange", card: null },
+      { revision: 6, actor: "P2", type: "discard", card: { rank: "9", suit: "hearts" } },
+    ];
+
+    expect(getCurrentDealerRoundEvents(events)).toEqual(events.slice(1));
   });
 });

@@ -46,6 +46,7 @@ export type PublicGameEvent = {
   move?: CardMove;
   movedPieces?: MovedPieceDetail[];
   piecePositionsBefore?: PiecePositionBefore[];
+  startsNewDealerRound?: boolean;
 };
 
 export function createSessionView(
@@ -84,6 +85,7 @@ export function createSessionView(
               position: { ...detail.position },
             })),
           } : {}),
+          ...(event.startsNewDealerRound ? { startsNewDealerRound: true } : {}),
         };
       }
       return {
