@@ -298,11 +298,11 @@ export class RoomService {
     const selectedDealerParticipant = options.dealer && options.dealer !== "random"
       ? participantIdForSeat(completedRoom, options.dealer)
       : null;
-    const rotated = options.randomizeSeats
-      ? rotateRoomSeats(completedRoom, playerIds, this.randomState())
+    const randomized = options.randomizeSeats
+      ? randomizeRoomSeats(completedRoom, playerIds, configuration.teams, this.randomState())
       : completedRoom;
     const dealer = selectedDealerParticipant
-      ? playerIds.find((playerId) => participantIdForSeat(rotated, playerId) === selectedDealerParticipant)
+      ? playerIds.find((playerId) => participantIdForSeat(randomized, playerId) === selectedDealerParticipant)
       : undefined;
     const game = createGame({
       randomState: this.randomState(),
@@ -312,9 +312,9 @@ export class RoomService {
       ...(dealer ? { dealer } : {}),
     });
     const next: OnlineRoom = {
-      ...rotated,
+      ...randomized,
       chatMessages: [],
-      session: createGameSession(rotated.id, game),
+      session: createGameSession(randomized.id, game),
       currentGameNumber: (completedRoom.currentGameNumber ?? 1) + 1,
       configuration,
     };
@@ -423,23 +423,51 @@ function participantIdForSeat(room: OnlineRoom, playerId: PlayerId): string {
   return room.participantIds?.[playerId] ?? `player-${playerId}`;
 }
 
-function rotateRoomSeats(
+function randomizeRoomSeats(
   room: OnlineRoom,
   playerIds: readonly PlayerId[],
+  teams: boolean,
   randomState: number,
 ): OnlineRoom {
   if (playerIds.length < 2) return room;
-  const offset = 1 + (Math.abs(randomState) % (playerIds.length - 1));
+
+  const newSeatsForOldSeats = teams && playerIds.length === 4
+    ? randomizedTeamSeats(playerIds, randomState)
+    : randomizedFreeForAllSeats(playerIds, randomState);
   const seats: OnlineRoom["seats"] = {};
   const playerNames: OnlineRoom["playerNames"] = {};
   const participantIds: NonNullable<OnlineRoom["participantIds"]> = {};
   playerIds.forEach((oldSeat, index) => {
-    const newSeat = playerIds[(index + offset) % playerIds.length];
+    const newSeat = newSeatsForOldSeats[index];
     if (room.seats[oldSeat]) seats[newSeat] = room.seats[oldSeat];
     if (room.playerNames[oldSeat]) playerNames[newSeat] = room.playerNames[oldSeat];
     participantIds[newSeat] = participantIdForSeat(room, oldSeat);
   });
   return { ...room, seats, playerNames, participantIds, joinOrder: [...playerIds] };
+}
+
+function randomizedTeamSeats(
+  playerIds: readonly PlayerId[],
+  randomState: number,
+): PlayerId[] {
+  const randomized = [...playerIds];
+  // Opposite seats are 0/2 and 1/3. Pick one of the three non-identity
+  // outcomes so requesting randomized positions always changes turn order.
+  const swapMask = 1 + ((randomState >>> 0) % 3);
+  if (swapMask & 1) [randomized[0], randomized[2]] = [randomized[2], randomized[0]];
+  if (swapMask & 2) [randomized[1], randomized[3]] = [randomized[3], randomized[1]];
+  return randomized;
+}
+
+function randomizedFreeForAllSeats(
+  playerIds: readonly PlayerId[],
+  randomState: number,
+): PlayerId[] {
+  const randomized = shufflePlayerIds(playerIds, randomState);
+  if (randomized.every((playerId, index) => playerId === playerIds[index])) {
+    [randomized[0], randomized[1]] = [randomized[1], randomized[0]];
+  }
+  return randomized;
 }
 
 function cloneMatchHistory(history: readonly MatchGameRecord[]): MatchGameRecord[] {

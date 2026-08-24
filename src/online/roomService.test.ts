@@ -159,7 +159,7 @@ describe("online room service", () => {
     expect((await service.getRoomView("1234", host.access.playerToken)).chatMessages).toEqual(updated.chatMessages);
   });
 
-  it("starts the next game in the same room while retaining match history and opposite teams", async () => {
+  it("starts the next game with teammate-only seat swaps while retaining match history", async () => {
     const store = new InMemoryRoomStore();
     let token = 0;
     const service = new RoomService(store, {
@@ -189,19 +189,62 @@ describe("online room service", () => {
     });
 
     expect(next.access.roomId).toBe("1234");
-    expect(next.access.playerId).toBe("P2");
+    expect(next.access.playerId).toBe("P3");
     expect(next.room.currentGameNumber).toBe(2);
     expect(next.room.status).toBe("active");
     expect(next.room.chatMessages).toEqual([]);
     expect(next.room.session.revision).toBe(0);
-    expect(next.room.session.game.dealer).toBe("P3");
+    expect(next.room.session.game.dealer).toBe("P2");
     expect(next.room.matchHistory).toHaveLength(1);
     expect(next.room.matchHistory[0]).toEqual(expect.objectContaining({
       gameNumber: 1,
       winnerParticipantIds: ["player-P1", "player-P3"],
     }));
-    expect(next.room.playerNames.P2).toBe("Ian");
-    expect(next.room.playerNames.P4).toBe("Sunny");
+    expect(next.room.playerNames.P3).toBe("Ian");
+    expect(next.room.playerNames.P1).toBe("Sunny");
+    expect(next.room.playerNames.P2).toBe("Omi");
+    expect(next.room.playerNames.P4).toBe("Fern");
+    const nextStored = await store.get("1234");
+    expect(nextStored?.room.participantIds?.P3).toBe("player-P1");
+    expect(nextStored?.room.participantIds?.P1).toBe("player-P3");
+    expect(nextStored?.room.participantIds?.P2).toBe("player-P2");
+    expect(nextStored?.room.participantIds?.P4).toBe("player-P4");
+  });
+
+  it("genuinely shuffles free-for-all seats when starting the next game", async () => {
+    const store = new InMemoryRoomStore();
+    let token = 0;
+    const service = new RoomService(store, {
+      createRoomId: () => "1234",
+      createPlayerToken: () => `token-${++token}`,
+      createRandomState: () => 0,
+    });
+    const host = await service.createRoom({ playerCount: 3, teams: false, playerName: "Ian" });
+    await service.joinRoom("1234", "Omi");
+    await service.joinRoom("1234", "Sunny");
+    const stored = await store.get("1234");
+    expect(stored).toBeDefined();
+    const completed = {
+      ...stored!.room,
+      session: {
+        ...stored!.room.session,
+        game: { ...stored!.room.session.game, winningTeam: ["P1"] as ["P1"] },
+      },
+    };
+    expect(await store.save(completed, stored!.version)).toBe(true);
+
+    const next = await service.startNextGame("1234", host.access.playerToken, {
+      randomizeSeats: true,
+    });
+
+    expect(next.access.playerId).not.toBe("P1");
+    expect(Object.values(next.room.playerNames)).toEqual(expect.arrayContaining(["Ian", "Omi", "Sunny"]));
+    const nextStored = await store.get("1234");
+    expect(new Set(Object.values(nextStored?.room.participantIds ?? {}))).toEqual(new Set([
+      "player-P1",
+      "player-P2",
+      "player-P3",
+    ]));
   });
 
   it("rejects a stale atomic store update", async () => {
