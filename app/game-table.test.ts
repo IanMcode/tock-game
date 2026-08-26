@@ -18,7 +18,12 @@ describe("player board perspective", () => {
     const expectedCorners = {
       2: [{ x: 78, y: 90 }, { x: 22, y: 10 }],
       3: [{ x: 63.8564, y: 90 }, { x: 8.4308, y: 42 }, { x: 77.7128, y: 18 }],
-      4: [{ x: 65, y: 90 }, { x: 10, y: 65 }, { x: 35, y: 10 }, { x: 90, y: 35 }],
+      4: [
+        { x: 60.187, y: 89 },
+        { x: 11, y: 60.187 },
+        { x: 39.813, y: 11 },
+        { x: 89, y: 39.813 },
+      ],
     } as const;
 
     for (const board of Object.values(BOARD_DEFINITIONS)) {
@@ -32,6 +37,17 @@ describe("player board perspective", () => {
 
   it("spaces every three-player track position evenly", () => {
     const board = BOARD_DEFINITIONS[3];
+    const distances = Array.from({ length: board.trackSize }, (_, index) => {
+      const point = getBoardTrackPoint(index, board);
+      const next = getBoardTrackPoint((index + 1) % board.trackSize, board);
+      return Math.hypot(next.x - point.x, next.y - point.y);
+    });
+
+    expect(Math.max(...distances) - Math.min(...distances)).toBeLessThan(0.001);
+  });
+
+  it("spaces every four-player track position evenly", () => {
+    const board = BOARD_DEFINITIONS[4];
     const distances = Array.from({ length: board.trackSize }, (_, index) => {
       const point = getBoardTrackPoint(index, board);
       const next = getBoardTrackPoint((index + 1) % board.trackSize, board);

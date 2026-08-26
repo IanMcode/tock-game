@@ -34,6 +34,13 @@ import {
   getUnseenAnimationTurns,
 } from "../../src/online/animation";
 import { describePublicGameEvent } from "../../src/online/history";
+import { findReceivedExchangeCard } from "../../src/online/exchangeReceipt";
+import {
+  getLobbyTeamNumber,
+  moveLobbyPlayerToTeam,
+  randomizeLobbyTeamSeats,
+  type LobbyTeamNumber,
+} from "../../src/online/lobbyTeams";
 import {
   Board,
   BoardReserve,
@@ -61,6 +68,7 @@ import type { PublicGameEvent } from "../../src/game/view";
 const ACCESS_KEY = "tock-online-room-access";
 const PLAY_LOG_ENTRY_LIMIT = 6;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
+type ExchangeReceipt = { sent: Card; received: Card };
 const PLAYER_NAMES: Record<PlayerId, string> = {
   P1: "Poppy",
   P2: "River",
@@ -317,6 +325,14 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     });
   }
 
+  function assignLobbyTeam(playerId: PlayerId, team: LobbyTeamNumber) {
+    setLobbySeatOrder(moveLobbyPlayerToTeam(effectiveLobbySeatOrder, playerId, team));
+  }
+
+  function randomizeLobbyTeams() {
+    setLobbySeatOrder(randomizeLobbyTeamSeats(effectiveLobbySeatOrder));
+  }
+
   async function startRoom() {
     if (!access || !room) return;
     setBusy(true);
@@ -356,6 +372,8 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
 
   if (access) {
     const isGameRoom = room?.status === "active" || room?.status === "complete";
+    const isLobbyReady = room?.status === "waiting" && room.connectedPlayers.length === room.requiredPlayers;
+    const isTeamLobby = Boolean(room && getRulesetDefinition(room.session.game.rulesetId).exchange === "partners");
     return (
       <main className={`online-shell ${isGameRoom ? "online-shell-active" : ""}`}>
         {!isGameRoom && <header className="online-header">
@@ -383,41 +401,25 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
           </div>
         </section>}
 
-        {room && room.status === "waiting" && room.connectedPlayers.length === room.requiredPlayers && (
+        {room && isLobbyReady && (
           <section className="lobby-start-panel" aria-label="Pre-game table setup">
             <div className="lobby-start-heading">
               <div>
                 <p className="eyebrow">Table setup</p>
-                <h2>{getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? "Choose the teams" : "Choose the turn order"}</h2>
+                <h2>{isTeamLobby ? "Set the teams" : "Choose the turn order"}</h2>
+                <p>{isTeamLobby ? "Assign two players to each team. Teammates will be seated opposite one another." : "Arrange the players around the table before starting."}</p>
               </div>
               {!room.isHost && <span>Only the host can change seats and start.</span>}
             </div>
-            <div className={`lobby-seat-assignment ${getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? "is-team-game" : ""}`}>
-              {room.session.game.players.map((seat, index) => {
-                const occupant = effectiveLobbySeatOrder[index] ?? seat.id;
-                const teamNumber = seat.id === "P1" || seat.id === "P3" ? 1 : 2;
-                return (
-                  <label key={seat.id}>
-                    <span>{getRulesetDefinition(room.session.game.rulesetId).exchange === "partners" ? `Team ${teamNumber}` : `Position ${index + 1}`} · {seat.id}</span>
-                    <select
-                      value={occupant}
-                      disabled={!room.isHost || busy}
-                      onChange={(event) => assignLobbySeat(index, event.target.value as PlayerId)}
-                    >
-                      {room.connectedPlayers.map((playerId) => (
-                        <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</option>
-                      ))}
-                    </select>
-                  </label>
-                );
-              })}
-            </div>
             {room.isHost && (
               <div className="lobby-start-actions">
+                {isTeamLobby && <button className="lobby-randomize-teams" type="button" disabled={busy} onClick={randomizeLobbyTeams}>
+                  Randomize Teams
+                </button>}
                 <label>
-                  <span>First dealer</span>
+                  <span>Who deals first?</span>
                   <select value={lobbyDealer} disabled={busy} onChange={(event) => setLobbyDealer(event.target.value as PlayerId | "random")}>
-                    <option value="random">Random</option>
+                    <option value="random">Choose randomly</option>
                     {room.connectedPlayers.map((playerId) => (
                       <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</option>
                     ))}
@@ -431,15 +433,39 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
           </section>
         )}
 
-        {!isGameRoom && <section className="seat-grid" aria-label="Room seats">
+        {!isGameRoom && <section className={`seat-grid ${isLobbyReady ? "is-configuring" : ""}`} aria-label="Room seats">
           {room ? Array.from({ length: room.requiredPlayers }, (_, index) => {
             const playerId = `P${index + 1}` as PlayerId;
             const connected = room.connectedPlayers.includes(playerId);
+            const assignedSeatIndex = effectiveLobbySeatOrder.indexOf(playerId);
+            const assignedSeat = assignedSeatIndex >= 0 ? `P${assignedSeatIndex + 1}` as PlayerId : playerId;
             return (
               <article className={connected ? "seat-card is-connected" : "seat-card"} key={playerId}>
                 <span>{playerId}</span>
                 <strong>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</strong>
                 <small>{connected ? "Connected" : "Open seat"}</small>
+                {connected && isLobbyReady && isTeamLobby && <label className="seat-team-control">
+                  <span>Team</span>
+                  <select
+                    value={getLobbyTeamNumber(effectiveLobbySeatOrder, playerId)}
+                    disabled={!room.isHost || busy}
+                    onChange={(event) => assignLobbyTeam(playerId, Number(event.target.value) as LobbyTeamNumber)}
+                  >
+                    <option value={1}>Team 1</option>
+                    <option value={2}>Team 2</option>
+                  </select>
+                  <small>Opposite seat · {assignedSeat}</small>
+                </label>}
+                {connected && isLobbyReady && !isTeamLobby && <label className="seat-team-control">
+                  <span>Board position</span>
+                  <select
+                    value={assignedSeatIndex}
+                    disabled={!room.isHost || busy}
+                    onChange={(event) => assignLobbySeat(Number(event.target.value), playerId)}
+                  >
+                    {effectiveLobbySeatOrder.map((_, seatIndex) => <option value={seatIndex} key={seatIndex}>Position {seatIndex + 1}</option>)}
+                  </select>
+                </label>}
               </article>
             );
           }) : <p>Connecting to room…</p>}
@@ -578,6 +604,8 @@ function OnlineRoomTable({
   const [rematchRandomizeSeats, setRematchRandomizeSeats] = useState(true);
   const [rematchDealer, setRematchDealer] = useState<PlayerId | "random">("random");
   const [rematchBusy, setRematchBusy] = useState(false);
+  const [submittedExchange, setSubmittedExchange] = useState<{ card: Card; index: number } | null>(null);
+  const [exchangeReceipt, setExchangeReceipt] = useState<ExchangeReceipt | null>(null);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -596,6 +624,8 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const previousDealer = useRef(game.dealer);
+  const previousPhase = useRef(game.phase);
+  const exchangeSubmission = useRef<{ sent: Card; handBefore: Card[] } | null>(null);
   const setVisualPieces = useCallback((next: readonly Piece[]) => {
     const copy = next.map((piece) => ({ ...piece, position: { ...piece.position } }));
     displayPiecesRef.current = copy;
@@ -654,6 +684,24 @@ function OnlineRoomTable({
     setPendingDealKey(dealKey);
     setPendingDealClearsCards(dealerChanged);
   }, [dealKey, game.dealer]);
+
+  useEffect(() => {
+    const wasExchange = previousPhase.current === "exchange";
+    previousPhase.current = game.phase;
+    if (!wasExchange || game.phase !== "play" || !exchangeSubmission.current) return;
+
+    const { sent, handBefore } = exchangeSubmission.current;
+    const received = findReceivedExchangeCard(handBefore, hand, sent);
+    exchangeSubmission.current = null;
+    setSubmittedExchange(null);
+    if (received) setExchangeReceipt({ sent, received });
+  }, [game.phase, hand]);
+
+  useEffect(() => {
+    if (!exchangeReceipt) return;
+    const timeout = window.setTimeout(() => setExchangeReceipt(null), ONLINE_EXCHANGE_RECEIPT_DURATION);
+    return () => window.clearTimeout(timeout);
+  }, [exchangeReceipt]);
 
   useEffect(() => {
     if (!pendingDealKey || isAnimating || incomingCard || isDealing) return;
@@ -869,7 +917,22 @@ function OnlineRoomTable({
     await submit({ type: "play-card", actor: access.playerId, cardIndex: selectedCardIndex, move });
   }
 
-  async function submit(command: GameCommand) {
+  async function passSelectedExchangeCard() {
+    if (selectedCardIndex === null || !selectedCard || alreadyExchanged || busy) return;
+    exchangeSubmission.current = { sent: selectedCard, handBefore: [...hand] };
+    setSubmittedExchange({ card: selectedCard, index: selectedCardIndex });
+    const submitted = await submit({
+      type: "select-exchange-card",
+      actor: access.playerId,
+      cardIndex: selectedCardIndex,
+    });
+    if (!submitted) {
+      exchangeSubmission.current = null;
+      setSubmittedExchange(null);
+    }
+  }
+
+  async function submit(command: GameCommand): Promise<boolean> {
     setBusy(true);
     setCommandError(null);
     try {
@@ -880,6 +943,7 @@ function OnlineRoomTable({
       });
       onRoom(next);
       resetSelection();
+      return true;
     } catch (submitError) {
       displayPiecesRef.current = [...pieces];
       setDisplayPieces([...pieces]);
@@ -890,6 +954,7 @@ function OnlineRoomTable({
       } catch {
         // Keep the command error visible if refreshing also fails.
       }
+      return false;
     } finally {
       setBusy(false);
     }
@@ -1015,10 +1080,10 @@ function OnlineRoomTable({
         {hand.map((card, index) => (
           <button
             type="button"
-            className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""}`}
+            className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""} ${submittedExchange?.index === index ? "is-exchange-selected" : ""}`}
             disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
             style={{ "--deal-card-index": index } as React.CSSProperties}
-            onClick={() => game.phase === "exchange" ? void submit({ type: "select-exchange-card", actor: access.playerId, cardIndex: index }) : chooseCard(index)}
+            onClick={() => chooseCard(index)}
             onDoubleClick={() => {
               const canDoubleClickDiscard = forcedDiscard ||
                 playableIndexes.length === 0 ||
@@ -1036,7 +1101,15 @@ function OnlineRoomTable({
         ))}
         {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
       </div>
-      {game.phase === "exchange" && <p>{alreadyExchanged ? "Card chosen. Waiting for the other players." : "Choose one card to pass to your teammate."}</p>}
+      {game.phase === "exchange" && !alreadyExchanged && <div className="online-hand-actions exchange-actions">
+        <button className="online-cancel-selection" type="button" disabled={busy || selectedCardIndex === null} onClick={() => resetSelection()}>
+          Cancel selection
+        </button>
+        <button className="online-pass-card" type="button" disabled={busy || selectedCardIndex === null} onClick={() => void passSelectedExchangeCard()}>
+          Pass selected card
+        </button>
+      </div>}
+      {game.phase === "exchange" && <p>{alreadyExchanged ? "Card locked in. Waiting for the other players to choose." : selectedCardIndex === null ? "Choose one card to pass to your teammate." : "Selected card ready. Pass it, or cancel and choose another."}</p>}
       {isMyTurn && game.phase === "play" && <div className="online-hand-actions">
         <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !hasSelection} onClick={() => resetSelection()}>
           Cancel selection
@@ -1059,6 +1132,17 @@ function OnlineRoomTable({
             : "This card has no legal move while another card can be played. Choose a different card."
           : destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>
       )}
+      {exchangeReceipt && <div className="online-exchange-receipt" role="status" aria-live="polite">
+        <article>
+          <span>Sent to partner</span>
+          <PlayingCardGraphic card={exchangeReceipt.sent} />
+        </article>
+        <i aria-hidden="true">→</i>
+        <article>
+          <span>Received from partner</span>
+          <PlayingCardGraphic card={exchangeReceipt.received} />
+        </article>
+      </div>}
     </div>
   );
   const animatedPieceIds = new Set([
@@ -1346,6 +1430,7 @@ const ONLINE_SWAP_DURATION = 720;
 const ONLINE_CARD_PLAY_DURATION = 720;
 const ONLINE_CARD_SETTLE_DURATION = 34;
 const ONLINE_DEAL_DURATION = 1_050;
+const ONLINE_EXCHANGE_RECEIPT_DURATION = 4_200;
 const ONLINE_POST_TURN_DEAL_PAUSE = 420;
 const ONLINE_REPLAY_RESET_PAUSE = 320;
 const ONLINE_REPLAY_END_PAUSE = 240;

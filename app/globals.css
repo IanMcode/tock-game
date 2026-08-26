@@ -392,6 +392,7 @@ button { font: inherit; }
 .lobby-start-panel { display: grid; gap: 18px; margin-top: 18px; padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,253,247,.94); box-shadow: 0 14px 38px rgba(28,58,47,.08); }
 .lobby-start-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .lobby-start-heading h2 { margin-top: 5px; font-family: Georgia,serif; font-size: 28px; font-weight: 500; }
+.lobby-start-heading p { max-width: 620px; margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .lobby-start-heading > span { color: var(--muted); font-size: 11px; }
 .lobby-seat-assignment { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
 .lobby-seat-assignment label, .lobby-start-actions label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 800; }
@@ -400,7 +401,18 @@ button { font: inherit; }
 .lobby-seat-assignment.is-team-game label:nth-child(2), .lobby-seat-assignment.is-team-game label:nth-child(4) { border-top: 4px solid #0864bb; }
 .lobby-seat-assignment select, .lobby-start-actions select { min-width: 0; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: white; font: inherit; }
 .lobby-seat-assignment select:disabled { color: var(--ink); opacity: 1; }
-.lobby-start-actions { display: grid; grid-template-columns: minmax(180px,280px) minmax(180px,260px); align-items: end; justify-content: end; gap: 12px; }
+.lobby-start-actions { display: grid; grid-template-columns: minmax(160px,220px) minmax(220px,300px) minmax(180px,260px); align-items: end; justify-content: end; gap: 12px; }
+.lobby-start-actions label { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #f5f7f2; }
+.lobby-start-actions label > span { color: var(--ink); font-size: 11px; }
+.lobby-start-actions select { margin-top: 2px; font-size: 12px; font-weight: 700; }
+.lobby-randomize-teams { min-height: 44px; padding: 10px 13px; border: 1px solid #8ba99b; border-radius: 10px; color: var(--green); background: #edf6f0; cursor: pointer; font-weight: 800; }
+.lobby-randomize-teams:disabled { cursor: default; opacity: .5; }
+.seat-grid.is-configuring .seat-card { min-height: 170px; align-content: start; }
+.seat-team-control { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.seat-team-control > span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.seat-team-control select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: white; font: inherit; font-weight: 800; }
+.seat-team-control select:disabled { opacity: 1; }
+.seat-team-control small { color: var(--muted); font-size: 9px; }
 .online-ready-note { display: grid; gap: 4px; margin-top: 18px; padding: 18px 20px; border-color: #8bc5aa; background: #e7f5ed; }
 .online-ready-note span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .leave-room-button { margin-top: 22px; padding: 10px 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; text-decoration: underline; }
@@ -508,6 +520,8 @@ button { font: inherit; }
 .online-card > strong { position: absolute; inset: 22% 0 0; display: grid; place-items: center; font-size: 25px; line-height: 1; }
 .online-card:not(:disabled):hover, .online-card.is-selected { transform: translateY(-7px); box-shadow: 0 11px 20px rgba(32,48,40,.17); }
 .online-card.is-selected { outline: 3px solid var(--green); }
+.online-card.is-exchange-selected { opacity: 1; outline: 3px solid #c99a24; box-shadow: 0 0 0 6px rgba(201,154,36,.16), 0 11px 20px rgba(32,48,40,.17); }
+.online-card.is-exchange-selected::after { content: "✓"; position: absolute; right: -8px; top: -9px; z-index: 3; width: 23px; height: 23px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: #b9870c; box-shadow: 0 3px 9px rgba(50,42,20,.2); font-size: 12px; font-weight: 900; }
 .online-card:disabled { cursor: default; opacity: .58; }
 .online-hand-panel.is-forced-discard .online-card { opacity: .62; filter: saturate(.72); }
 .online-hand-panel.is-forced-discard .online-card:hover, .online-hand-panel.is-forced-discard .online-card.is-selected { opacity: 1; filter: none; }
@@ -517,7 +531,18 @@ button { font: inherit; }
 .online-discard:disabled { cursor: default; opacity: .4; }
 .online-cancel-selection { padding: 9px 12px; border: 1px solid #b9c5bd; border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.8); cursor: pointer; font-weight: 800; }
 .online-cancel-selection:disabled { cursor: default; opacity: .35; }
+.online-pass-card { padding: 11px 13px; border: 1px solid var(--green); border-radius: 10px; color: white; background: var(--green); cursor: pointer; font-weight: 800; }
+.online-pass-card:disabled { cursor: default; opacity: .4; }
+.exchange-actions { min-width: 170px; }
 .online-hand-panel > p { grid-column: 2 / -1; margin: -10px 0 0; color: var(--muted); font-size: 11px; }
+.online-exchange-receipt { position: absolute; inset: 7px; z-index: 12; display: flex; align-items: center; justify-content: center; gap: 18px; border: 1px solid #d8c79c; border-radius: 14px; background: rgba(255,253,247,.97); box-shadow: 0 12px 34px rgba(28,58,47,.18); pointer-events: none; animation: exchange-receipt 4.2s ease both; }
+.online-exchange-receipt article { display: grid; grid-template-columns: auto 48px; align-items: center; gap: 9px; }
+.online-exchange-receipt article > span { max-width: 82px; color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .05em; line-height: 1.25; text-transform: uppercase; }
+.online-exchange-receipt > i { color: #a37c20; font-family: Georgia,serif; font-size: 24px; font-style: normal; }
+.online-exchange-receipt .table-card { width: 46px; border-radius: 6px; box-shadow: inset 0 0 0 2px #fff, 0 4px 10px rgba(0,0,0,.16); animation: none; }
+.online-exchange-receipt .table-card > strong { font-size: 21px; }
+.online-exchange-receipt .table-card-corner { font-size: 8px; }
+@keyframes exchange-receipt { 0% { opacity: 0; transform: translateY(8px) scale(.98); } 8%,85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-5px) scale(.99); } }
 .online-victory { position: absolute; left: 50%; top: 50%; z-index: 30; width: min(560px, calc(100% - 40px)); max-height: calc(100% - 40px); overflow-y: auto; padding: 24px; border: 2px solid #d7b64c; border-radius: 22px; transform: translate(-50%,-50%); color: var(--ink); background: rgba(255,253,247,.97); box-shadow: 0 24px 70px rgba(15,50,40,.3); text-align: center; }
 .online-victory h2 { margin: 5px 0 7px; font-family: Georgia, serif; font-size: clamp(30px, 5vw, 48px); font-weight: 500; }
 .online-victory > p:not(.eyebrow) { margin: 0; color: var(--muted); }

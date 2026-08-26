@@ -1649,9 +1649,16 @@ function getFourPlayerTrackPoint(trackIndex: number, board: BoardDefinition): Bo
 }
 
 function getFourPlayerSeatPoint(playerIndex: number, endpoint: "start" | "end"): BoardPoint {
+  // A four-player section contains six intervals along its 12–18 seat edge
+  // and twelve intervals around the connector to the next seat. Solving those
+  // lengths against a square with clipped corners gives one shared interval,
+  // so neither portion of the track bunches up.
+  const boardRadius = 39;
+  const interval = boardRadius / (3 + 6 * Math.SQRT2);
+  const seatHalfWidth = interval * 3;
   const base = endpoint === "start"
-    ? { x: 65, y: 90 }
-    : { x: 35, y: 90 };
+    ? { x: 50 + seatHalfWidth, y: 50 + boardRadius }
+    : { x: 50 - seatHalfWidth, y: 50 + boardRadius };
   return rotateBoardPoint(base, playerIndex * 90);
 }
 
