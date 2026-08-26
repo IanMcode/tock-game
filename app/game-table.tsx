@@ -98,13 +98,13 @@ const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> =
   off: { hop: 0, swap: 0 },
 };
 
-const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string; edge: string }> = {
-  black: { label: "Black", color: "#111827", soft: "#D9DCE2", ink: "#FFFFFF", edge: "#FFFFFF" },
-  white: { label: "White", color: "#FFFFFF", soft: "#F4F4EF", ink: "#111827", edge: "#173D33" },
-  blue: { label: "Blue", color: "#0057B8", soft: "#D9E7F7", ink: "#FFFFFF", edge: "#FFFFFF" },
-  yellow: { label: "Yellow", color: "#F2C94C", soft: "#FFF0B8", ink: "#111827", edge: "#7A5B00" },
-  "light-red": { label: "Light red", color: "#E85D75", soft: "#FADDE2", ink: "#111827", edge: "#FFFFFF" },
-  orange: { label: "Orange", color: "#F28E2B", soft: "#FCE4CC", ink: "#111827", edge: "#FFFFFF" },
+const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string; edge: string; borderWidth: string; text: string }> = {
+  black: { label: "Black", color: "#111827", soft: "#D9DCE2", ink: "#FFFFFF", edge: "#FFFFFF", borderWidth: "1px", text: "#111827" },
+  white: { label: "White", color: "#FFFFFF", soft: "#F4F4EF", ink: "#111827", edge: "#000000", borderWidth: "2px", text: "#111827" },
+  blue: { label: "Blue", color: "#0057B8", soft: "#D9E7F7", ink: "#FFFFFF", edge: "#FFFFFF", borderWidth: "1px", text: "#0057B8" },
+  yellow: { label: "Yellow", color: "#F2C94C", soft: "#FFF0B8", ink: "#111827", edge: "#7A5B00", borderWidth: "1px", text: "#684C00" },
+  "light-red": { label: "Light red", color: "#E85D75", soft: "#FADDE2", ink: "#111827", edge: "#FFFFFF", borderWidth: "1px", text: "#9A263E" },
+  orange: { label: "Orange", color: "#F28E2B", soft: "#FCE4CC", ink: "#111827", edge: "#FFFFFF", borderWidth: "1px", text: "#8A3F00" },
 };
 
 const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
@@ -937,6 +937,8 @@ export function BoardReserve({
       style={{
         "--reserve": playerColorVar(owner),
         "--reserve-soft": playerSoftVar(owner),
+        "--reserve-edge": playerEdgeVar(owner),
+        "--reserve-label": playerLabelVar(owner),
         ...style,
       } as React.CSSProperties}
       aria-label={`${playerName}'s reserve`}
@@ -1465,6 +1467,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
         "--piece": playerColorVar(piece.owner),
         "--piece-ink": playerInkVar(piece.owner),
         "--piece-outline": playerEdgeVar(piece.owner),
+        "--piece-border-width": playerBorderWidthVar(piece.owner),
         "--piece-shape": playerShapeVar(piece.owner),
         "--piece-pip-offset": `var(--pip-offset-${piece.owner.toLowerCase()})`,
       } as React.CSSProperties}
@@ -1785,6 +1788,14 @@ function playerEdgeVar(playerId: PlayerId) {
   return `var(--color-${playerId.toLowerCase()}-edge)`;
 }
 
+function playerBorderWidthVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()}-border-width)`;
+}
+
+function playerLabelVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()}-label)`;
+}
+
 function playerShapeVar(playerId: PlayerId) {
   return `var(--shape-${playerId.toLowerCase()})`;
 }
@@ -1800,6 +1811,8 @@ function getPlayerAppearanceVariables(
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
     variables[`--color-${playerId.toLowerCase()}-ink`] = color.ink;
     variables[`--color-${playerId.toLowerCase()}-edge`] = color.edge;
+    variables[`--color-${playerId.toLowerCase()}-border-width`] = color.borderWidth;
+    variables[`--color-${playerId.toLowerCase()}-label`] = color.text;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
     variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "12%" : "0%";
     return variables;

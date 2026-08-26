@@ -41,6 +41,23 @@ export function randomizeLobbyTeamSeats(
   return [shuffled[0], shuffled[2], shuffled[1], shuffled[3]];
 }
 
+export function randomizeLobbySeats(
+  players: readonly PlayerId[],
+  random: () => number = Math.random,
+): PlayerId[] {
+  if (players.length < 2 || new Set(players).size !== players.length) {
+    throw new Error("Board position randomization requires at least two unique players.");
+  }
+  const shuffled = [...players];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.every((playerId, index) => playerId === players[index])
+    ? [...shuffled.slice(1), shuffled[0]]
+    : shuffled;
+}
+
 function assertFourUniquePlayers(players: readonly PlayerId[]) {
   if (players.length !== 4 || new Set(players).size !== 4) {
     throw new Error("Team assignment requires four unique players.");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getLobbyTeamNumber, moveLobbyPlayerToTeam, randomizeLobbyTeamSeats } from "./lobbyTeams";
+import { getLobbyTeamNumber, moveLobbyPlayerToTeam, randomizeLobbySeats, randomizeLobbyTeamSeats } from "./lobbyTeams";
 
 describe("lobby team assignment", () => {
   it("keeps two players on each opposite-seat team when a player changes teams", () => {
@@ -22,5 +22,10 @@ describe("lobby team assignment", () => {
     expect([randomized[0], randomized[2]]).not.toEqual(["P1", "P3"]);
     expect(randomized.filter((player) => getLobbyTeamNumber(randomized, player) === 1)).toHaveLength(2);
     expect(randomized.filter((player) => getLobbyTeamNumber(randomized, player) === 2)).toHaveLength(2);
+  });
+
+  it("randomizes free-for-all board positions without leaving everyone in place", () => {
+    expect(randomizeLobbySeats(["P1", "P2", "P3"], () => 0.99)).toEqual(["P2", "P3", "P1"]);
+    expect(randomizeLobbySeats(["P1", "P2", "P3"], () => 0)).toEqual(["P2", "P3", "P1"]);
   });
 });

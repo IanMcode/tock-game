@@ -38,6 +38,7 @@ import { findReceivedExchangeCard } from "../../src/online/exchangeReceipt";
 import {
   getLobbyTeamNumber,
   moveLobbyPlayerToTeam,
+  randomizeLobbySeats,
   randomizeLobbyTeamSeats,
   type LobbyTeamNumber,
 } from "../../src/online/lobbyTeams";
@@ -334,6 +335,10 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     setLobbySeatOrder(randomizeLobbyTeamSeats(effectiveLobbySeatOrder));
   }
 
+  function randomizeLobbyBoardPositions() {
+    setLobbySeatOrder(randomizeLobbySeats(effectiveLobbySeatOrder));
+  }
+
   async function startRoom() {
     if (!access || !room) return;
     setBusy(true);
@@ -414,8 +419,11 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             </div>
             {room.isHost && (
               <div className="lobby-start-actions">
-                {isTeamLobby && <button className="lobby-randomize-teams" type="button" disabled={busy} onClick={randomizeLobbyTeams}>
+                {isTeamLobby && <button className="lobby-randomize-seats" type="button" disabled={busy} onClick={randomizeLobbyTeams}>
                   Randomize Teams
+                </button>}
+                {!isTeamLobby && <button className="lobby-randomize-seats" type="button" disabled={busy} onClick={randomizeLobbyBoardPositions}>
+                  Randomize Board Positions
                 </button>}
                 <label>
                   <span>Who deals first?</span>
