@@ -175,7 +175,7 @@ button { font: inherit; }
 .piece.active .piece-shape { animation: piece-pulse .72s ease-in-out infinite alternate; }
 .piece.active:hover, .piece.selected { transform: scale(1.25); }
 .piece.protected .piece-shape { --piece-protection: drop-shadow(0 0 2px #f5ce69) drop-shadow(0 0 2px #f5ce69); }
-.piece.protected::before { content: "✦"; position: absolute; right: -8px; top: -8px; z-index: 2; width: 16px; height: 16px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: #173d33; background: #f5ce69; box-shadow: 0 2px 5px rgba(18,42,33,.28); font-size: 8px; line-height: 1; }
+.piece.protected::before { content: "✦"; position: absolute; left: 50%; top: 50%; z-index: 2; width: 16px; height: 16px; display: grid; place-items: center; transform: translate(-50%,-50%); border: 2px solid white; border-radius: 50%; color: #173d33; background: #f5ce69; box-shadow: 0 2px 5px rgba(18,42,33,.28); font-size: 8px; line-height: 1; pointer-events: none; }
 @keyframes piece-pulse { to { filter: drop-shadow(0 0 3px white) drop-shadow(0 0 9px #ffe168) drop-shadow(0 0 12px var(--piece)) var(--piece-protection); } }
 @keyframes piece-ready-bob { to { transform: scale(1.16); } }
 .piece.is-hopping { animation: marble-hop var(--hop-duration, 130ms) ease-in-out; }
