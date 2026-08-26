@@ -9,9 +9,26 @@ import {
   getBoardReservePoint,
   getBoardTrackPoint,
   getBoardTurnMarkerPoint,
+  getDefaultPlayerAppearanceVariables,
   getHomeLanePoint,
   type BoardPoint,
 } from "./game-table";
+
+describe("default player appearance", () => {
+  it("uses the highest-contrast colors first with readable pips and outlines", () => {
+    expect(getDefaultPlayerAppearanceVariables()).toMatchObject({
+      "--color-p1": "#111827",
+      "--color-p1-ink": "#FFFFFF",
+      "--color-p2": "#FFFFFF",
+      "--color-p2-ink": "#111827",
+      "--color-p2-edge": "#173D33",
+      "--color-p3": "#0057B8",
+      "--color-p3-ink": "#FFFFFF",
+      "--color-p4": "#F2C94C",
+      "--color-p4-ink": "#111827",
+    });
+  });
+});
 
 describe("player board perspective", () => {
   it("places each player's space 12 exactly on a corner", () => {

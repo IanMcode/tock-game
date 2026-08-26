@@ -163,7 +163,7 @@ button { font: inherit; }
 .team-key .protection-key b { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: var(--green); background: #f5ce69; font-size: 9px; }
 
 .piece { position: relative; z-index: 4; width: 128%; aspect-ratio: 1; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0; color: var(--piece-ink, white); background: transparent; filter: drop-shadow(0 2px 2px rgba(18,42,33,.3)); cursor: default; }
-.piece-shape { --piece-protection: drop-shadow(0 0 0 transparent); position: absolute; inset: 0; z-index: -1; clip-path: var(--piece-shape); background: var(--piece); filter: drop-shadow(0 0 1px white) drop-shadow(0 0 1px white) var(--piece-protection); }
+.piece-shape { --piece-protection: drop-shadow(0 0 0 transparent); position: absolute; inset: 0; z-index: -1; clip-path: var(--piece-shape); background: var(--piece); filter: drop-shadow(0 0 1px var(--piece-outline, white)) drop-shadow(0 0 1px var(--piece-outline, white)) var(--piece-protection); }
 .piece[aria-disabled="true"] { pointer-events: none; }
 .piece .piece-pips { position: relative; z-index: 1; width: 45%; height: 45%; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); place-items: center; gap: 1px; transform: translateY(var(--piece-pip-offset, 0%)); }
 .piece-pips i { width: clamp(2px, .42vw, 4px); aspect-ratio: 1; border-radius: 50%; background: currentColor; box-shadow: 0 1px 1px rgba(20,45,37,.28); }

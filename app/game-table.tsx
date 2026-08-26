@@ -72,7 +72,7 @@ export type SwappingPiece = {
 export type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
-type PlayerColorId = "crimson" | "cobalt" | "gold" | "teal" | "violet" | "cyan";
+type PlayerColorId = "black" | "white" | "blue" | "yellow" | "light-red" | "orange";
 type PlayerShapeId = "circle" | "square" | "triangle" | "hexagon";
 type GameSettings = {
   playerCount: BoardPlayerCount;
@@ -98,13 +98,13 @@ const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> =
   off: { hop: 0, swap: 0 },
 };
 
-const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string }> = {
-  crimson: { label: "Crimson", color: "#D81B60", soft: "#F8DCE8", ink: "#FFFFFF" },
-  cobalt: { label: "Cobalt blue", color: "#0057B8", soft: "#D9E7F7", ink: "#FFFFFF" },
-  gold: { label: "Sun gold", color: "#FFB000", soft: "#FFF0C2", ink: "#173D33" },
-  teal: { label: "Deep teal", color: "#00796B", soft: "#D7ECE8", ink: "#FFFFFF" },
-  violet: { label: "Violet", color: "#7B2CBF", soft: "#EADDF5", ink: "#FFFFFF" },
-  cyan: { label: "Bright cyan", color: "#00A6D6", soft: "#D8F1F8", ink: "#173D33" },
+const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string; edge: string }> = {
+  black: { label: "Black", color: "#111827", soft: "#D9DCE2", ink: "#FFFFFF", edge: "#FFFFFF" },
+  white: { label: "White", color: "#FFFFFF", soft: "#F4F4EF", ink: "#111827", edge: "#173D33" },
+  blue: { label: "Blue", color: "#0057B8", soft: "#D9E7F7", ink: "#FFFFFF", edge: "#FFFFFF" },
+  yellow: { label: "Yellow", color: "#F2C94C", soft: "#FFF0B8", ink: "#111827", edge: "#7A5B00" },
+  "light-red": { label: "Light red", color: "#E85D75", soft: "#FADDE2", ink: "#111827", edge: "#FFFFFF" },
+  orange: { label: "Orange", color: "#F28E2B", soft: "#FCE4CC", ink: "#111827", edge: "#FFFFFF" },
 };
 
 const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
@@ -126,10 +126,10 @@ const DEFAULT_SETTINGS: GameSettings = {
   animationSpeed: "standard",
   dealer: "random",
   playerColors: {
-    P1: "crimson",
-    P2: "cobalt",
-    P3: "gold",
-    P4: "teal",
+    P1: "black",
+    P2: "white",
+    P3: "blue",
+    P4: "yellow",
   },
   playerShapes: {
     P1: "circle",
@@ -1464,6 +1464,7 @@ function PieceButton({ piece, active, selected, capturing = false, hopping = fal
       style={{
         "--piece": playerColorVar(piece.owner),
         "--piece-ink": playerInkVar(piece.owner),
+        "--piece-outline": playerEdgeVar(piece.owner),
         "--piece-shape": playerShapeVar(piece.owner),
         "--piece-pip-offset": `var(--pip-offset-${piece.owner.toLowerCase()})`,
       } as React.CSSProperties}
@@ -1780,6 +1781,10 @@ function playerInkVar(playerId: PlayerId) {
   return `var(--color-${playerId.toLowerCase()}-ink)`;
 }
 
+function playerEdgeVar(playerId: PlayerId) {
+  return `var(--color-${playerId.toLowerCase()}-edge)`;
+}
+
 function playerShapeVar(playerId: PlayerId) {
   return `var(--shape-${playerId.toLowerCase()})`;
 }
@@ -1794,10 +1799,15 @@ function getPlayerAppearanceVariables(
     variables[`--color-${playerId.toLowerCase()}`] = color.color;
     variables[`--color-${playerId.toLowerCase()}-soft`] = color.soft;
     variables[`--color-${playerId.toLowerCase()}-ink`] = color.ink;
+    variables[`--color-${playerId.toLowerCase()}-edge`] = color.edge;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
     variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "12%" : "0%";
     return variables;
   }, {}) as React.CSSProperties;
+}
+
+export function getDefaultPlayerAppearanceVariables(): React.CSSProperties {
+  return getPlayerAppearanceVariables(DEFAULT_SETTINGS.playerColors, DEFAULT_SETTINGS.playerShapes);
 }
 
 function shuffleItems<T>(items: readonly T[]): T[] {

@@ -2,7 +2,7 @@
 
 import { createGame } from "../src/game/createGame";
 import { getRulesetDefinition } from "../src/game/definition";
-import { Board } from "./game-table";
+import { Board, getDefaultPlayerAppearanceVariables } from "./game-table";
 
 const previewGame = createGame({
   shuffle: false,
@@ -16,7 +16,7 @@ const previewPieces = previewGame.players.flatMap((player) => player.pieces);
 
 export default function HomeBoardPreview() {
   return (
-    <div className="home-board-inert" inert>
+    <div className="home-board-inert" style={getDefaultPlayerAppearanceVariables()} inert>
       <Board
         pieces={previewPieces}
         boardDefinition={previewRuleset.board}

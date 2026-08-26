@@ -46,6 +46,7 @@ import {
   BoardReserve,
   PlayingCardGraphic,
   SpaceNumberToggle,
+  getDefaultPlayerAppearanceVariables,
   getBoardTrackPoint,
   getPiecePoint,
   getSwapControlPoint,
@@ -442,7 +443,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             return (
               <article className={connected ? "seat-card is-connected" : "seat-card"} key={playerId}>
                 <span>{playerId}</span>
-                <strong>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</strong>
+                <strong>{connected ? room.playerNames[playerId] ?? PLAYER_NAMES[playerId] : "Available"}</strong>
                 <small>{connected ? "Connected" : "Open seat"}</small>
                 {connected && isLobbyReady && isTeamLobby && <label className="seat-team-control">
                   <span>Team</span>
@@ -1158,7 +1159,7 @@ function OnlineRoomTable({
 
   return (
     <section className={`online-table ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
-      ...ONLINE_APPEARANCE,
+      ...getDefaultPlayerAppearanceVariables(),
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
     } as React.CSSProperties}>
@@ -1417,13 +1418,6 @@ function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
     eliminatedPlayers: [...eliminated].map(([participantId, result]) => ({ participantId, ...result })),
   }));
 }
-
-const ONLINE_APPEARANCE = {
-  "--color-p1": "#D81B60", "--color-p1-soft": "#F8DCE8", "--color-p1-ink": "#FFFFFF", "--shape-p1": "circle(49% at 50% 50%)", "--pip-offset-p1": "0%",
-  "--color-p2": "#0057B8", "--color-p2-soft": "#D9E7F7", "--color-p2-ink": "#FFFFFF", "--shape-p2": "inset(2% round 24%)", "--pip-offset-p2": "0%",
-  "--color-p3": "#FFB000", "--color-p3-soft": "#FFF0C2", "--color-p3-ink": "#173D33", "--shape-p3": "polygon(50% 1%, 98% 94%, 2% 94%)", "--pip-offset-p3": "12%",
-  "--color-p4": "#00796B", "--color-p4-soft": "#D7ECE8", "--color-p4-ink": "#FFFFFF", "--shape-p4": "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)", "--pip-offset-p4": "0%",
-};
 
 const ONLINE_HOP_DURATION = 130;
 const ONLINE_SWAP_DURATION = 720;
