@@ -1832,7 +1832,7 @@ export function getBoardTurnMarkerPoint(owner: PlayerId, board: BoardDefinition)
       fromCenter.x === 0 ? Number.POSITIVE_INFINITY : 50 / Math.abs(fromCenter.x),
       fromCenter.y === 0 ? Number.POSITIVE_INFINITY : 50 / Math.abs(fromCenter.y),
     );
-  const markerDistance = boundaryDistance - 2.8;
+  const markerDistance = boundaryDistance - (board.playerCount === 3 ? 5 : 2.8);
   return roundPoint({
     x: 50 + fromCenter.x / length * markerDistance,
     y: 50 + fromCenter.y / length * markerDistance,

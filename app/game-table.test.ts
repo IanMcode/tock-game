@@ -120,7 +120,7 @@ describe("player board perspective", () => {
           - (midpoint.y - 50) * (marker.x - midpoint.x),
         )).toBeLessThan(0.01);
         if (board.playerCount === 3) {
-          expect(Math.hypot(marker.x - 50, marker.y - 50)).toBeCloseTo(47.2, 2);
+          expect(Math.hypot(marker.x - 50, marker.y - 50)).toBeCloseTo(45, 2);
         } else {
           expect(Math.min(marker.x, marker.y, 100 - marker.x, 100 - marker.y)).toBeLessThan(3);
         }

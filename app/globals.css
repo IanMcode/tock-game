@@ -82,7 +82,7 @@ button { font: inherit; }
 .board-2 { --space-diameter: 6cqw; --piece-diameter: 5.4cqw; width: min(100%, 720px); aspect-ratio: .9; }
 .board-3 { --space-diameter: 4cqw; --piece-diameter: 3.6cqw; }
 .board::before { content: ""; position: absolute; inset: 0; z-index: -1; border: 1px solid rgba(83,112,96,.2); border-radius: 22px; background: repeating-linear-gradient(25deg, rgba(255,255,255,.07) 0 2px, transparent 2px 7px), linear-gradient(145deg, #dce7dc, #b8cabd); box-shadow: inset 0 0 55px rgba(38,74,57,.08); transform: rotate(var(--counter-rotation)); transform-origin: center; }
-.board-3::before { inset: 8% 0 4%; }
+.board-3::before { inset: 9% 0 3%; transform-origin: 50% 46.5909%; }
 .board-center { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); z-index: 1; display: grid; place-content: center; pointer-events: none; transform-origin: center; }
 .board-center > * { rotate: -45deg; }
 .table-card { position: relative; width: 21cqw; aspect-ratio: .7; place-self: center; display: block; border: 1px solid #b9b2a7; border-radius: clamp(6px, 1cqw, 11px); color: #21332d; background: linear-gradient(155deg, #fff 0 48%, #f8f5ed 100%); box-shadow: inset 0 0 0 3px #fff, 0 8px 21px rgba(0,0,0,.3); animation: center-card-arrive .38s ease-out; --card-pip-size: clamp(13px, 2.6cqw, 27px); }
@@ -576,7 +576,7 @@ button { font: inherit; }
   .online-shell-active .online-board-stage { grid-area: board; min-height: 0; height: 100%; }
   .online-shell-active .online-board-stage .board-wrap { position: relative; height: 100%; grid-template-rows: minmax(0,1fr) auto auto; padding: 6px 4px; }
   .online-shell-active .online-table .board { width: min(100%, calc(100svh - 125px), 1160px); }
-  .online-shell-active .online-table .board-3 { width: min(100%, calc(100svh - 105px), 1200px); margin-block: -4cqw -2cqw; }
+  .online-shell-active .online-table .board-3 { width: min(100%, calc(100svh - 105px), 1200px); margin-block: -3cqw; }
   .online-shell-active .online-table .board-2 { width: min(100%, calc((100svh - 135px) * .9), 960px); }
   .online-shell-active .online-play-log { grid-area: log; grid-template-columns: 1fr; align-content: start; min-height: 0; margin-top: 0; }
   .online-shell-active .online-chat { grid-area: chat; }
