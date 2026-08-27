@@ -1162,7 +1162,6 @@ function OnlineRoomTable({
   const localPlayerDock = (
     <div className="online-local-player-dock is-hand-only">
       {handPanel}
-      <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
     </div>
   );
 
@@ -1175,11 +1174,14 @@ function OnlineRoomTable({
       <div className="online-game-viewport">
         <div className="online-status-rail has-player-status">
           <div className="online-room-turn-card">
-            <div>
-              <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
-              <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
-              <span>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
-              {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+            <div className="online-room-heading-row">
+              <div>
+                <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
+                <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
+                <span>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
+                {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+              </div>
+              <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
             </div>
             <div className="online-room-actions">
               <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>
@@ -1239,6 +1241,7 @@ function OnlineRoomTable({
           externalReservePlayerId={access.playerId}
           reservePresentation="board-grid"
           showToolbar={false}
+          showLegend={false}
           footerContent={localPlayerDock}
         />
         {game.winningTeam && (

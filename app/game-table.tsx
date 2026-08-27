@@ -1016,6 +1016,7 @@ export function Board({
   externalReservePlayerId,
   reservePresentation = "cards",
   showToolbar = true,
+  showLegend = true,
   footerContent,
 }: {
   pieces: readonly Piece[];
@@ -1046,6 +1047,7 @@ export function Board({
   externalReservePlayerId?: PlayerId;
   reservePresentation?: "cards" | "board-grid";
   showToolbar?: boolean;
+  showLegend?: boolean;
   footerContent?: React.ReactNode;
 }) {
   const animatedPieceIds = new Set([
@@ -1347,7 +1349,7 @@ export function Board({
         ))}
       </div>
       {footerContent && <div className="board-footer-dock">{footerContent}</div>}
-      <div className="team-key">
+      {showLegend && <div className="team-key">
         {teamMode ? (
           <>
             <span>
@@ -1368,7 +1370,7 @@ export function Board({
           </span>
         ))}
         <span className="protection-key"><b>✦</b> Protected entry</span>
-      </div>
+      </div>}
     </div>
   );
 }
