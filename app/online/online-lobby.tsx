@@ -1099,14 +1099,14 @@ function OnlineRoomTable({
         </button>
       </div>}
       {game.phase === "exchange" && <p>{alreadyExchanged ? "Card locked in. Waiting for the other players to choose." : selectedCardIndex === null ? "Choose one card to pass to your teammate." : "Selected card ready. Pass it, or cancel and choose another."}</p>}
-      {isMyTurn && game.phase === "play" && <div className="online-hand-actions">
-        <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !hasSelection} onClick={() => resetSelection()}>
+      {game.phase === "play" && <div className="online-hand-actions">
+        <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !isMyTurn || !hasSelection} onClick={() => resetSelection()}>
           Cancel selection
         </button>
         <button
           className="online-discard"
           type="button"
-          disabled={busy || isDealing || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+          disabled={busy || isDealing || !isMyTurn || (!canDiscard && !(forcedDiscard && hand.length === 0))}
           onClick={() => discardCard(hand.length === 0 ? null : selectedCardIndex)}
         >
           Discard selected card

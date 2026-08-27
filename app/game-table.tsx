@@ -1080,7 +1080,17 @@ export function Board({
     ? getBoardReserveGridPoint(incomingCardActor, boardDefinition)
     : null;
   const turnMarkerPoint = currentPlayerId
-    ? getBoardTurnMarkerPoint(currentPlayerId, boardDefinition)
+    ? useBoardReserveGrids
+      ? (() => {
+          const reservePoint = getBoardReserveGridPoint(currentPlayerId, boardDefinition);
+          const markerDistance = boardDefinition.playerCount === 2 ? 13 : boardDefinition.playerCount === 3 ? 9.3 : 8;
+          const perspectiveRadians = perspectiveRotation * Math.PI / 180;
+          return {
+            x: reservePoint.x - Math.sin(perspectiveRadians) * markerDistance,
+            y: reservePoint.y - Math.cos(perspectiveRadians) * markerDistance,
+          };
+        })()
+      : getBoardTurnMarkerPoint(currentPlayerId, boardDefinition)
     : null;
 
   const renderReserve = (owner: PlayerId, inOpponentRow = false) => {
