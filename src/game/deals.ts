@@ -174,5 +174,6 @@ function startHand(game: GameState): GameState {
     phase: ruleset.exchange === "partners" ? "exchange" : "play",
     exchangeSelections: {},
     forcedDiscardPlayer: null,
+    charityExchange: null,
   };
 }

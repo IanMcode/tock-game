@@ -1084,11 +1084,12 @@ export function Board({
     ? useBoardReserveGrids
       ? (() => {
           const reservePoint = getBoardReserveGridPoint(currentPlayerId, boardDefinition);
-          const markerDistance = boardDefinition.playerCount === 2 ? 13 : boardDefinition.playerCount === 3 ? 9.3 : 8;
-          const perspectiveRadians = perspectiveRotation * Math.PI / 180;
+          const markerDistance = boardDefinition.playerCount === 2 ? 10.5 : boardDefinition.playerCount === 3 ? 7.3 : 6.3;
+          const towardCenter = { x: 50 - reservePoint.x, y: 50 - reservePoint.y };
+          const length = Math.hypot(towardCenter.x, towardCenter.y) || 1;
           return {
-            x: reservePoint.x - Math.sin(perspectiveRadians) * markerDistance,
-            y: reservePoint.y - Math.cos(perspectiveRadians) * markerDistance,
+            x: reservePoint.x + towardCenter.x / length * markerDistance,
+            y: reservePoint.y + towardCenter.y / length * markerDistance,
           };
         })()
       : getBoardTurnMarkerPoint(currentPlayerId, boardDefinition)

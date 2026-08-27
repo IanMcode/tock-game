@@ -1,4 +1,5 @@
 import { applyAtomicMove, type AtomicMove } from "./actions";
+import { isCharityRequestRequired, updateCharityAfterTurn } from "./charity";
 import { getLegalBasicCardMoves } from "./cardMoves";
 import { advanceDealIfHandComplete } from "./deals";
 import { getAllPieces } from "./occupancy";
@@ -18,6 +19,10 @@ export function playCardForTurn(
   selectedMove: CardMove,
 ): GameState {
   assertGameIsActive(game);
+
+  if (isCharityRequestRequired(game) || game.charityExchange) {
+    throw new Error("The charity card exchange must be completed before moving.");
+  }
 
   if (game.forcedDiscardPlayer === game.currentPlayer) {
     throw new Error("The current player must discard without moving.");
@@ -48,6 +53,9 @@ export function discardCardForTurn(
   cardIndex: number | null,
 ): GameState {
   assertGameIsActive(game);
+  if (isCharityRequestRequired(game) || game.charityExchange) {
+    throw new Error("The charity card exchange must be completed before discarding.");
+  }
   const player = getCurrentPlayer(game);
   const isForcedDiscard = game.forcedDiscardPlayer === player.id;
 
@@ -143,6 +151,7 @@ function advanceTurn(
       : game.discardPile,
     forcedDiscardPlayer: discardedCard?.rank === "10" ? nextPlayer : null,
     winningTeam: getWinningTeam(pieces, game.rulesetId),
+    charityCounts: updateCharityAfterTurn(game),
   };
 
   return advanceDealIfHandComplete(nextGame);

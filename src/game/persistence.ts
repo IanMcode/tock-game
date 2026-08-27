@@ -29,8 +29,15 @@ export function deserializeGameSnapshot(serialized: string): GameState {
     throw new Error("The game snapshot does not contain a complete game state.");
   }
 
-  assertValidGameState(snapshot.game);
-  return snapshot.game;
+  const game = {
+    ...snapshot.game,
+    charityTurns: snapshot.game.charityTurns ?? 0,
+    charityCounts: snapshot.game.charityCounts ?? {},
+    charityExchange: snapshot.game.charityExchange ?? null,
+    lastCharityTransfer: snapshot.game.lastCharityTransfer ?? null,
+  };
+  assertValidGameState(game);
+  return game;
 }
 
 function hasGameStateStructure(value: unknown): value is GameState {

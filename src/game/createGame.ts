@@ -13,7 +13,7 @@ import {
   type BoardPlayerCount,
 } from "./definition";
 import { getNextPlayer } from "./rules";
-import type { GameState, Piece, Player, RulesetId } from "./types";
+import type { CharityTurns, GameState, Piece, Player, RulesetId } from "./types";
 
 export type CreateGameOptions = {
   shuffle?: boolean;
@@ -23,6 +23,7 @@ export type CreateGameOptions = {
   playerCount?: BoardPlayerCount;
   teams?: boolean;
   rulesetId?: RulesetId;
+  charityTurns?: CharityTurns;
 };
 
 function createPiecesForPlayer(
@@ -83,5 +84,9 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     dealIndex: 0,
     phase: ruleset.exchange === "partners" ? "exchange" : "play",
     exchangeSelections: {},
+    charityTurns: options.charityTurns ?? 0,
+    charityCounts: {},
+    charityExchange: null,
+    lastCharityTransfer: null,
   };
 }

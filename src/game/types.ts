@@ -24,6 +24,15 @@ export type Card = {
   suit: CardSuit;
 };
 
+export type CharityTurns = 0 | 1 | 2 | 3;
+
+export type CharityExchange = {
+  requester: PlayerId;
+  donor: PlayerId;
+  requestedRank: CardRank;
+  receivedCard: Card;
+};
+
 export type ReservePosition = {
   zone: "reserve";
 };
@@ -72,4 +81,8 @@ export type GameState = {
   dealIndex: number;
   phase: "exchange" | "play";
   exchangeSelections: Partial<Record<PlayerId, number>>;
+  charityTurns: CharityTurns;
+  charityCounts: Partial<Record<PlayerId, number>>;
+  charityExchange: CharityExchange | null;
+  lastCharityTransfer: Pick<CharityExchange, "requester" | "donor" | "requestedRank"> | null;
 };

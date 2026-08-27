@@ -82,7 +82,7 @@ button { font: inherit; }
 .board-3 { --space-diameter: 4cqw; --piece-diameter: 3.6cqw; --playfield-shift: 9cqw; }
 .board-center { position: absolute; left: var(--board-center-x, 50%); top: var(--board-center-y, 40%); width: 22%; aspect-ratio: 1; transform: translate(-50%,-50%) rotate(calc(45deg + var(--counter-rotation))); z-index: 1; display: grid; place-content: center; pointer-events: none; transform-origin: center; }
 .board-center > * { rotate: -45deg; }
-.table-card { position: relative; width: 21cqw; aspect-ratio: .7; place-self: center; display: block; border: 1px solid #b9b2a7; border-radius: clamp(6px, 1cqw, 11px); color: #21332d; background: linear-gradient(155deg, #fff 0 48%, #f8f5ed 100%); box-shadow: inset 0 0 0 3px #fff, 0 8px 21px rgba(0,0,0,.3); animation: center-card-arrive .38s ease-out; --card-pip-size: clamp(13px, 2.6cqw, 27px); }
+.table-card { position: relative; width: 18.9cqw; aspect-ratio: .7; place-self: center; display: block; border: 1px solid #b9b2a7; border-radius: clamp(6px, 1cqw, 11px); color: #21332d; background: linear-gradient(155deg, #fff 0 48%, #f8f5ed 100%); box-shadow: inset 0 0 0 3px #fff, 0 8px 21px rgba(0,0,0,.3); animation: center-card-arrive .38s ease-out; --card-pip-size: clamp(13px, 2.34cqw, 25px); }
 .table-card::after { content: ""; position: absolute; inset: 4%; border: 1px solid rgba(40,50,45,.09); border-radius: inherit; pointer-events: none; }
 .table-card.red { color: #c9323d; }
 .table-card .card-corner { font-size: clamp(14px, 2.5cqw, 26px); }
@@ -106,7 +106,7 @@ button { font: inherit; }
 .board-card-stack .table-card-previous { transform: translate(-7%,3%) rotate(-7deg) scale(.96); filter: brightness(.92); }
 .board-card-stack .table-card-current { z-index: 1; }
 .board-card-flight { position: absolute; z-index: 12; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); pointer-events: none; animation: card-to-center .72s cubic-bezier(.22,.78,.24,1) both; }
-.board-card-flight .table-card { width: 21cqw; animation: none; }
+.board-card-flight .table-card { width: 18.9cqw; animation: none; }
 @keyframes card-to-center {
   0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--counter-rotation)); }
   6% { opacity: 1; }
@@ -368,6 +368,11 @@ button { font: inherit; }
 .online-variants .online-check strong { font-size: 12px; }
 .online-variants .online-check small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.4; }
 .online-variants .online-check.is-coming-soon { opacity: .55; }
+.online-variant-select { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(245,248,243,.72); }
+.online-variant-select > span { display: grid; gap: 3px; }
+.online-variant-select strong { font-size: 12px; }
+.online-variant-select small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.4; }
+.online-variant-select select { min-width: 112px; }
 .online-primary { padding: 13px 16px; border: 0; border-radius: 11px; color: white; background: var(--green); cursor: pointer; font-weight: 900; }
 .online-primary:disabled { cursor: default; opacity: .5; }
 .online-help { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -531,6 +536,13 @@ button { font: inherit; }
 .online-hand-panel.is-forced-discard .online-card:hover, .online-hand-panel.is-forced-discard .online-card.is-selected { opacity: 1; filter: none; }
 .online-empty-hand { color: var(--muted); font-size: 12px; }
 .online-hand-actions { display: grid; gap: 6px; }
+.online-charity-panel { grid-column: 1; display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 6px 8px; border: 1px solid #d5b24e; border-radius: 10px; color: #5a4310; background: #fff7d8; font-size: 10px; }
+.online-charity-panel label { display: flex; align-items: center; gap: 5px; }
+.online-charity-panel select { padding: 4px 7px; border: 1px solid #c9ad58; border-radius: 7px; background: white; }
+.online-charity-panel button { padding: 5px 8px; border: 0; border-radius: 7px; color: white; background: var(--green); cursor: pointer; font-weight: 800; }
+.online-charity-panel.is-exchanging { justify-content: center; flex-wrap: wrap; }
+.online-charity-status { display: flex; flex-wrap: wrap; gap: 4px 8px; padding: 7px 9px; border: 1px solid #d8c989; border-radius: 10px; color: #69571c; background: rgba(255,248,216,.86); font-size: 8px; }
+.online-charity-status strong { width: 100%; }
 .online-discard { min-height: 30px; padding: 5px 8px; border: 1px solid #b96962; border-radius: 8px; color: #8e2424; background: #fff0f0; cursor: pointer; font-size: 10px; font-weight: 800; }
 .online-discard:disabled { cursor: default; opacity: .4; }
 .online-cancel-selection { min-height: 30px; padding: 5px 8px; border: 1px solid #b9c5bd; border-radius: 8px; color: var(--ink); background: rgba(255,255,255,.8); cursor: pointer; font-size: 10px; font-weight: 800; }

@@ -119,6 +119,20 @@ export function getGameStateProblems(game: GameState): string[] {
     problems.push("A forced discard must belong to the current player.");
   }
 
+  if (![0, 1, 2, 3].includes(game.charityTurns)) {
+    problems.push("The game has an invalid charity setting.");
+  }
+  for (const [playerId, count] of Object.entries(game.charityCounts)) {
+    if (!playerIds.includes(playerId as typeof game.currentPlayer) || !Number.isInteger(count) || count < 0 || count > game.charityTurns) {
+      problems.push(`${playerId} has an invalid charity count.`);
+    }
+  }
+  if (game.charityExchange) {
+    if (game.charityExchange.requester !== game.currentPlayer || game.charityExchange.requester === game.charityExchange.donor) {
+      problems.push("The charity exchange has invalid players.");
+    }
+  }
+
   const expectedWinner = getWinningTeam(pieces, ruleset.id);
   if (JSON.stringify(game.winningTeam) !== JSON.stringify(expectedWinner)) {
     problems.push("The recorded winner does not match the pieces at home.");

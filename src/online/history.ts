@@ -10,6 +10,13 @@ export function describePublicGameEvent(
 ): string {
   const actor = playerNames[event.actor] ?? DEFAULT_PLAYER_NAMES[event.actor];
   const card = event.card ? `${event.card.rank}${SUIT_SYMBOL[event.card.suit]}` : "a card";
+  if (event.type === "charity-request") {
+    const donor = event.charityDonor ? playerNames[event.charityDonor] ?? DEFAULT_PLAYER_NAMES[event.charityDonor] : null;
+    return donor
+      ? `${actor} requested a ${event.charityRank}; ${donor} supplied the card.`
+      : `${actor} requested a ${event.charityRank}, but no player held one.`;
+  }
+  if (event.type === "charity-return") return `${actor} returned a card and completed the charity exchange.`;
   if (event.type === "discard") return `${actor} discarded ${card}.`;
   if (!event.move) return `${actor} played ${card}.`;
 

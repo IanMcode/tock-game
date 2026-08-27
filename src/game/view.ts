@@ -24,10 +24,14 @@ export type GamePublicView = Pick<
   | "dealer"
   | "dealIndex"
   | "phase"
+  | "charityTurns"
+  | "charityCounts"
+  | "lastCharityTransfer"
 > & {
   players: PlayerPublicView[];
   drawPileCount: number;
   exchangeSelections: Partial<Record<PlayerId, true>>;
+  charityExchange: Omit<NonNullable<GameState["charityExchange"]>, "receivedCard"> | null;
 };
 
 export type GameSessionView = {
@@ -41,12 +45,14 @@ export type GameSessionView = {
 export type PublicGameEvent = {
   revision: number;
   actor: PlayerId;
-  type: "exchange" | "play" | "discard";
+  type: "exchange" | "play" | "discard" | "charity-request" | "charity-return";
   card: Card | null;
   move?: CardMove;
   movedPieces?: MovedPieceDetail[];
   piecePositionsBefore?: PiecePositionBefore[];
   startsNewDealerRound?: boolean;
+  charityRank?: import("./types").CardRank;
+  charityDonor?: PlayerId | null;
 };
 
 export function createSessionView(
@@ -88,6 +94,24 @@ export function createSessionView(
           ...(event.startsNewDealerRound ? { startsNewDealerRound: true } : {}),
         };
       }
+      if (event.command.type === "request-charity-card") {
+        return {
+          revision: event.revision,
+          actor: event.command.actor,
+          type: "charity-request" as const,
+          card: null,
+          charityRank: event.command.rank,
+          charityDonor: event.charityDonor ?? null,
+        };
+      }
+      if (event.command.type === "return-charity-card") {
+        return {
+          revision: event.revision,
+          actor: event.command.actor,
+          type: "charity-return" as const,
+          card: null,
+        };
+      }
       return {
         revision: event.revision,
         actor: event.command.actor,
@@ -117,6 +141,14 @@ export function createSessionView(
       exchangeSelections: Object.fromEntries(
         Object.keys(game.exchangeSelections).map((playerId) => [playerId, true]),
       ),
+      charityTurns: game.charityTurns,
+      charityCounts: { ...game.charityCounts },
+      charityExchange: game.charityExchange ? {
+        requester: game.charityExchange.requester,
+        donor: game.charityExchange.donor,
+        requestedRank: game.charityExchange.requestedRank,
+      } : null,
+      lastCharityTransfer: game.lastCharityTransfer ? { ...game.lastCharityTransfer } : null,
     },
   };
 }

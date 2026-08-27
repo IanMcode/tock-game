@@ -1,16 +1,19 @@
 import { selectExchangeCard } from "./deals";
+import { requestCharityCard, returnCharityCard } from "./charity";
 import { applyPieceMove, type AtomicMove } from "./actions";
 import { getRulesetDefinition } from "./definition";
 import { getMoveAnimationFrames } from "./moveAnimation";
 import { getAllPieces } from "./occupancy";
 import { discardCardForTurn, playCardForTurn, type CardMove } from "./turns";
-import type { Card, GameState, PiecePosition, PlayerId } from "./types";
+import type { Card, CardRank, GameState, PiecePosition, PlayerId } from "./types";
 import { assertValidGameState } from "./validation";
 
 export type GameCommand =
   | { type: "select-exchange-card"; actor: PlayerId; cardIndex: number }
   | { type: "play-card"; actor: PlayerId; cardIndex: number; move: CardMove }
-  | { type: "discard-card"; actor: PlayerId; cardIndex: number | null };
+  | { type: "discard-card"; actor: PlayerId; cardIndex: number | null }
+  | { type: "request-charity-card"; actor: PlayerId; rank: CardRank }
+  | { type: "return-charity-card"; actor: PlayerId; cardIndex: number };
 
 export type CommandEnvelope = {
   commandId: string;
@@ -26,6 +29,7 @@ export type GameEvent = {
   movedPieces?: MovedPieceDetail[];
   piecePositionsBefore?: PiecePositionBefore[];
   startsNewDealerRound?: boolean;
+  charityDonor?: PlayerId | null;
 };
 
 export type MovedPieceDetail = { pieceId: string; spaces: number };
@@ -122,6 +126,11 @@ export function applySessionCommand(
       ...(movedPieces ? { movedPieces } : {}),
       ...(piecePositionsBefore ? { piecePositionsBefore } : {}),
       ...(startsNewDealerRound ? { startsNewDealerRound: true } : {}),
+      ...(envelope.command.type === "request-charity-card" ? {
+        charityDonor: game.lastCharityTransfer?.requester === envelope.command.actor
+          ? game.lastCharityTransfer.donor
+          : null,
+      } : {}),
     }],
   };
 }
@@ -165,7 +174,7 @@ function getMovedPieceDetails(game: GameState, move: CardMove): MovedPieceDetail
 }
 
 function getCommandCard(game: GameState, command: GameCommand): Card | null {
-  if (command.type === "select-exchange-card" || command.cardIndex === null) return null;
+  if (command.type === "select-exchange-card" || command.type === "request-charity-card" || command.type === "return-charity-card" || command.cardIndex === null) return null;
   return game.players.find((player) => player.id === command.actor)?.hand[command.cardIndex] ?? null;
 }
 
@@ -177,6 +186,10 @@ function applyGameCommand(game: GameState, command: GameCommand): GameState {
       return playCardForTurn(game, command.cardIndex, command.move);
     case "discard-card":
       return discardCardForTurn(game, command.cardIndex);
+    case "request-charity-card":
+      return requestCharityCard(game, command.actor, command.rank);
+    case "return-charity-card":
+      return returnCharityCard(game, command.actor, command.cardIndex);
   }
 }
 

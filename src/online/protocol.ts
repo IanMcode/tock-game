@@ -2,6 +2,7 @@ import type { CardMove } from "../game/turns";
 import { PLAYER_IDS, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
 import type { BoardPlayerCount } from "../game/definition";
+import type { CardRank } from "../game/types";
 import type { CreateRoomOptions, StartNextGameOptions, StartRoomOptions } from "./roomService";
 
 export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
@@ -21,6 +22,10 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (typeof startWithPieceOnEntry !== "boolean") {
     throw new Error("Start-with-piece-on-entry must be true or false.");
   }
+  const charityTurns = value.charityTurns ?? 0;
+  if (charityTurns !== 0 && charityTurns !== 1 && charityTurns !== 2 && charityTurns !== 3) {
+    throw new Error("Charity must be disabled or require 1, 2, or 3 turns.");
+  }
 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") {
@@ -36,6 +41,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     dealer: dealer as PlayerId | "random",
     randomizeSeats,
     startWithPieceOnEntry,
+    charityTurns,
     ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
   };
 }
@@ -119,6 +125,18 @@ function parseGameCommand(value: unknown): GameCommand {
         actor,
         cardIndex: parseCardIndex(value.cardIndex, true),
       };
+    case "request-charity-card":
+      return {
+        type: value.type,
+        actor,
+        rank: parseCardRank(value.rank),
+      };
+    case "return-charity-card":
+      return {
+        type: value.type,
+        actor,
+        cardIndex: parseCardIndex(value.cardIndex, false),
+      };
     case "play-card":
       if (!isRecord(value.move)) throw new Error("A play command requires a move object.");
       return {
@@ -138,6 +156,14 @@ function parseCardIndex(value: unknown, nullable: boolean): number | null {
   if (nullable && value === null) return null;
   if (!Number.isInteger(value)) throw new Error("The card index must be an integer or null.");
   return value as number;
+}
+
+function parseCardRank(value: unknown): CardRank {
+  const ranks: readonly string[] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  if (typeof value !== "string" || !ranks.includes(value)) {
+    throw new Error("The requested charity rank is invalid.");
+  }
+  return value as CardRank;
 }
 
 function parsePlayerId(value: unknown): PlayerId {

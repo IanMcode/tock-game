@@ -24,7 +24,7 @@ import {
   roomChannelName,
 } from "../../src/online/realtime";
 import type { BoardPlayerCount } from "../../src/game/definition";
-import type { PlayerId } from "../../src/game/types";
+import type { CardRank, CharityTurns, PlayerId } from "../../src/game/types";
 import type { MatchGameRecord, RoomAccess, RoomView } from "../../src/online/roomService";
 import {
   getCurrentDealerRoundEvents,
@@ -90,6 +90,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
   const [teams, setTeams] = useState(true);
   const [dealer, setDealer] = useState<PlayerId | "random">("random");
   const [startWithPieceOnEntry, setStartWithPieceOnEntry] = useState(true);
+  const [charityTurns, setCharityTurns] = useState<CharityTurns>(0);
   const [hostName, setHostName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -296,6 +297,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
         teams,
         dealer,
         startWithPieceOnEntry,
+        charityTurns,
         ...(hostName.trim() ? { playerName: hostName.trim() } : {}),
       })).access);
     } catch (createError) {
@@ -543,6 +545,15 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
               <input type="checkbox" checked={startWithPieceOnEntry} onChange={(event) => setStartWithPieceOnEntry(event.target.checked)} />
               <span><strong>Head start</strong><small>Begin with each player’s first piece protected on entry.</small></span>
             </label>
+            <label className="online-variant-select">
+              <span><strong>Charity</strong><small>Request a card after consecutive turns without an outside-home move.</small></span>
+              <select value={charityTurns} onChange={(event) => setCharityTurns(Number(event.target.value) as CharityTurns)}>
+                <option value={0}>No charity</option>
+                <option value={1}>1 turn</option>
+                <option value={2}>2 turns</option>
+                <option value={3}>3 turns</option>
+              </select>
+            </label>
             <label className="online-check is-coming-soon">
               <input type="checkbox" disabled />
               <span><strong>More variants</strong><small>Additional rule choices are coming soon.</small></span>
@@ -623,6 +634,7 @@ function OnlineRoomTable({
   const [rematchBusy, setRematchBusy] = useState(false);
   const [submittedExchange, setSubmittedExchange] = useState<{ card: Card; index: number } | null>(null);
   const [exchangeReceipt, setExchangeReceipt] = useState<ExchangeReceipt | null>(null);
+  const [requestedCharityRank, setRequestedCharityRank] = useState<CardRank>("A");
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -637,6 +649,11 @@ function OnlineRoomTable({
   const [incomingCard, setIncomingCard] = useState<PresentedCard | null>(null);
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
+  const charityRequestRequired = game.charityTurns > 0 &&
+    (game.charityCounts[access.playerId] ?? 0) >= game.charityTurns &&
+    !game.charityExchange;
+  const isCharityRequester = game.charityExchange?.requester === access.playerId;
+  const canTakeNormalTurn = isMyTurn && !charityRequestRequired && !game.charityExchange;
   const forcedDiscard = game.forcedDiscardPlayer === access.playerId;
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
@@ -816,15 +833,15 @@ function OnlineRoomTable({
     });
   }, [pieces, presentCard, room.session.events, room.session.revision, ruleset.board, setVisualPieces]);
   const legalMoves = useMemo(() =>
-    selectedCard && isMyTurn && !forcedDiscard
+    selectedCard && canTakeNormalTurn && !forcedDiscard
       ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
       : [],
-  [access.playerId, forcedDiscard, game.rulesetId, isMyTurn, pieces, selectedCard]);
+  [access.playerId, canTakeNormalTurn, forcedDiscard, game.rulesetId, pieces, selectedCard]);
   const playableIndexes = useMemo(() =>
-    !isMyTurn || forcedDiscard ? [] : hand.flatMap((card, index) =>
+    !canTakeNormalTurn || forcedDiscard ? [] : hand.flatMap((card, index) =>
       getLegalBasicCardMoves(pieces, access.playerId, card, game.rulesetId).length ? [index] : [],
     ),
-  [access.playerId, forcedDiscard, game.rulesetId, hand, isMyTurn, pieces]);
+  [access.playerId, canTakeNormalTurn, forcedDiscard, game.rulesetId, hand, pieces]);
   const isSplitSeven = selectedCard?.rank === "7";
   const previewPieces = useMemo(() => splitSteps.reduce<Piece[]>(
     (current, step) => applyPieceMove(current, step),
@@ -850,7 +867,7 @@ function OnlineRoomTable({
   }));
   const alreadyExchanged = Boolean(game.exchangeSelections[access.playerId]);
   const onlyFivesPlayable = playableIndexes.length > 0 && playableIndexes.every((index) => hand[index]?.rank === "5");
-  const mustDiscardForNoLegalMove = isMyTurn && !forcedDiscard && hand.length > 0 && playableIndexes.length === 0;
+  const mustDiscardForNoLegalMove = canTakeNormalTurn && !forcedDiscard && hand.length > 0 && playableIndexes.length === 0;
   const canDiscard = selectedCardIndex !== null && (
     forcedDiscard || playableIndexes.length === 0 || (onlyFivesPlayable && selectedCard?.rank !== "5")
   );
@@ -865,6 +882,7 @@ function OnlineRoomTable({
 
   function chooseCard(index: number) {
     if (busy || isAnimating || isDealing) return;
+    if (isCharityRequester && index === hand.length - 1) return;
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
     setSplitSteps([]);
@@ -872,8 +890,18 @@ function OnlineRoomTable({
   }
 
   async function discardCard(index: number | null) {
-    if (busy || isAnimating || isDealing || !isMyTurn) return;
+    if (busy || isAnimating || isDealing || !canTakeNormalTurn) return;
     await submit({ type: "discard-card", actor: access.playerId, cardIndex: index });
+  }
+
+  async function requestCharity() {
+    if (!isMyTurn || !charityRequestRequired) return;
+    await submit({ type: "request-charity-card", actor: access.playerId, rank: requestedCharityRank });
+  }
+
+  async function returnCharity() {
+    if (!isCharityRequester || selectedCardIndex === null) return;
+    await submit({ type: "return-charity-card", actor: access.playerId, cardIndex: selectedCardIndex });
   }
 
   function choosePiece(pieceId: string) {
@@ -1074,12 +1102,36 @@ function OnlineRoomTable({
         <strong>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]}</strong>
       </div>
       {forcedDiscard && <strong className="forced-discard-prompt">10 played · discard one card</strong>}
+      {isMyTurn && charityRequestRequired && (
+        <div className="online-charity-panel" role="group" aria-label="Request a charity card">
+          <strong>Charity earned</strong>
+          <label>
+            <span>Request</span>
+            <select value={requestedCharityRank} onChange={(event) => setRequestedCharityRank(event.target.value as CardRank)}>
+              {(["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const).map((rank) => <option value={rank} key={rank}>{rank}</option>)}
+            </select>
+          </label>
+          <button type="button" disabled={busy} onClick={() => void requestCharity()}>Request card</button>
+        </div>
+      )}
+      {game.charityExchange && (
+        <div className="online-charity-panel is-exchanging" role="status">
+          <strong>{room.playerNames[game.charityExchange.donor] ?? PLAYER_LABELS[game.charityExchange.donor]} supplied the requested {game.charityExchange.requestedRank}</strong>
+          {isCharityRequester
+            ? <span>Choose one of your original cards to return.</span>
+            : <span>Waiting for {room.playerNames[game.charityExchange.requester] ?? PLAYER_LABELS[game.charityExchange.requester]} to return a card.</span>}
+        </div>
+      )}
       <div className="online-hand">
         {hand.map((card, index) => (
           <button
             type="button"
             className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""} ${submittedExchange?.index === index ? "is-exchange-selected" : ""}`}
-            disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
+            disabled={busy || isDealing || (game.phase === "exchange"
+              ? alreadyExchanged
+              : isCharityRequester
+                ? index === hand.length - 1
+                : !canTakeNormalTurn)}
             style={{ "--deal-card-index": index } as React.CSSProperties}
             aria-label={`${card.rank} of ${card.suit}`}
             onClick={() => chooseCard(index)}
@@ -1112,18 +1164,23 @@ function OnlineRoomTable({
         <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !isMyTurn || !hasSelection} onClick={() => resetSelection()}>
           Cancel selection
         </button>
-        <button
+        {isCharityRequester ? <button
+          className="online-pass-card"
+          type="button"
+          disabled={busy || selectedCardIndex === null}
+          onClick={() => void returnCharity()}
+        >Return selected card</button> : <button
           className="online-discard"
           type="button"
-          disabled={busy || isDealing || !isMyTurn || (!canDiscard && !(forcedDiscard && hand.length === 0))}
+          disabled={busy || isDealing || !canTakeNormalTurn || (!canDiscard && !(forcedDiscard && hand.length === 0))}
           onClick={() => discardCard(hand.length === 0 ? null : selectedCardIndex)}
         >
           Discard selected card
-        </button>
+        </button>}
       </div>}
       {forcedDiscard && hand.length > 0 && <p>Choose a card, then discard—or double-click it.</p>}
       {mustDiscardForNoLegalMove && <p>No legal moves are available. You must discard—double-click a card, or select it and use the discard button.</p>}
-      {selectedCard && isMyTurn && !forcedDiscard && !mustDiscardForNoLegalMove && (
+      {selectedCard && canTakeNormalTurn && !forcedDiscard && !mustDiscardForNoLegalMove && (
         <p>{legalMoves.length === 0
           ? canDiscard
             ? "This card has no legal move and may be discarded—double-click it or use the discard button."
@@ -1197,6 +1254,14 @@ function OnlineRoomTable({
               />
             ))}
           </div>
+          {game.charityTurns > 0 && <div className="online-charity-status" aria-label="Charity status">
+            {ruleset.board.playerIds.map((playerId) => <span key={playerId}>
+              {room.playerNames[playerId] ?? PLAYER_LABELS[playerId]} {(game.charityCounts[playerId] ?? 0)}/{game.charityTurns}
+            </span>)}
+            {game.lastCharityTransfer && <strong>
+              {room.playerNames[game.lastCharityTransfer.donor] ?? PLAYER_LABELS[game.lastCharityTransfer.donor]} supplied {game.lastCharityTransfer.requestedRank} to {room.playerNames[game.lastCharityTransfer.requester] ?? PLAYER_LABELS[game.lastCharityTransfer.requester]}
+            </strong>}
+          </div>}
         </div>
 
         <div className="online-board-stage">

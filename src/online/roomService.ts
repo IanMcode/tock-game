@@ -8,7 +8,7 @@ import {
   type CommandEnvelope,
   type GameSession,
 } from "../game/session";
-import { PLAYER_IDS, type PlayerId } from "../game/types";
+import { PLAYER_IDS, type CharityTurns, type PlayerId } from "../game/types";
 import { createSessionView, type GameSessionView } from "../game/view";
 import { getRulesetDefinition } from "../game/definition";
 import { getGameStatistics, type PlayerGameStatistics } from "./statistics";
@@ -40,6 +40,7 @@ export type OnlineRoom = {
 export type RoomConfiguration = {
   teams: boolean;
   startWithPieceOnEntry: boolean;
+  charityTurns: CharityTurns;
 };
 
 export type MatchPlayerResult = PlayerGameStatistics & {
@@ -92,6 +93,7 @@ export type CreateRoomOptions = {
   playerName?: string;
   randomizeSeats?: boolean;
   startWithPieceOnEntry?: boolean;
+  charityTurns?: CharityTurns;
 };
 
 export type StartNextGameOptions = {
@@ -184,6 +186,7 @@ export class RoomService {
       playerCount,
       teams,
       startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
+      charityTurns: options.charityTurns ?? 0,
       ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
     });
     const joinOrder = options.randomizeSeats
@@ -211,6 +214,7 @@ export class RoomService {
         configuration: {
           teams,
           startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
+          charityTurns: options.charityTurns ?? 0,
         },
       };
       if (await this.store.create(room)) {
@@ -299,12 +303,14 @@ export class RoomService {
     const configuration = room.configuration ?? {
       teams: getRulesetDefinition(room.session.game.rulesetId).exchange === "partners",
       startWithPieceOnEntry: true,
+      charityTurns: 0,
     };
     const game = createGame({
       randomState: this.randomState(),
       playerCount: playerIds.length as BoardPlayerCount,
       teams: configuration.teams,
       startWithPieceOnEntry: configuration.startWithPieceOnEntry,
+      charityTurns: configuration.charityTurns,
       ...(dealer ? { dealer } : {}),
     });
     const next: OnlineRoom = {
@@ -368,6 +374,7 @@ export class RoomService {
     const configuration = completedRoom.configuration ?? {
       teams: ruleset.exchange === "partners",
       startWithPieceOnEntry: true,
+      charityTurns: 0,
     };
     const selectedDealerParticipant = options.dealer && options.dealer !== "random"
       ? participantIdForSeat(completedRoom, options.dealer)
@@ -383,6 +390,7 @@ export class RoomService {
       playerCount: ruleset.board.playerCount,
       teams: configuration.teams,
       startWithPieceOnEntry: configuration.startWithPieceOnEntry,
+      charityTurns: configuration.charityTurns,
       ...(dealer ? { dealer } : {}),
     });
     const next: OnlineRoom = {

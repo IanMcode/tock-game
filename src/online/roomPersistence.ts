@@ -24,10 +24,21 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
   }
 
   const storedRoom = record.room as OnlineRoom;
-  const storedSession = storedRoom.session as GameSession;
+  const legacySession = storedRoom.session as GameSession;
+  const storedSession = {
+    ...legacySession,
+    game: {
+      ...legacySession.game,
+      charityTurns: legacySession.game.charityTurns ?? 0,
+      charityCounts: legacySession.game.charityCounts ?? {},
+      charityExchange: legacySession.game.charityExchange ?? null,
+      lastCharityTransfer: legacySession.game.lastCharityTransfer ?? null,
+    },
+  } satisfies GameSession;
   const ruleset = getRulesetDefinition(storedSession.game.rulesetId);
   const room = {
     ...storedRoom,
+    session: storedSession,
     started: typeof storedRoom.started === "boolean"
       ? storedRoom.started
       : storedSession.game.players.every((player) => Boolean(storedRoom.seats?.[player.id])),
@@ -51,10 +62,11 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
       ? storedRoom.currentGameNumber
       : 1,
     configuration: isRecord(storedRoom.configuration)
-      ? storedRoom.configuration
+      ? { ...storedRoom.configuration, charityTurns: storedRoom.configuration.charityTurns ?? 0 }
       : {
           teams: ruleset.exchange === "partners",
           startWithPieceOnEntry: true,
+          charityTurns: 0,
         },
   } as OnlineRoom;
   validateRoom(room);
@@ -85,7 +97,8 @@ function validateRoom(room: OnlineRoom): void {
   if (
     !isRecord(room.configuration) ||
     typeof room.configuration.teams !== "boolean" ||
-    typeof room.configuration.startWithPieceOnEntry !== "boolean"
+    typeof room.configuration.startWithPieceOnEntry !== "boolean" ||
+    ![0, 1, 2, 3].includes(room.configuration.charityTurns)
   ) {
     throw new Error("The stored room has invalid game configuration.");
   }

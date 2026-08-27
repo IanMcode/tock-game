@@ -10,6 +10,7 @@ describe("online command protocol", () => {
       dealer: "P2",
       randomizeSeats: false,
       startWithPieceOnEntry: true,
+      charityTurns: 0,
     });
     expect(parseCreateRoomOptions(undefined)).toEqual({});
   });
