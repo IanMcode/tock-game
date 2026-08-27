@@ -4,6 +4,7 @@ import { createGame } from "./createGame";
 import {
   advanceDealIfHandComplete,
   FOUR_PLAYER_DEAL_SCHEDULE,
+  getNextHandPreview,
   selectExchangeCard,
 } from "./deals";
 import { getPlayableCardIndexes } from "./turns";
@@ -90,6 +91,22 @@ describe("four-player deal lifecycle", () => {
     expect(game.dealIndex).toBe(2);
     expect(game.players.every((player) => player.hand.length === 4)).toBe(true);
     expect(game.drawPile).toHaveLength(0);
+  });
+
+  it("previews the next hand and its starter", () => {
+    const game = createGame({ shuffle: false, dealer: "P4" });
+
+    expect(getNextHandPreview(game)).toEqual({
+      cardsPerPlayer: 4,
+      handsRemainingInDeal: 2,
+      starter: "P1",
+    });
+
+    expect(getNextHandPreview({ ...game, dealIndex: 2 })).toEqual({
+      cardsPerPlayer: 5,
+      handsRemainingInDeal: 0,
+      starter: "P2",
+    });
   });
 
   it("reshuffles all discards and rotates the dealer after the third hand", () => {

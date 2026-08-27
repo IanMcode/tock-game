@@ -7,6 +7,29 @@ import type { GameState, Player, PlayerId } from "./types";
 
 export const FOUR_PLAYER_DEAL_SCHEDULE = CLASSIC_PARTNERS_RULESET.dealSchedule;
 
+export type NextHandPreview = {
+  cardsPerPlayer: number;
+  handsRemainingInDeal: number;
+  starter: PlayerId;
+};
+
+export function getNextHandPreview(game: Pick<GameState, "rulesetId" | "dealer" | "dealIndex"> & {
+  players: readonly Pick<Player, "id">[];
+}): NextHandPreview {
+  const ruleset = getRulesetDefinition(game.rulesetId);
+  const schedule = ruleset.dealSchedule;
+  const startsNewDeal = game.dealIndex >= schedule.length - 1;
+  const nextHandIndex = startsNewDeal ? 0 : game.dealIndex + 1;
+  const playerIds = game.players.map((player) => player.id);
+  const nextDealer = startsNewDeal ? getNextPlayer(game.dealer, playerIds) : game.dealer;
+
+  return {
+    cardsPerPlayer: schedule[nextHandIndex],
+    handsRemainingInDeal: Math.max(0, schedule.length - game.dealIndex - 1),
+    starter: getNextPlayer(nextDealer, playerIds),
+  };
+}
+
 export function dealHand(
   players: readonly Player[],
   drawPile: readonly GameState["drawPile"][number][],

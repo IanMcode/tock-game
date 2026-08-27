@@ -9,7 +9,6 @@ import {
   joinOnlineRoom,
   readOnlineRoom,
   requestRoomRealtimeToken,
-  sendOnlineChat,
   sendOnlineCommand,
   startOnlineNextGame,
   startOnlineRoom,
@@ -58,6 +57,7 @@ import {
 } from "../game-table";
 import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../../src/game/actions";
 import { getLegalBasicCardMoves } from "../../src/game/cardMoves";
+import { getNextHandPreview } from "../../src/game/deals";
 import { getRulesetDefinition } from "../../src/game/definition";
 import type { ForwardMove } from "../../src/game/moves";
 import { getMoveAnimationFrames } from "../../src/game/moveAnimation";
@@ -608,8 +608,6 @@ function OnlineRoomTable({
   const [pendingDealKey, setPendingDealKey] = useState<string | null>(null);
   const [pendingDealClearsCards, setPendingDealClearsCards] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
-  const [chatDraft, setChatDraft] = useState("");
-  const [chatBusy, setChatBusy] = useState(false);
   const [victoryPanel, setVictoryPanel] = useState<"rematch" | "statistics" | null>(null);
   const [rematchRandomizeSeats, setRematchRandomizeSeats] = useState(true);
   const [rematchDealer, setRematchDealer] = useState<PlayerId | "random">("random");
@@ -685,6 +683,7 @@ function OnlineRoomTable({
   }, []);
   const matchTotals = useMemo(() => getMatchTotals(room.matchHistory), [room.matchHistory]);
   const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_NAMES[playerId]) ?? [];
+  const nextHand = getNextHandPreview(game);
 
   useEffect(() => {
     if (previousDealKey.current === dealKey) return;
@@ -970,26 +969,6 @@ function OnlineRoomTable({
     }
   }
 
-  async function submitChat(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = chatDraft.trim();
-    if (!text || chatBusy) return;
-    setChatBusy(true);
-    setCommandError(null);
-    try {
-      const next = await sendOnlineChat(access.roomId, access.playerToken, {
-        messageId: crypto.randomUUID(),
-        text,
-      });
-      onRoom(next);
-      setChatDraft("");
-    } catch (chatError) {
-      setCommandError(messageFrom(chatError));
-    } finally {
-      setChatBusy(false);
-    }
-  }
-
   async function replayLastTurn() {
     if (
       busy ||
@@ -1242,7 +1221,6 @@ function OnlineRoomTable({
           reservePresentation="board-grid"
           showToolbar={false}
           showLegend={false}
-          footerContent={localPlayerDock}
         />
         {game.winningTeam && (
           <section className="online-victory" aria-label="Game complete">
@@ -1326,6 +1304,10 @@ function OnlineRoomTable({
         )}
         </div>
 
+        <div className="online-hand-stage">
+          {localPlayerDock}
+        </div>
+
         <section className="online-play-log" aria-label="Play log">
         <div className="online-log-heading">
           <div>
@@ -1352,32 +1334,10 @@ function OnlineRoomTable({
         </div>
         </section>
 
-        <section className="online-chat" aria-label="Table chat">
-          <div className="online-chat-heading">
-            <div>
-              <p className="eyebrow">Table chat</p>
-              <strong>Players in this room</strong>
-            </div>
-          </div>
-          <div className="online-chat-window" aria-live="polite">
-            {room.chatMessages.slice(-12).map((message) => (
-              <p key={message.id}>
-                <strong>{room.playerNames[message.playerId] ?? PLAYER_NAMES[message.playerId]}</strong>
-                <span>{message.text}</span>
-              </p>
-            ))}
-            {room.chatMessages.length === 0 && <p className="online-chat-empty">No messages yet.</p>}
-          </div>
-          <form className="online-chat-form" onSubmit={(event) => void submitChat(event)}>
-            <input
-              aria-label="Chat message"
-              maxLength={200}
-              placeholder="Message the table…"
-              value={chatDraft}
-              onChange={(event) => setChatDraft(event.target.value)}
-            />
-            <button type="submit" disabled={chatBusy || !chatDraft.trim()}>Send</button>
-          </form>
+        <section className="online-deal-summary" aria-label="Upcoming deal information">
+          <strong>Next hand: {nextHand.cardsPerPlayer} cards</strong>
+          <span>{nextHand.handsRemainingInDeal} {nextHand.handsRemainingInDeal === 1 ? "hand" : "hands"} remaining in this deal</span>
+          <span>{room.playerNames[nextHand.starter] ?? PLAYER_NAMES[nextHand.starter]} starts</span>
         </section>
       </div>
       {commandError && <p className="online-error" role="alert">{commandError}</p>}
