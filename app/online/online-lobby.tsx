@@ -72,11 +72,11 @@ const ACCESS_KEY = "tock-online-room-access";
 const PLAY_LOG_ENTRY_LIMIT = 6;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
 type ExchangeReceipt = { sent: Card; received: Card };
-const PLAYER_NAMES: Record<PlayerId, string> = {
-  P1: "Poppy",
-  P2: "River",
-  P3: "Sunny",
-  P4: "Fern",
+const PLAYER_LABELS: Record<PlayerId, string> = {
+  P1: "Player 1",
+  P2: "Player 2",
+  P3: "Player 3",
+  P4: "Player 4",
 };
 
 type OnlineLobbyProps = {
@@ -378,6 +378,15 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
   }
 
   if (access) {
+    if (!room) {
+      return (
+        <main className="online-shell">
+          <section className="room-card" aria-live="polite">
+            <p>Connecting to room…</p>
+          </section>
+        </main>
+      );
+    }
     const isGameRoom = room?.status === "active" || room?.status === "complete";
     const isLobbyReady = room?.status === "waiting" && room.connectedPlayers.length === room.requiredPlayers;
     const isTeamLobby = Boolean(room && getRulesetDefinition(room.session.game.rulesetId).exchange === "partners");
@@ -401,7 +410,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
           </div>
           <div className="room-status-copy">
             <p className="eyebrow">Your seat</p>
-            <h2>{room?.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId}</h2>
+            <h2>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]} · {access.playerId}</h2>
             <p>{room && room.connectedPlayers.length === room.requiredPlayers
               ? room.isHost ? "Everyone is here. Arrange the table, then start when ready." : "Everyone is here. Waiting for the host to start."
               : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
@@ -431,7 +440,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
                   <select value={lobbyDealer} disabled={busy} onChange={(event) => setLobbyDealer(event.target.value as PlayerId | "random")}>
                     <option value="random">Choose randomly</option>
                     {room.connectedPlayers.map((playerId) => (
-                      <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}</option>
+                      <option value={playerId} key={playerId}>{room.playerNames[playerId] ?? PLAYER_LABELS[playerId]}</option>
                     ))}
                   </select>
                 </label>
@@ -452,7 +461,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             return (
               <article className={connected ? "seat-card is-connected" : "seat-card"} key={playerId}>
                 <span>{playerId}</span>
-                <strong>{connected ? room.playerNames[playerId] ?? PLAYER_NAMES[playerId] : "Available"}</strong>
+                <strong>{connected ? room.playerNames[playerId] ?? PLAYER_LABELS[playerId] : "Available"}</strong>
                 <small>{connected ? "Connected" : "Open seat"}</small>
                 {connected && isLobbyReady && isTeamLobby && <label className="seat-team-control">
                   <span>Team</span>
@@ -543,7 +552,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             <span>First dealer</span>
             <select value={dealer} onChange={(event) => setDealer(event.target.value as PlayerId | "random")}>
               <option value="random">Random</option>
-              {activePlayerIds.map((playerId) => <option value={playerId} key={playerId}>{PLAYER_NAMES[playerId]}</option>)}
+              {activePlayerIds.map((playerId, index) => <option value={playerId} key={playerId}>Position {index + 1}</option>)}
             </select>
           </label>
           <button className="online-primary" type="submit" disabled={busy}>{busy ? "Creating game…" : "Create Game"}</button>
@@ -682,7 +691,7 @@ function OnlineRoomTable({
     return true;
   }, []);
   const matchTotals = useMemo(() => getMatchTotals(room.matchHistory), [room.matchHistory]);
-  const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_NAMES[playerId]) ?? [];
+  const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_LABELS[playerId]) ?? [];
   const nextHand = getNextHandPreview(game);
 
   useEffect(() => {
@@ -1062,7 +1071,7 @@ function OnlineRoomTable({
     <div className={`online-hand-panel ${isMyTurn ? "is-my-turn" : ""} ${forcedDiscard ? "is-forced-discard" : ""}`}>
       <div>
         <p className="eyebrow">Your hand</p>
-        <strong>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]}</strong>
+        <strong>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]}</strong>
       </div>
       {forcedDiscard && <strong className="forced-discard-prompt">10 played · discard one card</strong>}
       <div className="online-hand">
@@ -1156,8 +1165,8 @@ function OnlineRoomTable({
             <div className="online-room-heading-row">
               <div>
                 <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
-                <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_NAMES[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_NAMES[game.currentPlayer]}'s turn`}</h2>
-                <span>{room.playerNames[access.playerId] ?? PLAYER_NAMES[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
+                <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_LABELS[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_LABELS[game.currentPlayer]}'s turn`}</h2>
+                <span>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
                 {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
               </div>
               <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
@@ -1175,7 +1184,7 @@ function OnlineRoomTable({
                 owner={playerId}
                 pieces={renderedPieces}
                 player={boardPlayers.find((player) => player.id === playerId)}
-                playerName={room.playerNames[playerId] ?? PLAYER_NAMES[playerId]}
+                playerName={room.playerNames[playerId] ?? PLAYER_LABELS[playerId]}
                 dealer={game.dealer}
                 dealIndex={game.dealIndex}
                 dealCount={ruleset.dealSchedule.length}
@@ -1242,7 +1251,7 @@ function OnlineRoomTable({
                   <span>First dealer</span>
                   <select value={rematchDealer} onChange={(event) => setRematchDealer(event.target.value as PlayerId | "random")}>
                     <option value="random">Random dealer</option>
-                    {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_NAMES[player.id]} ({player.id})</option>)}
+                    {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_LABELS[player.id]} ({player.id})</option>)}
                   </select>
                 </label>
                 <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Starting next game…" : "Start next game"}</button>
@@ -1283,7 +1292,7 @@ function OnlineRoomTable({
                             <small>{Object.entries(player.eliminatedPlayers).length
                               ? Object.entries(player.eliminatedPlayers).map(([playerId, count]) => {
                                   const target = matchGame.players.find((candidate) => candidate.seatId === playerId);
-                                  return `${target?.playerName ?? PLAYER_NAMES[playerId as PlayerId]} ×${count}`;
+                                  return `${target?.playerName ?? PLAYER_LABELS[playerId as PlayerId]} ×${count}`;
                                 }).join(" · ")
                               : "No opposing pieces eliminated"}</small>
                           </article>
@@ -1335,9 +1344,8 @@ function OnlineRoomTable({
         </section>
 
         <section className="online-deal-summary" aria-label="Upcoming deal information">
-          <strong>Next hand: {nextHand.cardsPerPlayer} cards</strong>
+          <strong>Next hand: {nextHand.cardsPerPlayer} cards, {room.playerNames[nextHand.starter] ?? PLAYER_LABELS[nextHand.starter]} starts</strong>
           <span>{nextHand.handsRemainingInDeal} {nextHand.handsRemainingInDeal === 1 ? "hand" : "hands"} remaining in this deal</span>
-          <span>{room.playerNames[nextHand.starter] ?? PLAYER_NAMES[nextHand.starter]} starts</span>
         </section>
       </div>
       {commandError && <p className="online-error" role="alert">{commandError}</p>}

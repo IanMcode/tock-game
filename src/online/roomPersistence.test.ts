@@ -31,7 +31,7 @@ describe("online room persistence", () => {
     delete legacyRoom.hostParticipantId;
 
     const restored = deserializeOnlineRoom({ version: 1, room: legacyRoom });
-    expect(restored.playerNames).toEqual({ P1: "Poppy" });
+    expect(restored.playerNames).toEqual({ P1: "Player 1" });
     expect(restored.chatMessages).toEqual([]);
     expect(restored.started).toBe(false);
     expect(restored.hostParticipantId).toBe("player-P1");

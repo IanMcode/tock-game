@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
 import { BOARD_DEFINITIONS, getBoardTrackIndex } from "../src/game/definition";
 import {
+  getBoardCenterPoint,
   getBoardPerspectiveRotation,
   getBoardReserveGridPoint,
   getBoardReserveGridRotation,
@@ -49,6 +50,15 @@ describe("playing card artwork", () => {
 });
 
 describe("player board perspective", () => {
+  it("keeps the raised center-card position fixed for every viewer", () => {
+    for (const board of Object.values(BOARD_DEFINITIONS)) {
+      for (const viewer of board.playerIds) {
+        const rotation = getBoardPerspectiveRotation(viewer, board);
+        expect(rotatePoint(getBoardCenterPoint(rotation), rotation)).toEqual({ x: 50, y: 40 });
+      }
+    }
+  });
+
   it("places each player's space 12 exactly on a corner", () => {
     const expectedCorners = {
       2: [{ x: 78, y: 90 }, { x: 22, y: 10 }],

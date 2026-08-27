@@ -105,10 +105,10 @@ export type StartRoomOptions = {
 };
 
 export const DEFAULT_PLAYER_NAMES: Record<PlayerId, string> = {
-  P1: "Poppy",
-  P2: "River",
-  P3: "Sunny",
-  P4: "Fern",
+  P1: "Player 1",
+  P2: "Player 2",
+  P3: "Player 3",
+  P4: "Player 4",
 };
 
 export interface RoomStore {

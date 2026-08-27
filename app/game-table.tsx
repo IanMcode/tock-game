@@ -41,10 +41,10 @@ const PLAYER_META: Record<
   PlayerId,
   { name: string; team: string }
 > = {
-  P1: { name: "Poppy", team: "Sun team" },
-  P2: { name: "River", team: "Moon team" },
-  P3: { name: "Sunny", team: "Sun team" },
-  P4: { name: "Fern", team: "Moon team" },
+  P1: { name: "Player 1", team: "Sun team" },
+  P2: { name: "Player 2", team: "Moon team" },
+  P3: { name: "Player 3", team: "Sun team" },
+  P4: { name: "Player 4", team: "Moon team" },
 };
 
 const SUIT_SYMBOL: Record<Card["suit"], string> = {
@@ -1064,6 +1064,7 @@ export function Board({
   const perspectiveRotation = perspectivePlayerId
     ? getBoardPerspectiveRotation(perspectivePlayerId, boardDefinition)
     : 0;
+  const boardCenterPoint = getBoardCenterPoint(perspectiveRotation);
   const useBoardReserveGrids = reservePresentation === "board-grid";
   const useOpponentReserveRow = !useBoardReserveGrids && Boolean(perspectivePlayerId && externalReservePlayerId);
   const opponentReserveOwners = useOpponentReserveRow && perspectivePlayerId
@@ -1180,6 +1181,8 @@ export function Board({
           style={{
             "--board-rotation": `${perspectiveRotation}deg`,
             "--counter-rotation": `${-perspectiveRotation}deg`,
+            "--board-center-x": `${boardCenterPoint.x}%`,
+            "--board-center-y": `${boardCenterPoint.y}%`,
           } as React.CSSProperties}
         >
         <div className={`board-center ${recentCard || incomingCard ? "has-recent-card" : ""}`}>
@@ -1871,6 +1874,15 @@ export function getBoardPerspectiveRotation(viewer: PlayerId, board: BoardDefini
   const currentAngle = Math.atan2(-inward.y, -inward.x) * 180 / Math.PI;
   const rotation = 90 - currentAngle;
   return rotation > 180 ? rotation - 360 : rotation;
+}
+
+export function getBoardCenterPoint(perspectiveRotation: number): BoardPoint {
+  const raisedCenterOffset = 10;
+  const radians = perspectiveRotation * Math.PI / 180;
+  return {
+    x: 50 - Math.sin(radians) * raisedCenterOffset,
+    y: 50 - Math.cos(radians) * raisedCenterOffset,
+  };
 }
 
 function roundPoint(point: { x: number; y: number }) {
