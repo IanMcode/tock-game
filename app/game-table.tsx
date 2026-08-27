@@ -1448,9 +1448,67 @@ export function getCardPipLayout(rank: Card["rank"]): readonly CardPipPoint[] | 
   return rank === "J" || rank === "Q" || rank === "K" ? null : CARD_PIP_LAYOUTS[rank];
 }
 
+function CourtPortrait({ rank, suit, transform }: {
+  rank: "J" | "Q" | "K";
+  suit: string;
+  transform?: string;
+}) {
+  const robe = rank === "Q" ? "#a74555" : rank === "K" ? "#286aa0" : "#b64a3c";
+  return (
+    <g transform={transform}>
+      <path d="M22 78 27 49 39 42h22l12 7 5 29Z" fill={robe} stroke="#253a36" strokeWidth="2" />
+      <path d="m29 76 7-28 8 12 6-15 6 15 8-12 7 28Z" fill="#f5d36e" stroke="#253a36" strokeWidth="1.5" />
+      <path d="m38 43 12 8 12-8-3 21H41Z" fill="#f8f4e8" stroke="#253a36" strokeWidth="1.5" />
+      <ellipse cx="50" cy="33" rx="11" ry="13" fill="#e9b77f" stroke="#513a2d" strokeWidth="1.6" />
+      <path d="M39 34q1-17 11-17t11 17l-5-7-13 1Z" fill="#553526" />
+      <circle cx="46" cy="34" r="1.2" fill="#263430" />
+      <circle cx="54" cy="34" r="1.2" fill="#263430" />
+      <path d="M46 40q4 3 8 0" fill="none" stroke="#7c403c" strokeWidth="1.2" strokeLinecap="round" />
+      {rank === "J" ? (
+        <>
+          <path d="M37 24q12-15 28-5l-7 8q-10-6-21-3Z" fill="#286aa0" stroke="#253a36" strokeWidth="1.5" />
+          <path d="M62 18q7-8 10-1-6 2-10 6" fill="#d8a82f" stroke="#253a36" strokeWidth="1" />
+          <path d="M27 71 69 47" stroke="#253a36" strokeWidth="3" />
+          <circle cx="69" cy="47" r="3" fill="#d8a82f" stroke="#253a36" strokeWidth="1.5" />
+        </>
+      ) : (
+        <path d="m37 23 3-12 7 8 4-11 5 11 7-8 1 14Z" fill="#efc646" stroke="#253a36" strokeWidth="1.5" strokeLinejoin="round" />
+      )}
+      {rank === "Q" && (
+        <>
+          <path d="M30 68q8-12 16-5" fill="none" stroke="#2f7258" strokeWidth="2.5" />
+          <circle cx="28" cy="68" r="4" fill="#d94752" stroke="#253a36" strokeWidth="1.2" />
+          <circle cx="33" cy="64" r="3" fill="#efc646" stroke="#253a36" strokeWidth="1" />
+        </>
+      )}
+      {rank === "K" && (
+        <>
+          <path d="M70 18 61 71" stroke="#59666c" strokeWidth="3" />
+          <path d="m66 18 6-8 3 10Z" fill="#d7dde0" stroke="#253a36" strokeWidth="1.2" />
+          <path d="m57 64 10 2" stroke="#efc646" strokeWidth="4" />
+        </>
+      )}
+      <text x="50" y="72" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="15" fontWeight="700">{suit}</text>
+    </g>
+  );
+}
+
+function CourtCardArtwork({ rank, suit }: { rank: "J" | "Q" | "K"; suit: string }) {
+  return (
+    <svg className={`card-court card-court-${rank.toLowerCase()}`} viewBox="0 0 100 156" preserveAspectRatio="xMidYMid meet">
+      <rect className="card-court-frame" x="1" y="1" width="98" height="154" rx="7" />
+      <CourtPortrait rank={rank} suit={suit} />
+      <CourtPortrait rank={rank} suit={suit} transform="rotate(180 50 78)" />
+      <path className="card-court-band" d="M17 73 50 62l33 11v10L50 94 17 83Z" />
+      <text x="50" y="84" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="18" fontWeight="700">{suit}</text>
+    </svg>
+  );
+}
+
 function CardArtwork({ card }: { card: Card }) {
   const suit = SUIT_SYMBOL[card.suit];
   const pips = getCardPipLayout(card.rank);
+  const courtRank = card.rank === "J" || card.rank === "Q" || card.rank === "K" ? card.rank : null;
   return (
     <>
       <span className="card-corner card-corner-top"><b>{card.rank}</b><i>{suit}</i></span>
@@ -1465,15 +1523,9 @@ function CardArtwork({ card }: { card: Card }) {
               >{suit}</i>
             ))}
           </span>
-        ) : (
-          <span className={`card-court card-court-${card.rank.toLowerCase()}`}>
-            <i className="card-court-crown" />
-            <i className="card-court-head" />
-            <i className="card-court-body" />
-            <b>{card.rank}</b>
-            <em>{suit}</em>
-          </span>
-        )}
+        ) : courtRank ? (
+          <CourtCardArtwork rank={courtRank} suit={suit} />
+        ) : null}
       </span>
       <span className="card-corner card-corner-bottom"><b>{card.rank}</b><i>{suit}</i></span>
     </>
