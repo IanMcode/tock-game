@@ -1174,12 +1174,7 @@ export function Board({
               {previousCard && <PlayingCardGraphic card={previousCard} className="table-card-previous" />}
               <PlayingCardGraphic card={recentCard} className="table-card-current" />
             </span>
-          ) : (
-            <>
-              <span>TOCK</span>
-              <small>{teamMode ? "partners across" : "race home"}</small>
-            </>
-          )}
+          ) : null}
         </div>
         {incomingCard && cardFlightOrigin && (
           <span
@@ -1419,23 +1414,69 @@ function CardButton({ card, selected, exchangeSelected, committing, playable, di
 export function CardFace({ card, className = "" }: { card: Card; className?: string }) {
   const red = card.suit === "hearts" || card.suit === "diamonds";
   return (
-    <span className={`card-face ${red ? "red" : "black"} ${className}`}>
-      <span>{card.rank}</span>
-      <strong>{SUIT_SYMBOL[card.suit]}</strong>
-      <small>{card.rank}</small>
+    <span className={`card-face ${red ? "red" : "black"} ${className}`} aria-hidden="true">
+      <CardArtwork card={card} />
     </span>
   );
 }
 
 export function PlayingCardGraphic({ card, className = "" }: { card: Card; className?: string }) {
   const red = card.suit === "hearts" || card.suit === "diamonds";
-  const suit = SUIT_SYMBOL[card.suit];
   return (
     <span className={`table-card ${red ? "red" : "black"} ${className}`} aria-label={`${card.rank} of ${card.suit}`}>
-      <span className="table-card-corner table-card-top"><b>{card.rank}</b><i>{suit}</i></span>
-      <strong aria-hidden="true">{suit}</strong>
-      <span className="table-card-corner table-card-bottom"><b>{card.rank}</b><i>{suit}</i></span>
+      <CardArtwork card={card} />
     </span>
+  );
+}
+
+type CardPipPoint = { x: number; y: number; flipped?: boolean };
+
+const CARD_PIP_LAYOUTS: Record<Exclude<Card["rank"], "J" | "Q" | "K">, readonly CardPipPoint[]> = {
+  A: [{ x: 50, y: 50 }],
+  "2": [{ x: 50, y: 20 }, { x: 50, y: 80, flipped: true }],
+  "3": [{ x: 50, y: 16 }, { x: 50, y: 50 }, { x: 50, y: 84, flipped: true }],
+  "4": [{ x: 24, y: 20 }, { x: 76, y: 20 }, { x: 24, y: 80, flipped: true }, { x: 76, y: 80, flipped: true }],
+  "5": [{ x: 24, y: 18 }, { x: 76, y: 18 }, { x: 50, y: 50 }, { x: 24, y: 82, flipped: true }, { x: 76, y: 82, flipped: true }],
+  "6": [{ x: 24, y: 15 }, { x: 76, y: 15 }, { x: 24, y: 50 }, { x: 76, y: 50 }, { x: 24, y: 85, flipped: true }, { x: 76, y: 85, flipped: true }],
+  "7": [{ x: 24, y: 12 }, { x: 76, y: 12 }, { x: 50, y: 32 }, { x: 24, y: 50 }, { x: 76, y: 50 }, { x: 24, y: 88, flipped: true }, { x: 76, y: 88, flipped: true }],
+  "8": [{ x: 24, y: 10 }, { x: 76, y: 10 }, { x: 50, y: 29 }, { x: 24, y: 42 }, { x: 76, y: 42 }, { x: 50, y: 71, flipped: true }, { x: 24, y: 90, flipped: true }, { x: 76, y: 90, flipped: true }],
+  "9": [{ x: 24, y: 9 }, { x: 76, y: 9 }, { x: 24, y: 36 }, { x: 76, y: 36 }, { x: 50, y: 50 }, { x: 24, y: 64, flipped: true }, { x: 76, y: 64, flipped: true }, { x: 24, y: 91, flipped: true }, { x: 76, y: 91, flipped: true }],
+  "10": [{ x: 24, y: 8 }, { x: 76, y: 8 }, { x: 50, y: 27 }, { x: 24, y: 36 }, { x: 76, y: 36 }, { x: 24, y: 64, flipped: true }, { x: 76, y: 64, flipped: true }, { x: 50, y: 73, flipped: true }, { x: 24, y: 92, flipped: true }, { x: 76, y: 92, flipped: true }],
+};
+
+export function getCardPipLayout(rank: Card["rank"]): readonly CardPipPoint[] | null {
+  return rank === "J" || rank === "Q" || rank === "K" ? null : CARD_PIP_LAYOUTS[rank];
+}
+
+function CardArtwork({ card }: { card: Card }) {
+  const suit = SUIT_SYMBOL[card.suit];
+  const pips = getCardPipLayout(card.rank);
+  return (
+    <>
+      <span className="card-corner card-corner-top"><b>{card.rank}</b><i>{suit}</i></span>
+      <span className="card-art" aria-hidden="true">
+        {pips ? (
+          <span className={`card-pip-field ${card.rank === "A" ? "is-ace" : ""}`}>
+            {pips.map((pip, index) => (
+              <i
+                className={`card-pip ${pip.flipped ? "is-flipped" : ""}`}
+                style={{ left: `${pip.x}%`, top: `${pip.y}%` }}
+                key={`${pip.x}-${pip.y}-${index}`}
+              >{suit}</i>
+            ))}
+          </span>
+        ) : (
+          <span className={`card-court card-court-${card.rank.toLowerCase()}`}>
+            <i className="card-court-crown" />
+            <i className="card-court-head" />
+            <i className="card-court-body" />
+            <b>{card.rank}</b>
+            <em>{suit}</em>
+          </span>
+        )}
+      </span>
+      <span className="card-corner card-corner-bottom"><b>{card.rank}</b><i>{suit}</i></span>
+    </>
   );
 }
 

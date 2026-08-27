@@ -45,6 +45,7 @@ import {
 import {
   Board,
   BoardReserve,
+  CardFace,
   PlayingCardGraphic,
   SpaceNumberToggle,
   getDefaultPlayerAppearanceVariables,
@@ -1092,6 +1093,7 @@ function OnlineRoomTable({
             className={`online-card ${(card.suit === "hearts" || card.suit === "diamonds") ? "red" : ""} ${selectedCardIndex === index ? "is-selected" : ""} ${submittedExchange?.index === index ? "is-exchange-selected" : ""}`}
             disabled={busy || isDealing || (game.phase === "exchange" ? alreadyExchanged : !isMyTurn)}
             style={{ "--deal-card-index": index } as React.CSSProperties}
+            aria-label={`${card.rank} of ${card.suit}`}
             onClick={() => chooseCard(index)}
             onDoubleClick={() => {
               const canDoubleClickDiscard = forcedDiscard ||
@@ -1104,8 +1106,7 @@ function OnlineRoomTable({
               : undefined}
             key={`${card.rank}-${card.suit}-${index}`}
           >
-            <span>{card.rank}</span>
-            <strong>{cardSymbol(card)}</strong>
+            <CardFace card={card} />
           </button>
         ))}
         {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
@@ -1529,8 +1530,4 @@ function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {
     seen.add(key);
     return true;
   });
-}
-
-function cardSymbol(card: Card): string {
-  return { clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" }[card.suit];
 }

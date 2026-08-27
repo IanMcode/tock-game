@@ -9,6 +9,7 @@ import {
   getBoardReservePoint,
   getBoardTrackPoint,
   getBoardTurnMarkerPoint,
+  getCardPipLayout,
   getDefaultPlayerAppearanceVariables,
   getHomeLanePoint,
   type BoardPoint,
@@ -29,6 +30,21 @@ describe("default player appearance", () => {
       "--color-p4": "#F2C94C",
       "--color-p4-ink": "#111827",
     });
+  });
+});
+
+describe("playing card artwork", () => {
+  it("renders the correct number of suit pips for aces and numbered cards", () => {
+    expect(getCardPipLayout("A")).toHaveLength(1);
+    (["2", "3", "4", "5", "6", "7", "8", "9", "10"] as const).forEach((rank, index) => {
+      expect(getCardPipLayout(rank)).toHaveLength(index + 2);
+    });
+  });
+
+  it("uses court artwork instead of pip layouts for face cards", () => {
+    expect(getCardPipLayout("J")).toBeNull();
+    expect(getCardPipLayout("Q")).toBeNull();
+    expect(getCardPipLayout("K")).toBeNull();
   });
 });
 
