@@ -1162,14 +1162,16 @@ export function Board({
           {opponentReserveOwners.map((owner) => renderReserve(owner, true))}
         </div>
       )}
-      <div
-        className={`board board-${boardDefinition.playerCount}`}
-        aria-label={`${boardDefinition.trackSize}-space Tock board`}
-        style={{
-          "--board-rotation": `${perspectiveRotation}deg`,
-          "--counter-rotation": `${-perspectiveRotation}deg`,
-        } as React.CSSProperties}
-      >
+      <div className={`board-layer board-layer-${boardDefinition.playerCount}`}>
+        <div className="board-surface" aria-hidden="true" />
+        <div
+          className={`board board-${boardDefinition.playerCount}`}
+          aria-label={`${boardDefinition.trackSize}-space Tock board`}
+          style={{
+            "--board-rotation": `${perspectiveRotation}deg`,
+            "--counter-rotation": `${-perspectiveRotation}deg`,
+          } as React.CSSProperties}
+        >
         <div className={`board-center ${recentCard || incomingCard ? "has-recent-card" : ""}`}>
           {recentCard ? (
             <span className="board-card-stack">
@@ -1347,6 +1349,7 @@ export function Board({
             />
           </div>
         ))}
+        </div>
       </div>
       {footerContent && <div className="board-footer-dock">{footerContent}</div>}
       {showLegend && <div className="team-key">
