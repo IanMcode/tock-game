@@ -602,7 +602,7 @@ button { font: inherit; }
 .online-stat-grid article strong { margin-bottom: 3px; font-family: Georgia,serif; font-size: 17px; font-weight: 500; }
 .online-stat-grid article span, .online-stat-grid article small { color: var(--muted); font-size: 10px; line-height: 1.35; }
 
-@media (min-width: 761px) and (min-height: 620px) {
+@media (min-width: 901px) and (min-height: 620px) {
   .online-shell-active { width: min(1680px, calc(100% - 20px)); height: 100svh; min-height: 0; overflow: hidden; padding: 8px 0 0; }
   .online-game-header { min-height: 46px; margin-bottom: 8px; }
   .online-game-header h1 { margin-top: 2px; font-size: clamp(22px, 2.2vw, 30px); letter-spacing: -.02em; }
@@ -621,6 +621,24 @@ button { font: inherit; }
   .online-shell-active .online-deal-summary { grid-area: summary; }
   .online-shell-active .online-hand-stage { grid-area: hand; align-self: end; justify-self: end; width: min(610px,calc(100vw - 20px)); }
   .online-shell-active .online-log-window { max-height: none; }
+}
+
+@media (min-width: 901px) and (min-height: 620px) and (max-width: 1350px),
+  (min-width: 901px) and (min-height: 620px) and (max-height: 800px) {
+  .online-shell-active .online-game-viewport { grid-template-columns: minmax(0,1fr) minmax(220px,260px); grid-template-rows: auto minmax(80px,1fr) auto minmax(170px,auto); gap: 8px; }
+  .online-shell-active .online-table .board-layer { width: min(100%, calc(100vw - 390px), calc((100svh - 45px) * 1.163), 1200px); }
+  .online-shell-active .online-table .board-layer-3 { width: min(100%, calc(100vw - 390px), calc((100svh - 45px) * 1.22), 1250px); }
+  .online-shell-active .online-table .board-layer-2 { width: min(100%, calc(100vw - 390px), calc(100svh - 45px), 960px); }
+  .online-shell-active .online-hand-stage { width: min(470px,calc(100vw - 20px)); }
+  .online-local-player-dock .online-hand { min-height: 126px; gap: 7px; }
+  .online-local-player-dock .online-card { width: 82px; --card-pip-size: 15px; }
+  .online-local-player-dock .online-card .card-corner { font-size: 14px; }
+  .online-local-player-dock .online-hand-actions { width: min(100%,280px); }
+  .online-room-turn-card { gap: 7px; padding: 10px 11px; }
+  .online-room-turn-card h2 { font-size: 19px; }
+  .online-player-status-list { gap: 5px; }
+  .online-player-status-list .board-reserve { padding: 6px 8px; }
+  .online-play-log { padding: 11px 12px; }
 }
 
 @media (max-width: 680px) {
@@ -654,7 +672,7 @@ button { font: inherit; }
   .online-stat-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 760px), (max-height: 619px) {
+@media (max-width: 900px), (max-height: 619px) {
   .online-shell-active { width: min(100% - 20px, 1320px); padding-top: 16px; }
   .online-game-header { align-items: flex-start; margin-bottom: 14px; }
   .online-game-header h1 { font-size: 26px; }
