@@ -1297,7 +1297,7 @@ function OnlineRoomTable({
                 showReservePieces={false}
                 />
                 {game.charityTurns > 0 && <span className="online-player-charity" title="Charity progress" aria-label={`Charity ${game.charityCounts[playerId] ?? 0} of ${game.charityTurns}`}>
-                  {game.charityCounts[playerId] ?? 0}/{game.charityTurns}
+                  Charity: {game.charityCounts[playerId] ?? 0}/{game.charityTurns}
                 </span>}
               </div>
             ))}
