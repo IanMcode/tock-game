@@ -1295,10 +1295,10 @@ function OnlineRoomTable({
                 capturingPieceIds={capturingPieceIds}
                 onPieceClick={choosePiece}
                 showReservePieces={false}
-                />
-                {game.charityTurns > 0 && <span className="online-player-charity" title="Charity progress" aria-label={`Charity ${game.charityCounts[playerId] ?? 0} of ${game.charityTurns}`}>
+                statusLine={game.charityTurns > 0 ? <span className="online-player-charity" title="Charity progress" aria-label={`Charity ${game.charityCounts[playerId] ?? 0} of ${game.charityTurns}`}>
                   Charity: {game.charityCounts[playerId] ?? 0}/{game.charityTurns}
-                </span>}
+                </span> : undefined}
+                />
               </div>
             ))}
           </div>

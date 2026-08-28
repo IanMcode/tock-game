@@ -907,6 +907,7 @@ export function BoardReserve({
   onPieceClick,
   style,
   showReservePieces = true,
+  statusLine,
 }: {
   owner: PlayerId;
   pieces: readonly Piece[];
@@ -922,6 +923,7 @@ export function BoardReserve({
   onPieceClick: (pieceId: string) => void;
   style?: React.CSSProperties;
   showReservePieces?: boolean;
+  statusLine?: React.ReactNode;
 }) {
   const reservePieces = pieces.filter(
     (piece) => piece.owner === owner && piece.position.zone === "reserve" && !animatedPieceIds.has(piece.id),
@@ -933,7 +935,7 @@ export function BoardReserve({
 
   return (
     <div
-      className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""} ${showReservePieces ? "" : "is-status-only"}`}
+      className={`board-reserve reserve-${owner.toLowerCase()} ${owner === dealer ? "is-dealer" : ""} ${homeComplete ? "is-home-complete" : ""} ${showReservePieces ? "" : "is-status-only"} ${statusLine ? "has-status-line" : ""}`}
       style={{
         "--reserve": playerColorVar(owner),
         "--reserve-soft": playerSoftVar(owner),
@@ -968,6 +970,7 @@ export function BoardReserve({
         )}
         <small>{handCount} left</small>
       </div>
+      {statusLine && <div className="reserve-status-line">{statusLine}</div>}
       {showReservePieces && (
         <div className="reserve-pieces">
           {reservePieces.length > 0 ? reservePieces.map((piece) => (
