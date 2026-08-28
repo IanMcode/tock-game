@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions, parseStartNextGameOptions, parseStartRoomOptions } from "./protocol";
+import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions, parseRematchVoteOptions, parseRoomConfiguration, parseStartNextGameOptions, parseStartRoomOptions } from "./protocol";
 
 describe("online command protocol", () => {
   it("parses room rules and dealer selection", () => {
@@ -21,6 +21,21 @@ describe("online command protocol", () => {
       randomizeSeats: true,
     });
     expect(() => parseStartNextGameOptions({ dealer: "P9" })).toThrow("valid player");
+  });
+
+  it("parses lobby rules and rematch votes", () => {
+    expect(parseRoomConfiguration({ teams: false, startWithPieceOnEntry: true, charityTurns: 3 })).toEqual({
+      teams: false,
+      startWithPieceOnEntry: true,
+      charityTurns: 3,
+    });
+    expect(parseRematchVoteOptions({ vote: "request", dealer: "P2", randomizeSeats: true })).toEqual({
+      vote: "request",
+      dealer: "P2",
+      randomizeSeats: true,
+    });
+    expect(parseRematchVoteOptions({ vote: "decline" })).toEqual({ vote: "decline", dealer: "random", randomizeSeats: false });
+    expect(() => parseRematchVoteOptions({ vote: "maybe" })).toThrow("request, accept, or decline");
   });
 
   it("parses a host's initial seat arrangement", () => {

@@ -1,6 +1,6 @@
 import type { CommandEnvelope } from "../game/session";
 import type { TokenRequest } from "ably";
-import type { CreateRoomOptions, RoomJoinResult, RoomView, StartNextGameOptions, StartRoomOptions } from "./roomService";
+import type { CreateRoomOptions, RematchVoteOptions, RoomJoinResult, RoomView, StartNextGameOptions, StartRoomOptions, UpdateRoomConfigurationOptions } from "./roomService";
 
 export type OnlineFetch = typeof fetch;
 
@@ -75,6 +75,15 @@ export async function startOnlineNextGame(
   options: StartNextGameOptions,
   request: OnlineFetch = fetch,
 ): Promise<RoomJoinResult> {
+  return voteOnlineNextGame(roomId, playerToken, { vote: "request", ...options }, request);
+}
+
+export async function voteOnlineNextGame(
+  roomId: string,
+  playerToken: string,
+  options: RematchVoteOptions,
+  request: OnlineFetch = fetch,
+): Promise<RoomJoinResult> {
   return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/next-game`, {
     method: "POST",
     headers: {
@@ -82,6 +91,22 @@ export async function startOnlineNextGame(
       "content-type": "application/json",
     },
     body: JSON.stringify(options),
+  });
+}
+
+export async function updateOnlineRoomConfiguration(
+  roomId: string,
+  playerToken: string,
+  configuration: UpdateRoomConfigurationOptions,
+  request: OnlineFetch = fetch,
+): Promise<RoomView> {
+  return requestJson(request, `/api/rooms/${encodeURIComponent(roomId)}/configuration`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${playerToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(configuration),
   });
 }
 

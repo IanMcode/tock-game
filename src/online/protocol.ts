@@ -3,7 +3,7 @@ import { PLAYER_IDS, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
 import type { BoardPlayerCount } from "../game/definition";
 import type { CardRank } from "../game/types";
-import type { CreateRoomOptions, StartNextGameOptions, StartRoomOptions } from "./roomService";
+import type { CreateRoomOptions, RematchVoteOptions, StartNextGameOptions, StartRoomOptions, UpdateRoomConfigurationOptions } from "./roomService";
 
 export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (value === undefined || value === null) return {};
@@ -60,6 +60,31 @@ export function parseStartNextGameOptions(value: unknown): StartNextGameOptions 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") parsePlayerId(dealer);
   return { randomizeSeats, dealer: dealer as PlayerId | "random" };
+}
+
+export function parseRematchVoteOptions(value: unknown): RematchVoteOptions {
+  if (!isRecord(value)) throw new Error("Rematch vote must be an object.");
+  if (value.vote !== "request" && value.vote !== "accept" && value.vote !== "decline") {
+    throw new Error("Rematch vote must request, accept, or decline.");
+  }
+  const options = parseStartNextGameOptions(value);
+  return { vote: value.vote, ...options };
+}
+
+export function parseRoomConfiguration(value: unknown): UpdateRoomConfigurationOptions {
+  if (!isRecord(value)) throw new Error("Room configuration must be an object.");
+  if (typeof value.teams !== "boolean") throw new Error("Teams must be true or false.");
+  if (typeof value.startWithPieceOnEntry !== "boolean") {
+    throw new Error("Start-with-piece-on-entry must be true or false.");
+  }
+  if (value.charityTurns !== 0 && value.charityTurns !== 1 && value.charityTurns !== 2 && value.charityTurns !== 3) {
+    throw new Error("Charity must be disabled or require 1, 2, or 3 turns.");
+  }
+  return {
+    teams: value.teams,
+    startWithPieceOnEntry: value.startWithPieceOnEntry,
+    charityTurns: value.charityTurns,
+  };
 }
 
 export function parseStartRoomOptions(value: unknown): StartRoomOptions {

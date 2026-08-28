@@ -1,5 +1,5 @@
 import { getBearerToken, jsonResponse, onlineErrorResponse } from "../../../../../src/online/http";
-import { parseRematchVoteOptions } from "../../../../../src/online/protocol";
+import { parseRoomConfiguration } from "../../../../../src/online/protocol";
 import { notifyRoomUpdated } from "../../../../../src/online/realtimeServer";
 import { serverRoomService } from "../../../../../src/online/serverRoomService";
 
@@ -7,17 +7,17 @@ export const runtime = "nodejs";
 
 export async function POST(
   request: Request,
-  context: RouteContext<"/api/rooms/[roomId]/next-game">,
+  context: RouteContext<"/api/rooms/[roomId]/configuration">,
 ): Promise<Response> {
   try {
     const { roomId } = await context.params;
-    const result = await serverRoomService.voteForNextGame(
+    const room = await serverRoomService.updateRoomConfiguration(
       roomId,
       getBearerToken(request, true)!,
-      parseRematchVoteOptions(await request.json()),
+      parseRoomConfiguration(await request.json()),
     );
-    await notifyRoomUpdated(result.room);
-    return jsonResponse(result);
+    await notifyRoomUpdated(room);
+    return jsonResponse(room);
   } catch (error) {
     return onlineErrorResponse(error);
   }

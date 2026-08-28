@@ -102,6 +102,20 @@ function validateRoom(room: OnlineRoom): void {
   ) {
     throw new Error("The stored room has invalid game configuration.");
   }
+  if (room.rematchVote !== undefined && room.rematchVote !== null) {
+    const vote = room.rematchVote;
+    if (
+      !PLAYER_IDS.includes(vote.requestedBy) ||
+      !isRecord(vote.votes) ||
+      !isRecord(vote.options) ||
+      typeof vote.options.randomizeSeats !== "boolean" ||
+      (vote.options.dealer !== "random" && !PLAYER_IDS.includes(vote.options.dealer)) ||
+      Object.entries(vote.votes).some(([playerId, choice]) =>
+        !PLAYER_IDS.includes(playerId as PlayerId) || (choice !== "accepted" && choice !== "declined"))
+    ) {
+      throw new Error("The stored room has an invalid rematch vote.");
+    }
+  }
   if (room.joinOrder !== undefined && (
     !Array.isArray(room.joinOrder) ||
     room.joinOrder.length !== session.game.players.length ||

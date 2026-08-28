@@ -35,12 +35,21 @@ export type OnlineRoom = {
   matchHistory?: MatchGameRecord[];
   currentGameNumber?: number;
   configuration?: RoomConfiguration;
+  rematchVote?: RematchVote | null;
 };
 
 export type RoomConfiguration = {
   teams: boolean;
   startWithPieceOnEntry: boolean;
   charityTurns: CharityTurns;
+};
+
+export type RematchVoteChoice = "accepted" | "declined";
+
+export type RematchVote = {
+  requestedBy: PlayerId;
+  votes: Partial<Record<PlayerId, RematchVoteChoice>>;
+  options: Required<StartNextGameOptions>;
 };
 
 export type MatchPlayerResult = PlayerGameStatistics & {
@@ -73,6 +82,8 @@ export type RoomView = {
   isHost: boolean;
   matchHistory: MatchGameRecord[];
   currentGameNumber: number;
+  configuration: RoomConfiguration;
+  rematchVote: RematchVote | null;
 };
 
 export type RoomAccess = {
@@ -100,6 +111,12 @@ export type StartNextGameOptions = {
   dealer?: PlayerId | "random";
   randomizeSeats?: boolean;
 };
+
+export type RematchVoteOptions = StartNextGameOptions & {
+  vote: "request" | "accept" | "decline";
+};
+
+export type UpdateRoomConfigurationOptions = RoomConfiguration;
 
 export type StartRoomOptions = {
   dealer?: PlayerId | "random";
@@ -328,6 +345,29 @@ export class RoomService {
     };
   }
 
+  async updateRoomConfiguration(
+    roomId: string,
+    playerToken: string,
+    configuration: UpdateRoomConfigurationOptions,
+  ): Promise<RoomView> {
+    const stored = await this.getRoom(roomId);
+    const playerId = await this.playerForToken(stored.room, playerToken);
+    if (!this.isHost(stored.room, playerId)) {
+      throw new RoomError("HOST_ONLY", "Only the host can change the rule variants.");
+    }
+    if (this.status(stored.room) !== "waiting") {
+      throw new RoomError("ROOM_NOT_READY", "Rule variants can only be changed before the game starts.");
+    }
+    if (configuration.teams && stored.room.session.game.players.length !== 4) {
+      throw new Error("Team play requires four players.");
+    }
+    const next = { ...stored.room, configuration: { ...configuration } };
+    if (!await this.store.save(next, stored.version)) {
+      throw new RoomError("ROOM_CONFLICT", "The room changed before the rule variants were saved. Try again.");
+    }
+    return this.view(next, playerId);
+  }
+
   async submitCommand(
     roomId: string,
     playerToken: string,
@@ -411,6 +451,59 @@ export class RoomService {
     };
   }
 
+  async voteForNextGame(
+    roomId: string,
+    playerToken: string,
+    choice: RematchVoteOptions,
+  ): Promise<RoomJoinResult> {
+    const stored = await this.getRoom(roomId);
+    const playerId = await this.playerForToken(stored.room, playerToken);
+    if (this.status(stored.room) !== "complete") {
+      throw new RoomError("ROOM_NOT_READY", "A rematch can only be requested after the current game is complete.");
+    }
+    const playerIds = stored.room.session.game.players.map((player) => player.id);
+    let rematchVote: RematchVote;
+    if (choice.vote === "request") {
+      if (
+        stored.room.rematchVote &&
+        !Object.values(stored.room.rematchVote.votes).includes("declined")
+      ) {
+        throw new RoomError("ROOM_NOT_READY", "A rematch request is already waiting for player responses.");
+      }
+      rematchVote = {
+        requestedBy: playerId,
+        votes: { [playerId]: "accepted" },
+        options: {
+          dealer: choice.dealer ?? "random",
+          randomizeSeats: choice.randomizeSeats ?? false,
+        },
+      };
+    } else {
+      if (!stored.room.rematchVote) {
+        throw new RoomError("ROOM_NOT_READY", "There is no rematch request to answer.");
+      }
+      rematchVote = {
+        ...stored.room.rematchVote,
+        votes: { ...stored.room.rematchVote.votes, [playerId]: choice.vote === "accept" ? "accepted" : "declined" },
+      };
+    }
+
+    if (playerIds.every((candidate) => rematchVote.votes[candidate] === "accepted")) {
+      const next = createNextGameRoom({ ...stored.room, rematchVote }, rematchVote.options, this.randomState());
+      if (!await this.store.save(next, stored.version)) {
+        throw new RoomError("ROOM_CONFLICT", "The room changed before the rematch could begin. Try again.");
+      }
+      const nextPlayerId = await this.playerForToken(next, playerToken);
+      return { access: { roomId: next.id, playerId: nextPlayerId, playerToken }, room: this.view(next, nextPlayerId) };
+    }
+
+    const next = { ...stored.room, rematchVote };
+    if (!await this.store.save(next, stored.version)) {
+      throw new RoomError("ROOM_CONFLICT", "The room changed before the rematch vote was saved. Try again.");
+    }
+    return { access: { roomId: next.id, playerId, playerToken }, room: this.view(next, playerId) };
+  }
+
   async submitChatMessage(
     roomId: string,
     playerToken: string,
@@ -469,6 +562,12 @@ export class RoomService {
       isHost: viewer ? this.isHost(room, viewer) : false,
       matchHistory: cloneMatchHistory(room.matchHistory ?? []),
       currentGameNumber: room.currentGameNumber ?? 1,
+      configuration: { ...(room.configuration ?? defaultRoomConfiguration(room)) },
+      rematchVote: room.rematchVote ? {
+        requestedBy: room.rematchVote.requestedBy,
+        votes: { ...room.rematchVote.votes },
+        options: { ...room.rematchVote.options },
+      } : null,
     };
   }
 
@@ -480,6 +579,47 @@ export class RoomService {
   private isHost(room: OnlineRoom, playerId: PlayerId): boolean {
     return participantIdForSeat(room, playerId) === room.hostParticipantId;
   }
+}
+
+function defaultRoomConfiguration(room: OnlineRoom): RoomConfiguration {
+  return {
+    teams: getRulesetDefinition(room.session.game.rulesetId).exchange === "partners",
+    startWithPieceOnEntry: true,
+    charityTurns: 0,
+  };
+}
+
+function createNextGameRoom(room: OnlineRoom, options: StartNextGameOptions, randomState: number): OnlineRoom {
+  const completedRoom = recordCompletedGame(room);
+  const playerIds = completedRoom.session.game.players.map((player) => player.id);
+  const ruleset = getRulesetDefinition(completedRoom.session.game.rulesetId);
+  const configuration = completedRoom.configuration ?? defaultRoomConfiguration(completedRoom);
+  const selectedDealerParticipant = options.dealer && options.dealer !== "random"
+    ? participantIdForSeat(completedRoom, options.dealer)
+    : null;
+  const randomized = options.randomizeSeats
+    ? randomizeRoomSeats(completedRoom, playerIds, configuration.teams, randomState)
+    : completedRoom;
+  const dealer = selectedDealerParticipant
+    ? playerIds.find((playerId) => participantIdForSeat(randomized, playerId) === selectedDealerParticipant)
+    : undefined;
+  const game = createGame({
+    randomState,
+    playerCount: ruleset.board.playerCount,
+    teams: configuration.teams,
+    startWithPieceOnEntry: configuration.startWithPieceOnEntry,
+    charityTurns: configuration.charityTurns,
+    ...(dealer ? { dealer } : {}),
+  });
+  return {
+    ...randomized,
+    started: true,
+    chatMessages: [],
+    session: createGameSession(randomized.id, game),
+    currentGameNumber: (completedRoom.currentGameNumber ?? 1) + 1,
+    configuration,
+    rematchVote: null,
+  };
 }
 
 function recordCompletedGame(room: OnlineRoom): OnlineRoom {

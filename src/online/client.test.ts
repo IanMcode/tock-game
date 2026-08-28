@@ -53,7 +53,7 @@ describe("online browser client", () => {
     expect(request).toHaveBeenCalledWith("/api/rooms/1234/next-game", expect.objectContaining({
       method: "POST",
       headers: expect.objectContaining({ authorization: "Bearer secret" }),
-      body: JSON.stringify({ dealer: "P2", randomizeSeats: true }),
+      body: JSON.stringify({ vote: "request", dealer: "P2", randomizeSeats: true }),
     }));
   });
 

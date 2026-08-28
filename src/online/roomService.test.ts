@@ -92,6 +92,30 @@ describe("online room service", () => {
     expect(started.room.session.game.phase).toBe("play");
   });
 
+  it("lets only the host update visible rule variants in the waiting lobby", async () => {
+    const service = createTestService();
+    const host = await service.createRoom({ playerCount: 3, playerName: "Ian" });
+    const second = await service.joinRoom("1234", "Jon");
+
+    await expectRoomError(() => service.updateRoomConfiguration("1234", second.access.playerToken, {
+      teams: false,
+      startWithPieceOnEntry: false,
+      charityTurns: 2,
+    }), "HOST_ONLY");
+    const configured = await service.updateRoomConfiguration("1234", host.access.playerToken, {
+      teams: false,
+      startWithPieceOnEntry: false,
+      charityTurns: 2,
+    });
+    expect(configured.configuration).toEqual({ teams: false, startWithPieceOnEntry: false, charityTurns: 2 });
+    expect((await service.getRoomView("1234", second.access.playerToken)).configuration).toEqual(configured.configuration);
+
+    await service.joinRoom("1234", "Jan");
+    const started = await service.startRoom("1234", host.access.playerToken);
+    expect(started.room.session.game.charityTurns).toBe(2);
+    expect(started.room.session.game.players.every((player) => player.pieces.every((piece) => piece.position.zone === "reserve"))).toBe(true);
+  });
+
   it("lets only the host arrange opposite-seat teams before starting", async () => {
     const service = createTestService();
     const host = await service.createRoom({ playerCount: 4, teams: true, playerName: "Ian" });
@@ -235,6 +259,45 @@ describe("online room service", () => {
     expect(nextStored?.room.participantIds?.P1).toBe("player-P3");
     expect(nextStored?.room.participantIds?.P2).toBe("player-P2");
     expect(nextStored?.room.participantIds?.P4).toBe("player-P4");
+  });
+
+  it("requires every player to accept a rematch and keeps a declined vote on the completed game", async () => {
+    const store = new InMemoryRoomStore();
+    let token = 0;
+    const service = new RoomService(store, {
+      createRoomId: () => "1234",
+      createPlayerToken: () => `token-${++token}`,
+      createRandomState: () => 12_345,
+    });
+    const host = await service.createRoom({ playerCount: 2, teams: false, playerName: "Ian" });
+    const second = await service.joinRoom("1234", "Jon");
+    const stored = await store.get("1234");
+    expect(stored).toBeDefined();
+    expect(await store.save({
+      ...stored!.room,
+      session: {
+        ...stored!.room.session,
+        game: { ...stored!.room.session.game, winningTeam: ["P1"] as ["P1"] },
+      },
+    }, stored!.version)).toBe(true);
+
+    const requested = await service.voteForNextGame("1234", host.access.playerToken, {
+      vote: "request",
+      dealer: "random",
+      randomizeSeats: false,
+    });
+    expect(requested.room.status).toBe("complete");
+    expect(requested.room.rematchVote?.votes).toEqual({ P1: "accepted" });
+
+    const declined = await service.voteForNextGame("1234", second.access.playerToken, { vote: "decline" });
+    expect(declined.room.status).toBe("complete");
+    expect(declined.room.rematchVote?.votes.P2).toBe("declined");
+
+    await service.voteForNextGame("1234", host.access.playerToken, { vote: "request" });
+    const accepted = await service.voteForNextGame("1234", second.access.playerToken, { vote: "accept" });
+    expect(accepted.room.status).toBe("active");
+    expect(accepted.room.currentGameNumber).toBe(2);
+    expect(accepted.room.rematchVote).toBeNull();
   });
 
   it("genuinely shuffles free-for-all seats when starting the next game", async () => {

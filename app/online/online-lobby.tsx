@@ -10,8 +10,9 @@ import {
   readOnlineRoom,
   requestRoomRealtimeToken,
   sendOnlineCommand,
-  startOnlineNextGame,
   startOnlineRoom,
+  updateOnlineRoomConfiguration,
+  voteOnlineNextGame,
 } from "../../src/online/client";
 import {
   failedRoomRefreshDelay,
@@ -87,10 +88,6 @@ type OnlineLobbyProps = {
 export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both" }: OnlineLobbyProps) {
   const router = useRouter();
   const [playerCount, setPlayerCount] = useState<BoardPlayerCount>(4);
-  const [teams, setTeams] = useState(true);
-  const [dealer, setDealer] = useState<PlayerId | "random">("random");
-  const [startWithPieceOnEntry, setStartWithPieceOnEntry] = useState(true);
-  const [charityTurns, setCharityTurns] = useState<CharityTurns>(0);
   const [hostName, setHostName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -141,7 +138,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     let realtimeClient: import("ably").Realtime | undefined;
     let realtimeChannel: import("ably").RealtimeChannel | undefined;
 
-    const onRoomUpdated = () => void refresh(true);
+    const onRoomUpdated = () => void refresh();
 
     const clearRefreshTimeout = () => {
       if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
@@ -150,7 +147,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
 
     const scheduleRefresh = (delay: number) => {
       clearRefreshTimeout();
-      if (cancelled || document.visibilityState !== "visible" || roomStatusRef.current === "complete") return;
+      if (cancelled || document.visibilityState !== "visible") return;
       refreshTimeout = window.setTimeout(() => void refresh(), delay);
     };
 
@@ -192,7 +189,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
           realtimeConnected = true;
           consecutiveFailures = 0;
           clearRefreshTimeout();
-          void refresh(true);
+          void refresh();
         });
         const onDisconnected = () => {
           if (cancelled) return;
@@ -213,13 +210,9 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
       }
     };
 
-    const refresh = async (allowCompletedRoom = false) => {
+    const refresh = async () => {
       clearRefreshTimeout();
-      if (
-        cancelled ||
-        document.visibilityState !== "visible" ||
-        (roomStatusRef.current === "complete" && !allowCompletedRoom)
-      ) return;
+      if (cancelled || document.visibilityState !== "visible") return;
       if (refreshInFlight) {
         refreshQueued = true;
         return;
@@ -237,7 +230,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             setAccess(nextAccess);
           }
           setError(null);
-          if (next.status !== "complete" && !realtimeConnected) {
+          if (!realtimeConnected) {
             scheduleRefresh(REALTIME_FALLBACK_REFRESH_DELAY);
           }
         }
@@ -294,10 +287,6 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     try {
       enterRoom((await createOnlineRoom({
         playerCount,
-        teams,
-        dealer,
-        startWithPieceOnEntry,
-        charityTurns,
         ...(hostName.trim() ? { playerName: hostName.trim() } : {}),
       })).access);
     } catch (createError) {
@@ -361,6 +350,22 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     }
   }
 
+  async function updateLobbyConfiguration(configuration: RoomView["configuration"]) {
+    if (!access || !room?.isHost) return;
+    const previous = room;
+    setRoom({ ...room, configuration });
+    setBusy(true);
+    setError(null);
+    try {
+      setRoom(await updateOnlineRoomConfiguration(access.roomId, access.playerToken, configuration));
+    } catch (configurationError) {
+      setRoom(previous);
+      setError(messageFrom(configurationError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function remember(nextAccess: RoomAccess) {
     sessionStorage.setItem(ACCESS_KEY, JSON.stringify(nextAccess));
     setAccess(nextAccess);
@@ -391,7 +396,7 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     }
     const isGameRoom = room?.status === "active" || room?.status === "complete";
     const isLobbyReady = room?.status === "waiting" && room.connectedPlayers.length === room.requiredPlayers;
-    const isTeamLobby = Boolean(room && getRulesetDefinition(room.session.game.rulesetId).exchange === "partners");
+    const isTeamLobby = Boolean(room?.configuration.teams);
     return (
       <main className={`online-shell ${isGameRoom ? "online-shell-active" : ""}`}>
         {!isGameRoom && <header className="online-header">
@@ -416,6 +421,47 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             <p>{room && room.connectedPlayers.length === room.requiredPlayers
               ? room.isHost ? "Everyone is here. Arrange the table, then start when ready." : "Everyone is here. Waiting for the host to start."
               : `Waiting for ${Math.max(0, (room?.requiredPlayers ?? 0) - (room?.connectedPlayers.length ?? 0))} more player(s).`}</p>
+          </div>
+        </section>}
+
+        {room?.status === "waiting" && <section className="lobby-rules-panel" aria-label="Rule variants">
+          <div>
+            <p className="eyebrow">Rule variants</p>
+            <h2>Table rules</h2>
+            <p>{room.isHost ? "Choose the rules for this game. Everyone in the lobby can see changes." : "The host selected these rules for the game."}</p>
+          </div>
+          <div className="lobby-rule-options">
+            <label className="online-check">
+              <input
+                type="checkbox"
+                checked={room.configuration.teams}
+                disabled={!room.isHost || room.requiredPlayers !== 4 || busy}
+                onChange={(event) => void updateLobbyConfiguration({ ...room.configuration, teams: event.target.checked })}
+              />
+              <span><strong>Opposite-seat teams</strong><small>{room.requiredPlayers === 4 ? "Teammates sit opposite one another." : "Available only on the four-player board."}</small></span>
+            </label>
+            <label className="online-check">
+              <input
+                type="checkbox"
+                checked={room.configuration.startWithPieceOnEntry}
+                disabled={!room.isHost || busy}
+                onChange={(event) => void updateLobbyConfiguration({ ...room.configuration, startWithPieceOnEntry: event.target.checked })}
+              />
+              <span><strong>Head start</strong><small>Begin with each player’s first piece protected on entry.</small></span>
+            </label>
+            <label className="online-variant-select">
+              <span><strong>Charity</strong><small>Request a card after consecutive qualifying turns.</small></span>
+              <select
+                value={room.configuration.charityTurns}
+                disabled={!room.isHost || busy}
+                onChange={(event) => void updateLobbyConfiguration({ ...room.configuration, charityTurns: Number(event.target.value) as CharityTurns })}
+              >
+                <option value={0}>No charity</option>
+                <option value={1}>1 turn</option>
+                <option value={2}>2 turns</option>
+                <option value={3}>3 turns</option>
+              </select>
+            </label>
           </div>
         </section>}
 
@@ -501,7 +547,6 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     );
   }
 
-  const activePlayerIds = (["P1", "P2", "P3", "P4"] as const).slice(0, playerCount);
   const isCreatePage = entryMode === "create";
   const isJoinPage = entryMode === "join";
   return (
@@ -527,43 +572,10 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
             <select value={playerCount} onChange={(event) => {
               const count = Number(event.target.value) as BoardPlayerCount;
               setPlayerCount(count);
-              if (count !== 4) setTeams(false);
-              if (dealer !== "random" && Number(dealer.slice(1)) > count) setDealer("random");
             }}>
               <option value={2}>2 players</option>
               <option value={3}>3 players</option>
               <option value={4}>4 players</option>
-            </select>
-          </label>
-          <fieldset className="online-variants">
-            <legend>Variant rules</legend>
-            <label className="online-check">
-              <input type="checkbox" checked={teams} disabled={playerCount !== 4} onChange={(event) => setTeams(event.target.checked)} />
-              <span><strong>Opposite-seat teams</strong><small>Available for four-player games.</small></span>
-            </label>
-            <label className="online-check">
-              <input type="checkbox" checked={startWithPieceOnEntry} onChange={(event) => setStartWithPieceOnEntry(event.target.checked)} />
-              <span><strong>Head start</strong><small>Begin with each player’s first piece protected on entry.</small></span>
-            </label>
-            <label className="online-variant-select">
-              <span><strong>Charity</strong><small>Request a card after consecutive turns without an outside-home move.</small></span>
-              <select value={charityTurns} onChange={(event) => setCharityTurns(Number(event.target.value) as CharityTurns)}>
-                <option value={0}>No charity</option>
-                <option value={1}>1 turn</option>
-                <option value={2}>2 turns</option>
-                <option value={3}>3 turns</option>
-              </select>
-            </label>
-            <label className="online-check is-coming-soon">
-              <input type="checkbox" disabled />
-              <span><strong>More variants</strong><small>Additional rule choices are coming soon.</small></span>
-            </label>
-          </fieldset>
-          <label>
-            <span>First dealer</span>
-            <select value={dealer} onChange={(event) => setDealer(event.target.value as PlayerId | "random")}>
-              <option value="random">Random</option>
-              {activePlayerIds.map((playerId, index) => <option value={playerId} key={playerId}>Position {index + 1}</option>)}
             </select>
           </label>
           <button className="online-primary" type="submit" disabled={busy}>{busy ? "Creating game…" : "Create Game"}</button>
@@ -649,6 +661,14 @@ function OnlineRoomTable({
   const [incomingCard, setIncomingCard] = useState<PresentedCard | null>(null);
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
+  const rematchDecliners = game.players
+    .map((player) => player.id)
+    .filter((playerId) => room.rematchVote?.votes[playerId] === "declined");
+  const rematchWasDeclined = rematchDecliners.length > 0;
+  const rematchVoteSignal = room.rematchVote
+    ? `${room.rematchVote.requestedBy}:${game.players.map((player) => room.rematchVote?.votes[player.id] ?? "waiting").join(",")}`
+    : "";
+  const previousRematchVoteSignal = useRef(rematchVoteSignal);
   const charityRequestRequired = game.charityTurns > 0 &&
     (game.charityCounts[access.playerId] ?? 0) >= game.charityTurns &&
     !game.charityExchange;
@@ -658,6 +678,15 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const previousDealer = useRef(game.dealer);
+
+  useEffect(() => {
+    if (
+      rematchVoteSignal &&
+      (!previousRematchVoteSignal.current || previousRematchVoteSignal.current.includes("declined"))
+    ) setVictoryPanel("rematch");
+    previousRematchVoteSignal.current = rematchVoteSignal;
+  }, [rematchVoteSignal]);
+
   const previousPhase = useRef(game.phase);
   const exchangeSubmission = useRef<{ sent: Card; handBefore: Card[] } | null>(null);
   const setVisualPieces = useCallback((next: readonly Piece[]) => {
@@ -1082,10 +1111,25 @@ function OnlineRoomTable({
     setRematchBusy(true);
     setCommandError(null);
     try {
-      const next = await startOnlineNextGame(access.roomId, access.playerToken, {
+      const next = await voteOnlineNextGame(access.roomId, access.playerToken, {
+        vote: "request",
         dealer: rematchDealer,
         randomizeSeats: rematchRandomizeSeats,
       });
+      onAccess(next.access);
+      onRoom(next.room);
+    } catch (rematchError) {
+      setCommandError(messageFrom(rematchError));
+    } finally {
+      setRematchBusy(false);
+    }
+  }
+
+  async function answerRematch(vote: "accept" | "decline") {
+    setRematchBusy(true);
+    setCommandError(null);
+    try {
+      const next = await voteOnlineNextGame(access.roomId, access.playerToken, { vote });
       onAccess(next.access);
       onRoom(next.room);
     } catch (rematchError) {
@@ -1236,8 +1280,8 @@ function OnlineRoomTable({
           </div>
           <div className="online-player-status-list" aria-label="Players at the table">
             {ruleset.board.playerIds.map((playerId) => (
-              <BoardReserve
-                key={`${playerId}-status`}
+              <div className="online-player-status-row" key={`${playerId}-status`}>
+                <BoardReserve
                 owner={playerId}
                 pieces={renderedPieces}
                 player={boardPlayers.find((player) => player.id === playerId)}
@@ -1251,17 +1295,13 @@ function OnlineRoomTable({
                 capturingPieceIds={capturingPieceIds}
                 onPieceClick={choosePiece}
                 showReservePieces={false}
-              />
+                />
+                {game.charityTurns > 0 && <span className="online-player-charity" title="Charity progress" aria-label={`Charity ${game.charityCounts[playerId] ?? 0} of ${game.charityTurns}`}>
+                  {game.charityCounts[playerId] ?? 0}/{game.charityTurns}
+                </span>}
+              </div>
             ))}
           </div>
-          {game.charityTurns > 0 && <div className="online-charity-status" aria-label="Charity status">
-            {ruleset.board.playerIds.map((playerId) => <span key={playerId}>
-              {room.playerNames[playerId] ?? PLAYER_LABELS[playerId]} {(game.charityCounts[playerId] ?? 0)}/{game.charityTurns}
-            </span>)}
-            {game.lastCharityTransfer && <strong>
-              {room.playerNames[game.lastCharityTransfer.donor] ?? PLAYER_LABELS[game.lastCharityTransfer.donor]} supplied {game.lastCharityTransfer.requestedRank} to {room.playerNames[game.lastCharityTransfer.requester] ?? PLAYER_LABELS[game.lastCharityTransfer.requester]}
-            </strong>}
-          </div>}
         </div>
 
         <div className="online-board-stage">
@@ -1306,22 +1346,39 @@ function OnlineRoomTable({
               <button type="button" onClick={() => setVictoryPanel((panel) => panel === "statistics" ? null : "statistics")}>Show match statistics</button>
             </div>
             {victoryPanel === "rematch" && (
-              <form className="online-rematch-options" onSubmit={(event) => void createRematch(event)}>
-                <label className="online-check">
-                  <input type="checkbox" checked={rematchRandomizeSeats} onChange={(event) => setRematchRandomizeSeats(event.target.checked)} />
-                  <span>Randomize player positions</span>
-                </label>
-                <p>{ruleset.exchange === "partners" ? "Current teams stay together and remain seated opposite one another." : "This game remains free for all."}</p>
-                <label>
-                  <span>First dealer</span>
-                  <select value={rematchDealer} onChange={(event) => setRematchDealer(event.target.value as PlayerId | "random")}>
-                    <option value="random">Random dealer</option>
-                    {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_LABELS[player.id]} ({player.id})</option>)}
-                  </select>
-                </label>
-                <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Starting next game…" : "Start next game"}</button>
-                <small>The same players and room code stay connected. The board, hands, deck, play log, and chat reset.</small>
-              </form>
+              <div className="online-rematch-options">
+                {rematchWasDeclined && <p className="online-rematch-declined" role="status">
+                  {rematchDecliners.map((playerId) => room.playerNames[playerId] ?? PLAYER_LABELS[playerId]).join(" and ")} declined the rematch.
+                </p>}
+                {room.rematchVote && !rematchWasDeclined ? <div className="online-rematch-vote">
+                  <strong>{room.playerNames[room.rematchVote.requestedBy] ?? PLAYER_LABELS[room.rematchVote.requestedBy]} requested another game</strong>
+                  <p>{room.rematchVote.options.randomizeSeats ? "Randomized player positions" : "Keep current player positions"} · {room.rematchVote.options.dealer === "random" ? "random first dealer" : `${room.playerNames[room.rematchVote.options.dealer] ?? PLAYER_LABELS[room.rematchVote.options.dealer]} deals first`}</p>
+                  <div className="online-rematch-vote-list">
+                    {game.players.map((player) => <span key={player.id}>
+                      {room.playerNames[player.id] ?? PLAYER_LABELS[player.id]} · {room.rematchVote?.votes[player.id] === "accepted" ? "agreed" : "waiting"}
+                    </span>)}
+                  </div>
+                  {room.rematchVote.votes[access.playerId] !== "accepted" ? <div className="online-rematch-vote-actions">
+                    <button className="online-primary" type="button" disabled={rematchBusy} onClick={() => void answerRematch("accept")}>Agree</button>
+                    <button type="button" disabled={rematchBusy} onClick={() => void answerRematch("decline")}>Decline</button>
+                  </div> : <small>Waiting for every player to agree. The next game starts automatically once everyone accepts.</small>}
+                </div> : <form onSubmit={(event) => void createRematch(event)}>
+                  <label className="online-check">
+                    <input type="checkbox" checked={rematchRandomizeSeats} onChange={(event) => setRematchRandomizeSeats(event.target.checked)} />
+                    <span>Randomize player positions</span>
+                  </label>
+                  <p>{ruleset.exchange === "partners" ? "Current teams stay together and remain seated opposite one another." : "This game remains free for all."}</p>
+                  <label>
+                    <span>First dealer</span>
+                    <select value={rematchDealer} onChange={(event) => setRematchDealer(event.target.value as PlayerId | "random")}>
+                      <option value="random">Random dealer</option>
+                      {game.players.map((player) => <option value={player.id} key={player.id}>{room.playerNames[player.id] ?? PLAYER_LABELS[player.id]} ({player.id})</option>)}
+                    </select>
+                  </label>
+                  <button className="online-primary" type="submit" disabled={rematchBusy}>{rematchBusy ? "Sending request…" : rematchWasDeclined ? "Send a new request" : "Request another game"}</button>
+                  <small>Every player must agree before the next game begins.</small>
+                </form>}
+              </div>
             )}
             {victoryPanel === "statistics" && (
               <div className="online-statistics online-match-statistics">
