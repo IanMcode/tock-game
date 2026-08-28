@@ -70,6 +70,7 @@ import type { CardMove } from "../../src/game/turns";
 import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
+const SURFACE_THEME_KEY = "tock-online-surface-theme";
 const PLAY_LOG_ENTRY_LIMIT = 6;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
 type ExchangeReceipt = { sent: Card; received: Card };
@@ -612,6 +613,22 @@ function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : "The online request failed.";
 }
 
+function SurfaceThemeToggle({ wood, onToggle }: { wood: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className="number-toggle theme-toggle"
+      type="button"
+      aria-pressed={wood}
+      aria-label={wood ? "Use original sage table theme" : "Use high-contrast wood table theme"}
+      title={wood ? "Use the original sage table theme" : "Use the high-contrast wood table theme"}
+      onClick={onToggle}
+    >
+      <i aria-hidden="true"><span /></i>
+      Wood table
+    </button>
+  );
+}
+
 function OnlineRoomTable({
   access,
   room,
@@ -630,6 +647,7 @@ function OnlineRoomTable({
   const [splitSteps, setSplitSteps] = useState<ForwardMove[]>([]);
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [showNumbers, setShowNumbers] = useState(true);
+  const [woodTheme, setWoodTheme] = useState(false);
   const [busy, setBusy] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
@@ -678,6 +696,25 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const previousDealer = useRef(game.dealer);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(SURFACE_THEME_KEY);
+    const restoreTheme = window.setTimeout(() => setWoodTheme(savedTheme === "wood"), 0);
+    return () => window.clearTimeout(restoreTheme);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("online-wood-theme", woodTheme);
+    return () => document.body.classList.remove("online-wood-theme");
+  }, [woodTheme]);
+
+  function toggleSurfaceTheme() {
+    setWoodTheme((current) => {
+      const next = !current;
+      localStorage.setItem(SURFACE_THEME_KEY, next ? "wood" : "sage");
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (
@@ -1255,7 +1292,7 @@ function OnlineRoomTable({
   );
 
   return (
-    <section className={`online-table ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
+    <section className={`online-table ${woodTheme ? "theme-wood" : "theme-sage"} ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
       ...getDefaultPlayerAppearanceVariables(),
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
@@ -1270,7 +1307,10 @@ function OnlineRoomTable({
                 <span>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
                 {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
               </div>
-              <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
+              <div className="online-room-view-controls">
+                <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
+                <SurfaceThemeToggle wood={woodTheme} onToggle={toggleSurfaceTheme} />
+              </div>
             </div>
             <div className="online-room-actions">
               <button type="button" onClick={() => void navigator.clipboard.writeText(access.roomId)}>Copy {access.roomId}</button>

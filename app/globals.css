@@ -20,6 +20,13 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+body.online-wood-theme {
+  background:
+    radial-gradient(ellipse at 16% 5%, rgba(199,148,94,.2), transparent 34rem),
+    repeating-linear-gradient(88deg, rgba(255,255,255,.018) 0 1px, rgba(35,17,9,.04) 1px 5px, transparent 5px 23px),
+    linear-gradient(135deg, #2f1c14, #604027 52%, #352016);
+}
+
 button { font: inherit; }
 
 .home-shell { width: min(1540px, calc(100% - 32px)); min-height: 100svh; margin: 0 auto; padding: 26px 0 48px; }
@@ -426,6 +433,12 @@ button { font: inherit; }
 .online-ready-note span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .leave-room-button { margin-top: 22px; padding: 10px 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; text-decoration: underline; }
 .online-table { display: grid; gap: 18px; margin-top: 22px; }
+.online-table.theme-wood { border-radius: 23px; background: linear-gradient(135deg, rgba(55,31,20,.72), rgba(101,65,38,.72)); box-shadow: 0 16px 44px rgba(23,11,6,.3); }
+.online-table.theme-wood .board-wrap { border-color: #9f774c; background: repeating-linear-gradient(2deg, rgba(87,52,25,.035) 0 1px, transparent 1px 24px), linear-gradient(145deg, #dfc89f, #c9a979); box-shadow: inset 0 0 70px rgba(89,52,26,.1), 0 15px 38px rgba(25,12,6,.22); }
+.online-table.theme-wood .board-surface { border-color: rgba(91,61,35,.48); background: repeating-linear-gradient(1deg, rgba(105,72,39,.035) 0 1px, transparent 1px 30px), linear-gradient(145deg, #ead9b8, #d8bd8e); box-shadow: inset 0 0 50px rgba(97,62,28,.09); }
+.online-table.theme-wood .track-space, .online-table.theme-wood .home-space { border-color: rgba(62,44,28,.52); box-shadow: inset 0 1px 2px rgba(255,255,255,.82), 0 1px 3px rgba(48,29,15,.25); }
+.online-table.theme-wood .table-card, .online-table.theme-wood .online-card, .online-table.theme-wood .online-log-card { border-color: #49372a; border-width: 2px; box-shadow: inset 0 0 0 2px #fff, 0 7px 17px rgba(30,16,9,.3); }
+.online-table.theme-wood .online-room-turn-card, .online-table.theme-wood .online-play-log, .online-table.theme-wood .online-deal-summary, .online-table.theme-wood .online-hand-panel { border-color: #aa8b64; box-shadow: 0 8px 22px rgba(31,17,9,.2); }
 .online-game-viewport { display: grid; gap: 18px; }
 .online-board-stage { position: relative; display: grid; align-items: start; justify-items: start; }
 .online-board-stage .board-wrap { width: 100%; align-content: start; align-items: start; justify-items: start; }
@@ -466,9 +479,11 @@ button { font: inherit; }
 .online-room-turn-card { display: grid; gap: 9px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,253,247,.92); box-shadow: 0 10px 30px rgba(28,58,47,.07); }
 .online-room-heading-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 8px; }
 .online-room-heading-row > div { display: grid; gap: 3px; min-width: 0; }
+.online-room-heading-row > .online-room-view-controls { justify-items: end; gap: 4px; }
 .online-room-heading-row .number-toggle { align-self: start; padding: 6px 7px; font-size: 0; }
 .online-room-heading-row .number-toggle i { margin: 0; }
-.online-room-heading-row .number-toggle::after { content: "123"; font-size: 9px; letter-spacing: -.04em; }
+.online-room-heading-row .number-toggle:not(.theme-toggle)::after { content: "123"; font-size: 9px; letter-spacing: -.04em; }
+.online-room-heading-row .theme-toggle::after { content: "Wood"; font-size: 9px; letter-spacing: 0; }
 .online-room-turn-card h2 { margin: 1px 0; font-family: Georgia, serif; font-size: 21px; font-weight: 500; }
 .online-room-turn-card span { color: var(--muted); font-size: 10px; line-height: 1.3; }
 .online-room-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; }
