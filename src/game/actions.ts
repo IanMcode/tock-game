@@ -60,11 +60,10 @@ export function applyPieceMove(
     throw new Error(`Unknown moving piece: ${move.pieceId}`);
   }
 
-  if (
-    move.capturedPieceId !== undefined &&
-    !getPieceById(pieces, move.capturedPieceId)
-  ) {
-    throw new Error(`Unknown captured piece: ${move.capturedPieceId}`);
+  const capturedPieceIds = getCapturedPieceIds(move);
+  const unknownCapturedPiece = capturedPieceIds.find((pieceId) => !getPieceById(pieces, pieceId));
+  if (unknownCapturedPiece) {
+    throw new Error(`Unknown captured piece: ${unknownCapturedPiece}`);
   }
 
   return pieces.map((piece) => {
@@ -75,7 +74,7 @@ export function applyPieceMove(
       };
     }
 
-    if (piece.id === move.capturedPieceId) {
+    if (capturedPieceIds.includes(piece.id)) {
       return {
         ...piece,
         position: { zone: "reserve" },
@@ -84,6 +83,11 @@ export function applyPieceMove(
 
     return piece;
   });
+}
+
+export function getCapturedPieceIds(move: PieceMove): string[] {
+  if ("capturedPieceIds" in move && move.capturedPieceIds) return [...move.capturedPieceIds];
+  return move.capturedPieceId ? [move.capturedPieceId] : [];
 }
 
 export function applyAtomicMove(

@@ -13,7 +13,7 @@ import {
   type BoardPlayerCount,
 } from "./definition";
 import { getNextPlayer } from "./rules";
-import type { CharityTurns, GameState, Piece, Player, RulesetId } from "./types";
+import { DEFAULT_CARD_RULE_VARIANTS, type CardRuleVariants, type CharityTurns, type GameState, type Piece, type Player, type RulesetId } from "./types";
 
 export type CreateGameOptions = {
   shuffle?: boolean;
@@ -25,6 +25,7 @@ export type CreateGameOptions = {
   rulesetId?: RulesetId;
   charityTurns?: CharityTurns;
   charityRepeatAtThreshold?: boolean;
+  cardRules?: Partial<CardRuleVariants>;
 };
 
 function createPiecesForPlayer(
@@ -87,6 +88,7 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     exchangeSelections: {},
     charityTurns: options.charityTurns ?? 0,
     charityRepeatAtThreshold: options.charityRepeatAtThreshold ?? false,
+    cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...options.cardRules },
     charityCounts: {},
     charityHandEligible: Object.fromEntries(playerIds.map((playerId) => [playerId, true])),
     charityRequestQueue: [],

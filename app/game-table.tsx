@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../src/game/actions";
+import { applyAtomicMove, applyPieceMove, getCapturedPieceIds, type AtomicMove } from "../src/game/actions";
 import { getEntryIndex, getHomeEntranceIndex } from "../src/game/board";
 import { getLegalBasicCardMoves } from "../src/game/cardMoves";
 import { createGame } from "../src/game/createGame";
@@ -170,9 +170,9 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
   const legalMoves = useMemo(
     () =>
       selectedCard && !forcedDiscard
-        ? getLegalBasicCardMoves(allPieces, game.currentPlayer, selectedCard, game.rulesetId)
+        ? getLegalBasicCardMoves(allPieces, game.currentPlayer, selectedCard, game.rulesetId, game.cardRules)
         : [],
-    [allPieces, forcedDiscard, game.currentPlayer, game.rulesetId, selectedCard],
+    [allPieces, forcedDiscard, game.cardRules, game.currentPlayer, game.rulesetId, selectedCard],
   );
   const isSplitSeven = selectedCard?.rank === "7";
   const previewPieces = useMemo(
@@ -357,16 +357,16 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         frameNumber += 1;
         if (
           frameIndex === frames.length - 1 &&
-          move.capturedPieceId
+          getCapturedPieceIds(move).length > 0
         ) {
-          setCapturingPieceIds([move.capturedPieceId]);
+          setCapturingPieceIds(getCapturedPieceIds(move));
         }
         setHoppingPieces(frame.flatMap((animated) => {
           const piece = pieces.find((candidate) => candidate.id === animated.pieceId);
           return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
         }));
         await waitForAnimation(
-          frameIndex === frames.length - 1 && move.capturedPieceId
+          frameIndex === frames.length - 1 && getCapturedPieceIds(move).length > 0
             ? animationTimings.capture
             : animationTimings.hop,
         );
@@ -2064,7 +2064,11 @@ function describeMove(move: MoveChoice): string {
   if (move.kind === "swap") return `swap ${shortPiece(move.pieceId)} with ${shortPiece(move.targetPieceId)}`;
   const direction = move.kind === "backward" ? "backward" : "forward";
   const destination = move.destination.zone === "home" ? `home ${move.destination.index + 1}` : `track ${move.destination.index + 1}`;
-  return `move ${shortPiece(move.pieceId)} ${direction} to ${destination}${move.capturedPieceId ? `, bumping ${shortPiece(move.capturedPieceId)}` : ""}`;
+  const capturedPieces = getCapturedPieceIds(move);
+  const captureDescription = capturedPieces.length > 0
+    ? `, bumping ${capturedPieces.map(shortPiece).join(", ")}`
+    : "";
+  return `move ${shortPiece(move.pieceId)} ${direction} to ${destination}${captureDescription}`;
 }
 
 function shortPiece(pieceId: string) {

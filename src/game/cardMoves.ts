@@ -7,7 +7,7 @@ import {
 } from "./specialMoves";
 import { getControlledPlayer } from "./teams";
 import { getRulesetDefinition } from "./definition";
-import type { Card, CardRank, Piece, PlayerId, RulesetId } from "./types";
+import { DEFAULT_CARD_RULE_VARIANTS, type Card, type CardRank, type CardRuleVariants, type Piece, type PlayerId, type RulesetId } from "./types";
 
 const FORWARD_DISTANCES = {
   "2": [2],
@@ -24,6 +24,7 @@ export function getLegalBasicCardMoves(
   playerId: PlayerId,
   card: Card,
   rulesetId: RulesetId = "classic-partners-4",
+  cardRules: CardRuleVariants = DEFAULT_CARD_RULE_VARIANTS,
 ): Array<AtomicMove | SplitSevenMove> {
   const ruleset = getRulesetDefinition(rulesetId);
   const controlledPlayerId = getControlledPlayer(pieces, playerId, rulesetId);
@@ -32,12 +33,23 @@ export function getLegalBasicCardMoves(
     case "A":
       return [
         ...getLegalEntryMoves(pieces, controlledPlayerId, ruleset.board),
-        ...getPlayerForwardMoves(pieces, controlledPlayerId, [1, 11], ruleset.board),
+        ...getPlayerForwardMoves(
+          pieces,
+          controlledPlayerId,
+          cardRules.ace === "one-only" ? [1] : [1, 11],
+          ruleset.board,
+        ),
       ];
     case "K":
       return [
         ...getLegalEntryMoves(pieces, controlledPlayerId, ruleset.board),
-        ...getPlayerForwardMoves(pieces, controlledPlayerId, [13], ruleset.board),
+        ...getPlayerForwardMoves(
+          pieces,
+          controlledPlayerId,
+          [13],
+          ruleset.board,
+          cardRules.king === "eliminate-passed",
+        ),
       ];
     case "4":
       return pieces
@@ -48,9 +60,19 @@ export function getLegalBasicCardMoves(
         .filter((piece) => piece.position.zone === "track")
         .flatMap((piece) => getLegalForwardMoves(pieces, piece.id, 5, ruleset.board));
     case "7":
-      return getLegalSplitSevenMoves(pieces, controlledPlayerId, ruleset.board);
+      return getLegalSplitSevenMoves(
+        pieces,
+        controlledPlayerId,
+        ruleset.board,
+        cardRules.seven === "eliminate-passed",
+      );
     case "J":
-      return getLegalJackMoves(pieces, controlledPlayerId);
+      return [
+        ...getLegalJackMoves(pieces, controlledPlayerId),
+        ...(cardRules.jack === "swap-or-eleven"
+          ? getPlayerForwardMoves(pieces, controlledPlayerId, [11], ruleset.board)
+          : []),
+      ];
     case "2":
     case "3":
     case "6":
@@ -72,12 +94,13 @@ function getPlayerForwardMoves(
   playerId: PlayerId,
   distances: readonly number[],
   board?: import("./definition").BoardDefinition,
+  eliminatePassedPieces = false,
 ): AtomicMove[] {
   return pieces
     .filter((piece) => piece.owner === playerId)
     .flatMap((piece) =>
       distances.flatMap((distance) =>
-        getLegalForwardMoves(pieces, piece.id, distance, board),
+        getLegalForwardMoves(pieces, piece.id, distance, board, eliminatePassedPieces),
       ),
     );
 }

@@ -1,4 +1,4 @@
-import type { GameState } from "./types";
+import { DEFAULT_CARD_RULE_VARIANTS, type GameState } from "./types";
 import { assertValidGameState } from "./validation";
 
 export const GAME_SNAPSHOT_VERSION = 2 as const;
@@ -33,6 +33,7 @@ export function deserializeGameSnapshot(serialized: string): GameState {
     ...snapshot.game,
     charityTurns: snapshot.game.charityTurns ?? 0,
     charityRepeatAtThreshold: snapshot.game.charityRepeatAtThreshold ?? false,
+    cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...snapshot.game.cardRules },
     charityCounts: snapshot.game.charityCounts ?? {},
     charityHandEligible: snapshot.game.charityHandEligible ?? Object.fromEntries(
       snapshot.game.players.map((player) => [player.id, true]),

@@ -25,6 +25,7 @@ export type GamePublicView = Pick<
   | "dealIndex"
   | "phase"
   | "charityTurns"
+  | "cardRules"
   | "charityCounts"
   | "charityRequestQueue"
   | "charityRequestIndex"
@@ -144,6 +145,7 @@ export function createSessionView(
         Object.keys(game.exchangeSelections).map((playerId) => [playerId, true]),
       ),
       charityTurns: game.charityTurns,
+      cardRules: { ...game.cardRules },
       charityCounts: { ...game.charityCounts },
       charityRequestQueue: [...game.charityRequestQueue],
       charityRequestIndex: game.charityRequestIndex,

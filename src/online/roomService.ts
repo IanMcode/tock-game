@@ -8,7 +8,7 @@ import {
   type CommandEnvelope,
   type GameSession,
 } from "../game/session";
-import { PLAYER_IDS, type CharityTurns, type PlayerId } from "../game/types";
+import { DEFAULT_CARD_RULE_VARIANTS, PLAYER_IDS, type CardRuleVariants, type CharityTurns, type PlayerId } from "../game/types";
 import { createSessionView, type GameSessionView } from "../game/view";
 import { getRulesetDefinition } from "../game/definition";
 import { getGameStatistics, type PlayerGameStatistics } from "./statistics";
@@ -43,6 +43,7 @@ export type RoomConfiguration = {
   startWithPieceOnEntry: boolean;
   charityTurns: CharityTurns;
   charityRepeatAtThreshold: boolean;
+  cardRules: CardRuleVariants;
 };
 
 export type RematchVoteChoice = "accepted" | "declined";
@@ -107,6 +108,7 @@ export type CreateRoomOptions = {
   startWithPieceOnEntry?: boolean;
   charityTurns?: CharityTurns;
   charityRepeatAtThreshold?: boolean;
+  cardRules?: Partial<CardRuleVariants>;
 };
 
 export type StartNextGameOptions = {
@@ -207,6 +209,7 @@ export class RoomService {
       startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
       charityTurns: options.charityTurns ?? 0,
       charityRepeatAtThreshold: options.charityRepeatAtThreshold ?? false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...options.cardRules },
       ...(options.dealer && options.dealer !== "random" ? { dealer: options.dealer } : {}),
     });
     const joinOrder = options.randomizeSeats
@@ -236,6 +239,7 @@ export class RoomService {
           startWithPieceOnEntry: options.startWithPieceOnEntry ?? true,
           charityTurns: options.charityTurns ?? 0,
           charityRepeatAtThreshold: options.charityRepeatAtThreshold ?? false,
+          cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...options.cardRules },
         },
       };
       if (await this.store.create(room)) {
@@ -326,6 +330,7 @@ export class RoomService {
       startWithPieceOnEntry: true,
       charityTurns: 0,
       charityRepeatAtThreshold: false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
     };
     const game = createGame({
       randomState: this.randomState(),
@@ -334,6 +339,7 @@ export class RoomService {
       startWithPieceOnEntry: configuration.startWithPieceOnEntry,
       charityTurns: configuration.charityTurns,
       charityRepeatAtThreshold: configuration.charityRepeatAtThreshold,
+      cardRules: configuration.cardRules,
       ...(dealer ? { dealer } : {}),
     });
     const next: OnlineRoom = {
@@ -422,6 +428,7 @@ export class RoomService {
       startWithPieceOnEntry: true,
       charityTurns: 0,
       charityRepeatAtThreshold: false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
     };
     const selectedDealerParticipant = options.dealer && options.dealer !== "random"
       ? participantIdForSeat(completedRoom, options.dealer)
@@ -439,6 +446,7 @@ export class RoomService {
       startWithPieceOnEntry: configuration.startWithPieceOnEntry,
       charityTurns: configuration.charityTurns,
       charityRepeatAtThreshold: configuration.charityRepeatAtThreshold,
+      cardRules: configuration.cardRules,
       ...(dealer ? { dealer } : {}),
     });
     const next: OnlineRoom = {
@@ -595,6 +603,7 @@ function defaultRoomConfiguration(room: OnlineRoom): RoomConfiguration {
     startWithPieceOnEntry: true,
     charityTurns: 0,
     charityRepeatAtThreshold: false,
+    cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
   };
 }
 
@@ -619,6 +628,7 @@ function createNextGameRoom(room: OnlineRoom, options: StartNextGameOptions, ran
     startWithPieceOnEntry: configuration.startWithPieceOnEntry,
     charityTurns: configuration.charityTurns,
     charityRepeatAtThreshold: configuration.charityRepeatAtThreshold,
+    cardRules: configuration.cardRules,
     ...(dealer ? { dealer } : {}),
   });
   return {

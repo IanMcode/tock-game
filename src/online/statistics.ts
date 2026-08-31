@@ -1,5 +1,6 @@
 import type { PlayerId } from "../game/types";
 import type { PublicGameEvent } from "../game/view";
+import { getCapturedPieceIds } from "../game/actions";
 
 export type PlayerGameStatistics = {
   playerId: PlayerId;
@@ -44,8 +45,8 @@ export function getGameStatistics(
 function capturedPieceIds(move: PublicGameEvent["move"]): string[] {
   if (!move) return [];
   if (move.kind === "split7") {
-    return move.steps.flatMap((step) => step.capturedPieceId ? [step.capturedPieceId] : []);
+    return move.steps.flatMap(getCapturedPieceIds);
   }
-  if (move.kind === "swap" || !move.capturedPieceId) return [];
-  return [move.capturedPieceId];
+  if (move.kind === "swap") return [];
+  return getCapturedPieceIds(move);
 }

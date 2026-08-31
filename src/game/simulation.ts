@@ -77,7 +77,7 @@ export function simulateNextAction(game: GameState): GameState {
   const cardIndex = chooseCardIndex(game, playableIndexes);
   const card = player.hand[cardIndex];
   const pieces = getAllPieces(game);
-  const moves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId);
+  const moves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId, game.cardRules);
   const move = chooseMove(pieces, moves);
   return playCardForTurn(game, cardIndex, move);
 }

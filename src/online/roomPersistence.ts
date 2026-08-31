@@ -1,6 +1,6 @@
 import { deserializeGameSnapshot, GAME_SNAPSHOT_VERSION } from "../game/persistence";
 import type { GameEvent, GameSession } from "../game/session";
-import { PLAYER_IDS, type PlayerId } from "../game/types";
+import { DEFAULT_CARD_RULE_VARIANTS, PLAYER_IDS, type PlayerId } from "../game/types";
 import { getRulesetDefinition } from "../game/definition";
 import { parseCommandEnvelope } from "./protocol";
 import { DEFAULT_PLAYER_NAMES, type OnlineRoom } from "./roomService";
@@ -31,6 +31,7 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
       ...legacySession.game,
       charityTurns: legacySession.game.charityTurns ?? 0,
       charityRepeatAtThreshold: legacySession.game.charityRepeatAtThreshold ?? false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...legacySession.game.cardRules },
       charityCounts: legacySession.game.charityCounts ?? {},
       charityHandEligible: legacySession.game.charityHandEligible ?? Object.fromEntries(
         legacySession.game.players.map((player) => [player.id, true]),
@@ -72,12 +73,14 @@ export function deserializeOnlineRoom(value: unknown): OnlineRoom {
           ...storedRoom.configuration,
           charityTurns: storedRoom.configuration.charityTurns ?? 0,
           charityRepeatAtThreshold: storedRoom.configuration.charityRepeatAtThreshold ?? false,
+          cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, ...storedRoom.configuration.cardRules },
         }
       : {
           teams: ruleset.exchange === "partners",
           startWithPieceOnEntry: true,
           charityTurns: 0,
           charityRepeatAtThreshold: false,
+          cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
         },
   } as OnlineRoom;
   validateRoom(room);
@@ -110,7 +113,8 @@ function validateRoom(room: OnlineRoom): void {
     typeof room.configuration.teams !== "boolean" ||
     typeof room.configuration.startWithPieceOnEntry !== "boolean" ||
     typeof room.configuration.charityRepeatAtThreshold !== "boolean" ||
-    ![0, 1, 2, 3].includes(room.configuration.charityTurns)
+    ![0, 1, 2, 3].includes(room.configuration.charityTurns) ||
+    !isValidCardRules(room.configuration.cardRules)
   ) {
     throw new Error("The stored room has invalid game configuration.");
   }
@@ -201,6 +205,14 @@ function validateRoom(room: OnlineRoom): void {
   }));
 
   session.events.forEach((event, index) => validateEvent(event, index + 1));
+}
+
+function isValidCardRules(value: unknown): boolean {
+  return isRecord(value) &&
+    (value.ace === "one-or-eleven" || value.ace === "one-only") &&
+    (value.king === "land-only" || value.king === "eliminate-passed") &&
+    (value.jack === "swap-only" || value.jack === "swap-or-eleven") &&
+    (value.seven === "land-only" || value.seven === "eliminate-passed");
 }
 
 function participantIdForLegacyHost(room: OnlineRoom, session: GameSession): string {

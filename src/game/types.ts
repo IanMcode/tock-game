@@ -26,6 +26,25 @@ export type Card = {
 
 export type CharityTurns = 0 | 1 | 2 | 3;
 
+export type AceRule = "one-or-eleven" | "one-only";
+export type KingRule = "land-only" | "eliminate-passed";
+export type JackRule = "swap-only" | "swap-or-eleven";
+export type SevenRule = "land-only" | "eliminate-passed";
+
+export type CardRuleVariants = {
+  ace: AceRule;
+  king: KingRule;
+  jack: JackRule;
+  seven: SevenRule;
+};
+
+export const DEFAULT_CARD_RULE_VARIANTS: CardRuleVariants = {
+  ace: "one-or-eleven",
+  king: "land-only",
+  jack: "swap-only",
+  seven: "eliminate-passed",
+};
+
 export type CharityExchange = {
   requester: PlayerId;
   donor: PlayerId;
@@ -83,6 +102,7 @@ export type GameState = {
   exchangeSelections: Partial<Record<PlayerId, number>>;
   charityTurns: CharityTurns;
   charityRepeatAtThreshold: boolean;
+  cardRules: CardRuleVariants;
   charityCounts: Partial<Record<PlayerId, number>>;
   charityHandEligible: Partial<Record<PlayerId, boolean>>;
   charityRequestQueue: PlayerId[];

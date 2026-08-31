@@ -1,5 +1,5 @@
 import type { CardMove } from "../game/turns";
-import { PLAYER_IDS, type PlayerId } from "../game/types";
+import { DEFAULT_CARD_RULE_VARIANTS, PLAYER_IDS, type CardRuleVariants, type PlayerId } from "../game/types";
 import type { CommandEnvelope, GameCommand } from "../game/session";
 import type { BoardPlayerCount } from "../game/definition";
 import type { CardRank } from "../game/types";
@@ -30,6 +30,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   if (typeof charityRepeatAtThreshold !== "boolean") {
     throw new Error("Repeat charity must be true or false.");
   }
+  const cardRules = parseCardRules(value.cardRules);
 
   const dealer = value.dealer ?? "random";
   if (dealer !== "random") {
@@ -47,6 +48,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     startWithPieceOnEntry,
     charityTurns,
     charityRepeatAtThreshold,
+    cardRules,
     ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
   };
 }
@@ -89,12 +91,28 @@ export function parseRoomConfiguration(value: unknown): UpdateRoomConfigurationO
   if (typeof charityRepeatAtThreshold !== "boolean") {
     throw new Error("Repeat charity must be true or false.");
   }
+  const cardRules = parseCardRules(value.cardRules);
   return {
     teams: value.teams,
     startWithPieceOnEntry: value.startWithPieceOnEntry,
     charityTurns: value.charityTurns,
     charityRepeatAtThreshold,
+    cardRules,
   };
+}
+
+function parseCardRules(value: unknown): CardRuleVariants {
+  if (value === undefined) return { ...DEFAULT_CARD_RULE_VARIANTS };
+  if (!isRecord(value)) throw new Error("Card rules must be an object.");
+  const ace = value.ace ?? DEFAULT_CARD_RULE_VARIANTS.ace;
+  const king = value.king ?? DEFAULT_CARD_RULE_VARIANTS.king;
+  const jack = value.jack ?? DEFAULT_CARD_RULE_VARIANTS.jack;
+  const seven = value.seven ?? DEFAULT_CARD_RULE_VARIANTS.seven;
+  if (ace !== "one-or-eleven" && ace !== "one-only") throw new Error("The Ace rule is invalid.");
+  if (king !== "land-only" && king !== "eliminate-passed") throw new Error("The King rule is invalid.");
+  if (jack !== "swap-only" && jack !== "swap-or-eleven") throw new Error("The Jack rule is invalid.");
+  if (seven !== "land-only" && seven !== "eliminate-passed") throw new Error("The Seven rule is invalid.");
+  return { ace, king, jack, seven };
 }
 
 export function parseStartRoomOptions(value: unknown): StartRoomOptions {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../game/createGame";
 import { createGameSession } from "../game/session";
 import type { GameState } from "../game/types";
+import { DEFAULT_CARD_RULE_VARIANTS } from "../game/types";
 import { deserializeOnlineRoom, serializeOnlineRoom } from "./roomPersistence";
 import { hashPlayerToken, type OnlineRoom } from "./roomService";
 
@@ -73,6 +74,6 @@ async function createRoom(): Promise<OnlineRoom> {
     participantIds: { P1: "player-P1", P2: "player-P2", P3: "player-P3", P4: "player-P4" },
     matchHistory: [],
     currentGameNumber: 1,
-    configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0, charityRepeatAtThreshold: false },
+    configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0, charityRepeatAtThreshold: false, cardRules: { ...DEFAULT_CARD_RULE_VARIANTS } },
   };
 }

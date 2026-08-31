@@ -21,6 +21,7 @@ export type ForwardMove = {
   route: "track" | "home";
   destination: TrackPosition | HomePosition;
   capturedPieceId?: string;
+  capturedPieceIds?: string[];
 };
 
 export type BackwardMove = {
@@ -36,6 +37,7 @@ export function getLegalForwardMoves(
   pieceId: string,
   spaces: number,
   board?: BoardDefinition,
+  eliminatePassedPieces = false,
 ): ForwardMove[] {
   assertPositiveInteger(spaces);
   const piece = getPieceById(pieces, pieceId);
@@ -50,7 +52,7 @@ export function getLegalForwardMoves(
     case "home":
       return getHomeMoves(pieces, piece, piece.position, spaces, board);
     case "track":
-      return getTrackMoves(pieces, piece, piece.position, spaces, board);
+      return getTrackMoves(pieces, piece, piece.position, spaces, board, eliminatePassedPieces);
   }
 }
 
@@ -101,6 +103,7 @@ function getTrackMoves(
   position: TrackPosition,
   spaces: number,
   board?: BoardDefinition,
+  eliminatePassedPieces = false,
 ): ForwardMove[] {
   const moves: ForwardMove[] = [];
   const trackPath = getForwardTrackPath(position.index, spaces, board);
@@ -108,6 +111,9 @@ function getTrackMoves(
   if (!hasProtectedBlocker(pieces, trackPath, piece.id)) {
     const destinationIndex = advanceTrackIndex(position.index, spaces, board);
     const occupant = getTrackOccupant(pieces, destinationIndex, piece.id);
+    const capturedPieceIds = eliminatePassedPieces
+      ? getCapturedTrackPieceIds(pieces, trackPath, piece.id)
+      : occupant ? [occupant.id] : [];
 
     moves.push({
       kind: "forward",
@@ -118,7 +124,7 @@ function getTrackMoves(
         index: destinationIndex,
         isEntryProtected: false,
       },
-      ...(occupant ? { capturedPieceId: occupant.id } : {}),
+      ...captureFields(capturedPieceIds),
     });
   }
 
@@ -128,15 +134,41 @@ function getTrackMoves(
     homeDestination &&
     canEnterHome(pieces, piece, position, spaces, homeDestination, board)
   ) {
+    const stepsToHome = getForwardStepsToHome(position.index, piece.owner, board);
+    const capturedPieceIds = eliminatePassedPieces
+      ? getCapturedTrackPieceIds(
+          pieces,
+          getForwardTrackPath(position.index, stepsToHome - 1, board),
+          piece.id,
+        )
+      : [];
     moves.push({
       kind: "forward",
       pieceId: piece.id,
       route: "home",
       destination: homeDestination,
+      ...captureFields(capturedPieceIds),
     });
   }
 
   return moves;
+}
+
+function getCapturedTrackPieceIds(
+  pieces: readonly Piece[],
+  path: readonly number[],
+  movingPieceId: string,
+): string[] {
+  return path.flatMap((index) => {
+    const occupant = getTrackOccupant(pieces, index, movingPieceId);
+    return occupant ? [occupant.id] : [];
+  });
+}
+
+function captureFields(capturedPieceIds: readonly string[]) {
+  if (capturedPieceIds.length === 0) return {};
+  if (capturedPieceIds.length === 1) return { capturedPieceId: capturedPieceIds[0] };
+  return { capturedPieceIds: [...new Set(capturedPieceIds)] };
 }
 
 function getHomeMoves(

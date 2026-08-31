@@ -17,7 +17,7 @@ export function isCharityQualifyingTurn(game: GameState): boolean {
   if (!player) return false;
   const pieces = getAllPieces(game);
   const canMakeQualifyingMove = player.hand.some((card) =>
-    getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId)
+    getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId, game.cardRules)
       .some((move) => moveUsesQualifyingPiece(move, pieces, player.id, card.rank)));
   if (canMakeQualifyingMove) return false;
 
@@ -26,7 +26,7 @@ export function isCharityQualifyingTurn(game: GameState): boolean {
       ? { ...piece, position: { ...piece.position, isEntryProtected: false } }
       : piece);
   const protectedEntryCanExplainBlock = player.hand.some((card) =>
-    getLegalBasicCardMoves(piecesWithoutEnemyEntryProtection, player.id, card, game.rulesetId)
+    getLegalBasicCardMoves(piecesWithoutEnemyEntryProtection, player.id, card, game.rulesetId, game.cardRules)
       .some((move) => moveUsesQualifyingPiece(move, piecesWithoutEnemyEntryProtection, player.id, card.rank)));
   return !protectedEntryCanExplainBlock;
 }

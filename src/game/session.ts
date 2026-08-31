@@ -1,6 +1,6 @@
 import { selectExchangeCard } from "./deals";
 import { requestCharityCard, returnCharityCard } from "./charity";
-import { applyPieceMove, type AtomicMove } from "./actions";
+import { applyPieceMove, getCapturedPieceIds, type AtomicMove } from "./actions";
 import { getRulesetDefinition } from "./definition";
 import { getMoveAnimationFrames } from "./moveAnimation";
 import { getAllPieces } from "./occupancy";
@@ -140,7 +140,7 @@ function getPiecePositionsBefore(game: GameState, move: CardMove): PiecePosition
   const record = (atomicMove: AtomicMove) => {
     affectedPieceIds.add(atomicMove.pieceId);
     if (atomicMove.kind === "swap") affectedPieceIds.add(atomicMove.targetPieceId);
-    else if (atomicMove.capturedPieceId) affectedPieceIds.add(atomicMove.capturedPieceId);
+    else getCapturedPieceIds(atomicMove).forEach((pieceId) => affectedPieceIds.add(pieceId));
   };
 
   if (move.kind === "split7") move.steps.forEach(record);

@@ -62,8 +62,66 @@ export function getLegalSplitSevenMoves(
   pieces: readonly Piece[],
   playerId: PlayerId,
   board?: BoardDefinition,
+  eliminatePassedPieces = true,
 ): SplitSevenMove[] {
-  return buildSplitSevenMoves(pieces, playerId, 7, [], board);
+  const moves = buildSplitSevenMoves(pieces, playerId, 7, [], board);
+  if (eliminatePassedPieces) return moves;
+  return uniqueSplitMoves(moves.flatMap((move) => {
+    const normalized = normalizeLandingOnlyCaptures(pieces, move);
+    return hasUniqueFinalPositions(applySplitSevenMove(pieces, normalized)) ? [normalized] : [];
+  }));
+}
+
+function normalizeLandingOnlyCaptures(
+  startingPieces: readonly Piece[],
+  move: SplitSevenMove,
+): SplitSevenMove {
+  const lastStepByPiece = new Map<string, number>();
+  move.steps.forEach((step, index) => lastStepByPiece.set(step.pieceId, index));
+  let pieces = [...startingPieces];
+  const steps = move.steps.map((step, index) => {
+    const withoutCapture: ForwardMove = {
+      kind: "forward",
+      pieceId: step.pieceId,
+      route: step.route,
+      destination: step.destination,
+    };
+    const isFinalStepForPiece = lastStepByPiece.get(step.pieceId) === index;
+    const destinationIndex = step.destination.zone === "track" ? step.destination.index : null;
+    const occupant = isFinalStepForPiece && destinationIndex !== null
+      ? pieces.find((piece) =>
+          piece.id !== step.pieceId &&
+          piece.position.zone === "track" &&
+          piece.position.index === destinationIndex)
+      : undefined;
+    const normalized: ForwardMove = occupant
+      ? { ...withoutCapture, capturedPieceId: occupant.id }
+      : withoutCapture;
+    pieces = applyPieceMove(pieces, normalized);
+    return normalized;
+  });
+  return { kind: "split7", steps };
+}
+
+function hasUniqueFinalPositions(pieces: readonly Piece[]): boolean {
+  const occupied = pieces
+    .filter((piece) => piece.position.zone !== "reserve")
+    .map((piece) => {
+      if (piece.position.zone === "track") return `track:${piece.position.index}`;
+      if (piece.position.zone === "home") return `home:${piece.owner}:${piece.position.index}`;
+      return `reserve:${piece.id}`;
+    });
+  return new Set(occupied).size === occupied.length;
+}
+
+function uniqueSplitMoves(moves: readonly SplitSevenMove[]): SplitSevenMove[] {
+  const seen = new Set<string>();
+  return moves.filter((move) => {
+    const key = JSON.stringify(move);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildSplitSevenMoves(

@@ -1,6 +1,7 @@
 import type { PublicGameEvent } from "../game/view";
 import { DEFAULT_PLAYER_NAMES } from "./roomService";
 import type { CardRank, PlayerId } from "../game/types";
+import { getCapturedPieceIds } from "../game/actions";
 
 const SUIT_SYMBOL = { clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" } as const;
 
@@ -21,10 +22,10 @@ export function describePublicGameEvent(
   if (!event.move) return `${actor} played ${card}.`;
 
   const capturedPieceIds = event.move.kind === "split7"
-    ? event.move.steps.flatMap((step) => step.capturedPieceId ? [step.capturedPieceId] : [])
-    : event.move.kind === "swap" || !event.move.capturedPieceId
+    ? event.move.steps.flatMap(getCapturedPieceIds)
+    : event.move.kind === "swap"
       ? []
-      : [event.move.capturedPieceId];
+      : getCapturedPieceIds(event.move);
   const eliminated = capturedPieceIds.length > 0
     ? `, eliminating ${formatEliminatedPieces(capturedPieceIds, playerNames)} and returning ${capturedPieceIds.length === 1 ? "it" : "them"} to reserve`
     : "";

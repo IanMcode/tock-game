@@ -25,8 +25,8 @@ import {
   roomChannelName,
 } from "../../src/online/realtime";
 import type { BoardPlayerCount } from "../../src/game/definition";
-import type { CardRank, CharityTurns, PlayerId } from "../../src/game/types";
-import type { MatchGameRecord, RoomAccess, RoomView } from "../../src/online/roomService";
+import { DEFAULT_CARD_RULE_VARIANTS, type CardRank, type CardRuleVariants, type CharityTurns, type PlayerId } from "../../src/game/types";
+import type { MatchGameRecord, RoomAccess, RoomConfiguration, RoomView } from "../../src/online/roomService";
 import {
   getCurrentDealerRoundEvents,
   getLatestAnimationTurn,
@@ -56,7 +56,7 @@ import {
   type HoppingPiece,
   type SwappingPiece,
 } from "../game-table";
-import { applyAtomicMove, applyPieceMove, type AtomicMove } from "../../src/game/actions";
+import { applyAtomicMove, applyPieceMove, getCapturedPieceIds, type AtomicMove } from "../../src/game/actions";
 import { getLegalBasicCardMoves } from "../../src/game/cardMoves";
 import { getNextHandPreview } from "../../src/game/deals";
 import { getRulesetDefinition } from "../../src/game/definition";
@@ -71,6 +71,7 @@ import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
 const SURFACE_THEME_KEY = "tock-online-surface-theme";
+const RULE_PREFERENCES_KEY = "tock-online-rule-preferences";
 const PLAY_LOG_ENTRY_LIMIT = 6;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
 type ExchangeReceipt = { sent: Card; received: Card };
@@ -286,8 +287,10 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     setBusy(true);
     setError(null);
     try {
+      const savedRules = readRulePreferences(playerCount);
       enterRoom((await createOnlineRoom({
         playerCount,
+        ...savedRules,
         ...(hostName.trim() ? { playerName: hostName.trim() } : {}),
       })).access);
     } catch (createError) {
@@ -358,7 +361,9 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
     setBusy(true);
     setError(null);
     try {
-      setRoom(await updateOnlineRoomConfiguration(access.roomId, access.playerToken, configuration));
+      const updated = await updateOnlineRoomConfiguration(access.roomId, access.playerToken, configuration);
+      localStorage.setItem(RULE_PREFERENCES_KEY, JSON.stringify(updated.configuration));
+      setRoom(updated);
     } catch (configurationError) {
       setRoom(previous);
       setError(messageFrom(configurationError));
@@ -472,6 +477,50 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
               />
               <span><strong>Repeat charity</strong><small>Stay at the threshold and request again next hand if still unable to move.</small></span>
             </label>
+            <CardRuleSelect
+              title="Ace"
+              description="Always available to bring a reserve piece out."
+              value={room.configuration.cardRules.ace}
+              disabled={!room.isHost || busy}
+              onChange={(ace) => void updateLobbyConfiguration({ ...room.configuration, cardRules: { ...room.configuration.cardRules, ace } })}
+              options={[
+                ["one-or-eleven", "Move 1 or 11"],
+                ["one-only", "Move 1 only"],
+              ]}
+            />
+            <CardRuleSelect
+              title="King"
+              description="Always available to bring a reserve piece out."
+              value={room.configuration.cardRules.king}
+              disabled={!room.isHost || busy}
+              onChange={(king) => void updateLobbyConfiguration({ ...room.configuration, cardRules: { ...room.configuration.cardRules, king } })}
+              options={[
+                ["land-only", "Move 13"],
+                ["eliminate-passed", "13 + eliminate passed"],
+              ]}
+            />
+            <CardRuleSelect
+              title="Jack"
+              description="Choose whether the Jack swaps only or may move normally."
+              value={room.configuration.cardRules.jack}
+              disabled={!room.isHost || busy}
+              onChange={(jack) => void updateLobbyConfiguration({ ...room.configuration, cardRules: { ...room.configuration.cardRules, jack } })}
+              options={[
+                ["swap-only", "Swap any two"],
+                ["swap-or-eleven", "Swap or move 11"],
+              ]}
+            />
+            <CardRuleSelect
+              title="Seven"
+              description="Split seven spaces among any valid pieces in play."
+              value={room.configuration.cardRules.seven}
+              disabled={!room.isHost || busy}
+              onChange={(seven) => void updateLobbyConfiguration({ ...room.configuration, cardRules: { ...room.configuration.cardRules, seven } })}
+              options={[
+                ["land-only", "Landing captures only"],
+                ["eliminate-passed", "Eliminate passed pieces"],
+              ]}
+            />
           </div>
         </section>}
 
@@ -908,14 +957,14 @@ function OnlineRoomTable({
   }, [pieces, presentCard, room.session.events, room.session.revision, ruleset.board, setVisualPieces]);
   const legalMoves = useMemo(() =>
     selectedCard && canTakeNormalTurn && !forcedDiscard
-      ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId)
+      ? getLegalBasicCardMoves(pieces, access.playerId, selectedCard, game.rulesetId, game.cardRules)
       : [],
-  [access.playerId, canTakeNormalTurn, forcedDiscard, game.rulesetId, pieces, selectedCard]);
+  [access.playerId, canTakeNormalTurn, forcedDiscard, game.cardRules, game.rulesetId, pieces, selectedCard]);
   const playableIndexes = useMemo(() =>
     !canTakeNormalTurn || forcedDiscard ? [] : hand.flatMap((card, index) =>
-      getLegalBasicCardMoves(pieces, access.playerId, card, game.rulesetId).length ? [index] : [],
+      getLegalBasicCardMoves(pieces, access.playerId, card, game.rulesetId, game.cardRules).length ? [index] : [],
     ),
-  [access.playerId, canTakeNormalTurn, forcedDiscard, game.rulesetId, hand, pieces]);
+  [access.playerId, canTakeNormalTurn, forcedDiscard, game.cardRules, game.rulesetId, hand, pieces]);
   const isSplitSeven = selectedCard?.rank === "7";
   const previewPieces = useMemo(() => splitSteps.reduce<Piece[]>(
     (current, step) => applyPieceMove(current, step),
@@ -1646,15 +1695,15 @@ async function animateOnlineMoves({
     for (const [frameIndex, frame] of frames.entries()) {
       if (!shouldContinue()) return currentPieces;
       frameNumber += 1;
-      if (frameIndex === frames.length - 1 && move.capturedPieceId) {
-        setCapturingPieceIds([move.capturedPieceId]);
+      if (frameIndex === frames.length - 1 && getCapturedPieceIds(move).length > 0) {
+        setCapturingPieceIds(getCapturedPieceIds(move));
       }
       setHoppingPieces(frame.flatMap((animated) => {
         const piece = currentPieces.find((candidate) => candidate.id === animated.pieceId);
         return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
       }));
       await waitForOnlineAnimation(
-        frameIndex === frames.length - 1 && move.capturedPieceId
+        frameIndex === frames.length - 1 && getCapturedPieceIds(move).length > 0
           ? ONLINE_CAPTURE_DURATION
           : ONLINE_HOP_DURATION,
       );
@@ -1680,4 +1729,65 @@ function uniqueOnlineMoves<T extends CardMove>(moves: readonly T[]): T[] {
     seen.add(key);
     return true;
   });
+}
+
+type CardRuleValue = CardRuleVariants[keyof CardRuleVariants];
+
+function CardRuleSelect<T extends CardRuleValue>({ title, description, value, disabled, options, onChange }: {
+  title: string;
+  description: string;
+  value: T;
+  disabled: boolean;
+  options: ReadonlyArray<readonly [T, string]>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label className="online-variant-select">
+      <span><strong>{title}</strong><small>{description}</small></span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as T)}
+      >
+        {options.map(([optionValue, label]) => (
+          <option value={optionValue} key={optionValue}>{label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function readRulePreferences(playerCount: BoardPlayerCount): RoomConfiguration {
+  const defaults: RoomConfiguration = {
+    teams: playerCount === 4,
+    startWithPieceOnEntry: true,
+    charityTurns: 0,
+    charityRepeatAtThreshold: false,
+    cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
+  };
+  try {
+    const value = JSON.parse(localStorage.getItem(RULE_PREFERENCES_KEY) ?? "null") as Partial<RoomConfiguration> | null;
+    if (!value || typeof value !== "object") return defaults;
+    const cardRules = value.cardRules;
+    return {
+      teams: playerCount === 4 && typeof value.teams === "boolean" ? value.teams : defaults.teams,
+      startWithPieceOnEntry: typeof value.startWithPieceOnEntry === "boolean"
+        ? value.startWithPieceOnEntry
+        : defaults.startWithPieceOnEntry,
+      charityTurns: value.charityTurns === 1 || value.charityTurns === 2 || value.charityTurns === 3
+        ? value.charityTurns
+        : 0,
+      charityRepeatAtThreshold: typeof value.charityRepeatAtThreshold === "boolean"
+        ? value.charityRepeatAtThreshold
+        : defaults.charityRepeatAtThreshold,
+      cardRules: {
+        ace: cardRules?.ace === "one-only" ? "one-only" : "one-or-eleven",
+        king: cardRules?.king === "eliminate-passed" ? "eliminate-passed" : "land-only",
+        jack: cardRules?.jack === "swap-or-eleven" ? "swap-or-eleven" : "swap-only",
+        seven: cardRules?.seven === "land-only" ? "land-only" : "eliminate-passed",
+      },
+    };
+  } catch {
+    return defaults;
+  }
 }

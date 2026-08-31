@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { hashPlayerToken, RoomError, InMemoryRoomStore, RoomService } from "./roomService";
+import { DEFAULT_CARD_RULE_VARIANTS } from "../game/types";
 
 describe("online room service", () => {
   it("creates a private seat and fills a four-player room", async () => {
@@ -102,20 +103,23 @@ describe("online room service", () => {
       startWithPieceOnEntry: false,
       charityTurns: 2,
       charityRepeatAtThreshold: true,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
     }), "HOST_ONLY");
     const configured = await service.updateRoomConfiguration("1234", host.access.playerToken, {
       teams: false,
       startWithPieceOnEntry: false,
       charityTurns: 2,
       charityRepeatAtThreshold: true,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, jack: "swap-or-eleven" },
     });
-    expect(configured.configuration).toEqual({ teams: false, startWithPieceOnEntry: false, charityTurns: 2, charityRepeatAtThreshold: true });
+    expect(configured.configuration).toEqual({ teams: false, startWithPieceOnEntry: false, charityTurns: 2, charityRepeatAtThreshold: true, cardRules: { ...DEFAULT_CARD_RULE_VARIANTS, jack: "swap-or-eleven" } });
     expect((await service.getRoomView("1234", second.access.playerToken)).configuration).toEqual(configured.configuration);
 
     await service.joinRoom("1234", "Jan");
     const started = await service.startRoom("1234", host.access.playerToken);
     expect(started.room.session.game.charityTurns).toBe(2);
     expect(started.room.configuration.charityRepeatAtThreshold).toBe(true);
+    expect(started.room.session.game.cardRules.jack).toBe("swap-or-eleven");
     expect(started.room.session.game.players.every((player) => player.pieces.every((piece) => piece.position.zone === "reserve"))).toBe(true);
   });
 

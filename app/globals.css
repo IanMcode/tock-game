@@ -391,7 +391,7 @@ button { font: inherit; }
 .online-variant-select > span { display: grid; gap: 3px; }
 .online-variant-select strong { font-size: 12px; }
 .online-variant-select small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.4; }
-.online-variant-select select { min-width: 112px; }
+.online-variant-select select { min-width: 112px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: white; font: inherit; font-size: 11px; font-weight: 700; }
 .lobby-rules-panel { display: grid; grid-template-columns: minmax(180px,.65fr) minmax(0,1.35fr); gap: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,253,247,.92); box-shadow: 0 10px 30px rgba(28,58,47,.07); }
 .lobby-rules-panel h2 { margin: 4px 0 6px; font-family: Georgia,serif; font-size: 24px; font-weight: 500; }
 .lobby-rules-panel p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -399,6 +399,7 @@ button { font: inherit; }
 .lobby-rule-options .online-check { display: flex; align-items: flex-start; gap: 11px; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 12px; background: rgba(245,248,243,.72); }
 .lobby-rule-options .online-check > span { display: grid; gap: 3px; }
 .lobby-rule-options .online-variant-select { min-width: 0; }
+.lobby-rule-options .online-variant-select select { width: min(100%, 176px); }
 .lobby-rule-options strong { font-size: 12px; }
 .lobby-rule-options small { color: var(--muted); font-size: 10px; line-height: 1.4; }
 .online-primary { padding: 13px 16px; border: 0; border-radius: 11px; color: white; background: var(--green); cursor: pointer; font-weight: 900; }

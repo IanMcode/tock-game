@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseCommandEnvelope, parseCreateRoomOptions, parseJoinRoomOptions, parseRematchVoteOptions, parseRoomConfiguration, parseStartNextGameOptions, parseStartRoomOptions } from "./protocol";
+import { DEFAULT_CARD_RULE_VARIANTS } from "../game/types";
 
 describe("online command protocol", () => {
   it("parses room rules and dealer selection", () => {
@@ -12,6 +13,7 @@ describe("online command protocol", () => {
       startWithPieceOnEntry: true,
       charityTurns: 0,
       charityRepeatAtThreshold: false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
     });
     expect(parseCreateRoomOptions(undefined)).toEqual({});
   });
@@ -30,6 +32,7 @@ describe("online command protocol", () => {
       startWithPieceOnEntry: true,
       charityTurns: 3,
       charityRepeatAtThreshold: false,
+      cardRules: { ...DEFAULT_CARD_RULE_VARIANTS },
     });
     expect(parseRematchVoteOptions({ vote: "request", dealer: "P2", randomizeSeats: true })).toEqual({
       vote: "request",

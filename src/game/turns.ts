@@ -31,7 +31,7 @@ export function playCardForTurn(
   const player = getCurrentPlayer(game);
   const card = getCardAtIndex(player.hand, cardIndex);
   const pieces = getAllPieces(game);
-  const legalMoves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId);
+  const legalMoves = getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId, game.cardRules);
   const legalMove = legalMoves.find(
     (candidate) => serializeMove(candidate) === serializeMove(selectedMove),
   );
@@ -93,7 +93,7 @@ export function getPlayableCardIndexes(game: GameState): number[] {
   const pieces = getAllPieces(game);
 
   return player.hand.flatMap((card, index) =>
-    getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId).length > 0 ? [index] : [],
+    getLegalBasicCardMoves(pieces, player.id, card, game.rulesetId, game.cardRules).length > 0 ? [index] : [],
   );
 }
 

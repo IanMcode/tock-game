@@ -125,6 +125,15 @@ export function getGameStateProblems(game: GameState): string[] {
   if (typeof game.charityRepeatAtThreshold !== "boolean") {
     problems.push("The game has an invalid repeat-charity setting.");
   }
+  if (
+    !game.cardRules ||
+    !["one-or-eleven", "one-only"].includes(game.cardRules.ace) ||
+    !["land-only", "eliminate-passed"].includes(game.cardRules.king) ||
+    !["swap-only", "swap-or-eleven"].includes(game.cardRules.jack) ||
+    !["land-only", "eliminate-passed"].includes(game.cardRules.seven)
+  ) {
+    problems.push("The game has invalid card-rule variants.");
+  }
   for (const [playerId, count] of Object.entries(game.charityCounts)) {
     if (!playerIds.includes(playerId as typeof game.currentPlayer) || !Number.isInteger(count) || count < 0 || count > game.charityTurns) {
       problems.push(`${playerId} has an invalid charity count.`);
