@@ -96,8 +96,8 @@ export function getGameStateProblems(game: GameState): string[] {
     problems.push("Hands, draw pile, and discard pile must contain one complete 52-card deck.");
   }
 
-  if (game.phase === "play" && Object.keys(game.exchangeSelections).length > 0) {
-    problems.push("Exchange selections must be empty during play.");
+  if (game.phase !== "exchange" && Object.keys(game.exchangeSelections).length > 0) {
+    problems.push("Exchange selections must be empty outside the exchange phase.");
   }
 
   if (game.phase === "exchange" && ruleset.exchange !== "partners") {
@@ -122,13 +122,47 @@ export function getGameStateProblems(game: GameState): string[] {
   if (![0, 1, 2, 3].includes(game.charityTurns)) {
     problems.push("The game has an invalid charity setting.");
   }
+  if (typeof game.charityRepeatAtThreshold !== "boolean") {
+    problems.push("The game has an invalid repeat-charity setting.");
+  }
   for (const [playerId, count] of Object.entries(game.charityCounts)) {
     if (!playerIds.includes(playerId as typeof game.currentPlayer) || !Number.isInteger(count) || count < 0 || count > game.charityTurns) {
       problems.push(`${playerId} has an invalid charity count.`);
     }
   }
+  for (const [playerId, eligible] of Object.entries(game.charityHandEligible)) {
+    if (!playerIds.includes(playerId as typeof game.currentPlayer) || typeof eligible !== "boolean") {
+      problems.push(`${playerId} has invalid charity hand eligibility.`);
+    }
+  }
+  if (
+    !Array.isArray(game.charityRequestQueue) ||
+    new Set(game.charityRequestQueue).size !== game.charityRequestQueue.length ||
+    game.charityRequestQueue.some((playerId) => !playerIds.includes(playerId))
+  ) {
+    problems.push("The game has an invalid charity request queue.");
+  }
+  if (game.phase === "charity") {
+    if (
+      game.charityTurns === 0 ||
+      game.charityRequestQueue.length === 0 ||
+      !Number.isInteger(game.charityRequestIndex) ||
+      game.charityRequestIndex < 0 ||
+      game.charityRequestIndex >= game.charityRequestQueue.length ||
+      game.currentPlayer !== game.charityRequestQueue[game.charityRequestIndex]
+    ) {
+      problems.push("The active charity request is invalid.");
+    }
+  } else if (game.charityRequestQueue.length > 0 || game.charityRequestIndex !== 0) {
+    problems.push("Charity requests must be cleared before normal play.");
+  }
   if (game.charityExchange) {
-    if (game.charityExchange.requester !== game.currentPlayer || game.charityExchange.requester === game.charityExchange.donor) {
+    if (
+      game.phase !== "charity" ||
+      game.charityExchange.requester !== game.currentPlayer ||
+      game.charityExchange.requester === game.charityExchange.donor ||
+      !playerIds.includes(game.charityExchange.donor)
+    ) {
       problems.push("The charity exchange has invalid players.");
     }
   }

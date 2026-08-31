@@ -451,17 +451,26 @@ export default function OnlineLobby({ realtimeEnabled = false, entryMode = "both
               <span><strong>Head start</strong><small>Begin with each player’s first piece protected on entry.</small></span>
             </label>
             <label className="online-variant-select">
-              <span><strong>Charity</strong><small>Request a card after consecutive qualifying turns.</small></span>
+              <span><strong>Charity</strong><small>Request a card after consecutive qualifying hands.</small></span>
               <select
                 value={room.configuration.charityTurns}
                 disabled={!room.isHost || busy}
                 onChange={(event) => void updateLobbyConfiguration({ ...room.configuration, charityTurns: Number(event.target.value) as CharityTurns })}
               >
                 <option value={0}>No charity</option>
-                <option value={1}>1 turn</option>
-                <option value={2}>2 turns</option>
-                <option value={3}>3 turns</option>
+                <option value={1}>1 hand</option>
+                <option value={2}>2 hands</option>
+                <option value={3}>3 hands</option>
               </select>
+            </label>
+            <label className="online-check">
+              <input
+                type="checkbox"
+                checked={room.configuration.charityRepeatAtThreshold}
+                disabled={!room.isHost || busy || room.configuration.charityTurns === 0}
+                onChange={(event) => void updateLobbyConfiguration({ ...room.configuration, charityRepeatAtThreshold: event.target.checked })}
+              />
+              <span><strong>Repeat charity</strong><small>Stay at the threshold and request again next hand if still unable to move.</small></span>
             </label>
           </div>
         </section>}
@@ -679,6 +688,7 @@ function OnlineRoomTable({
   const [incomingCard, setIncomingCard] = useState<PresentedCard | null>(null);
   const selectedCard = selectedCardIndex === null ? null : hand[selectedCardIndex] ?? null;
   const isMyTurn = game.phase === "play" && game.currentPlayer === access.playerId && !game.winningTeam;
+  const isMyCharityTurn = game.phase === "charity" && game.currentPlayer === access.playerId && !game.winningTeam;
   const rematchDecliners = game.players
     .map((player) => player.id)
     .filter((playerId) => room.rematchVote?.votes[playerId] === "declined");
@@ -687,8 +697,8 @@ function OnlineRoomTable({
     ? `${room.rematchVote.requestedBy}:${game.players.map((player) => room.rematchVote?.votes[player.id] ?? "waiting").join(",")}`
     : "";
   const previousRematchVoteSignal = useRef(rematchVoteSignal);
-  const charityRequestRequired = game.charityTurns > 0 &&
-    (game.charityCounts[access.playerId] ?? 0) >= game.charityTurns &&
+  const charityRequestRequired = isMyCharityTurn &&
+    game.charityRequestQueue[game.charityRequestIndex] === access.playerId &&
     !game.charityExchange;
   const isCharityRequester = game.charityExchange?.requester === access.playerId;
   const canTakeNormalTurn = isMyTurn && !charityRequestRequired && !game.charityExchange;
@@ -961,7 +971,7 @@ function OnlineRoomTable({
   }
 
   async function requestCharity() {
-    if (!isMyTurn || !charityRequestRequired) return;
+    if (!charityRequestRequired) return;
     await submit({ type: "request-charity-card", actor: access.playerId, rank: requestedCharityRank });
   }
 
@@ -1177,13 +1187,13 @@ function OnlineRoomTable({
   }
 
   const handPanel = (
-    <div className={`online-hand-panel ${isMyTurn ? "is-my-turn" : ""} ${forcedDiscard ? "is-forced-discard" : ""}`}>
+    <div className={`online-hand-panel ${isMyTurn || isMyCharityTurn ? "is-my-turn" : ""} ${forcedDiscard ? "is-forced-discard" : ""}`}>
       <div>
         <p className="eyebrow">Your hand</p>
         <strong>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]}</strong>
       </div>
       {forcedDiscard && <strong className="forced-discard-prompt">10 played · discard one card</strong>}
-      {isMyTurn && charityRequestRequired && (
+      {charityRequestRequired && (
         <div className="online-charity-panel" role="group" aria-label="Request a charity card">
           <strong>Charity earned</strong>
           <label>
@@ -1241,6 +1251,14 @@ function OnlineRoomTable({
         </button>
       </div>}
       {game.phase === "exchange" && <p>{alreadyExchanged ? "Card locked in. Waiting for the other players to choose." : selectedCardIndex === null ? "Choose one card to pass to your teammate." : "Selected card ready. Pass it, or cancel and choose another."}</p>}
+      {game.phase === "charity" && isCharityRequester && <div className="online-hand-actions exchange-actions">
+        <button className="online-cancel-selection" type="button" disabled={busy || selectedCardIndex === null} onClick={() => resetSelection()}>
+          Cancel selection
+        </button>
+        <button className="online-pass-card" type="button" disabled={busy || selectedCardIndex === null} onClick={() => void returnCharity()}>
+          Return selected card
+        </button>
+      </div>}
       {game.phase === "play" && <div className="online-hand-actions">
         <button className="online-cancel-selection" type="button" disabled={busy || isDealing || !isMyTurn || !hasSelection} onClick={() => resetSelection()}>
           Cancel selection
@@ -1303,9 +1321,10 @@ function OnlineRoomTable({
             <div className="online-room-heading-row">
               <div>
                 <p className="eyebrow">Online room · {access.roomId} · revision {room.session.revision}</p>
-                <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_LABELS[game.winningTeam[0]]} has won` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_LABELS[game.currentPlayer]}'s turn`}</h2>
+                <h2>{game.winningTeam ? `${room.playerNames[game.winningTeam[0]] ?? PLAYER_LABELS[game.winningTeam[0]]} has won` : game.phase === "charity" ? `${room.playerNames[game.currentPlayer] ?? PLAYER_LABELS[game.currentPlayer]}'s charity request` : game.phase === "exchange" ? "Blind team exchange" : `${room.playerNames[game.currentPlayer] ?? PLAYER_LABELS[game.currentPlayer]}'s turn`}</h2>
                 <span>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]} · {access.playerId} · {room.connectedPlayers.length} connected</span>
                 {!isMyTurn && game.phase === "play" && !game.winningTeam && <span>Waiting for another player…</span>}
+                {!isMyCharityTurn && game.phase === "charity" && <span>Charity requests are resolved before the hand begins.</span>}
               </div>
               <div className="online-room-view-controls">
                 <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />

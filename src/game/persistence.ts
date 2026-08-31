@@ -32,7 +32,13 @@ export function deserializeGameSnapshot(serialized: string): GameState {
   const game = {
     ...snapshot.game,
     charityTurns: snapshot.game.charityTurns ?? 0,
+    charityRepeatAtThreshold: snapshot.game.charityRepeatAtThreshold ?? false,
     charityCounts: snapshot.game.charityCounts ?? {},
+    charityHandEligible: snapshot.game.charityHandEligible ?? Object.fromEntries(
+      snapshot.game.players.map((player) => [player.id, true]),
+    ),
+    charityRequestQueue: snapshot.game.charityRequestQueue ?? [],
+    charityRequestIndex: snapshot.game.charityRequestIndex ?? 0,
     charityExchange: snapshot.game.charityExchange ?? null,
     lastCharityTransfer: snapshot.game.lastCharityTransfer ?? null,
   };

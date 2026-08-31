@@ -24,6 +24,7 @@ export type CreateGameOptions = {
   teams?: boolean;
   rulesetId?: RulesetId;
   charityTurns?: CharityTurns;
+  charityRepeatAtThreshold?: boolean;
 };
 
 function createPiecesForPlayer(
@@ -85,7 +86,11 @@ export function createGame(options: CreateGameOptions = {}): GameState {
     phase: ruleset.exchange === "partners" ? "exchange" : "play",
     exchangeSelections: {},
     charityTurns: options.charityTurns ?? 0,
+    charityRepeatAtThreshold: options.charityRepeatAtThreshold ?? false,
     charityCounts: {},
+    charityHandEligible: Object.fromEntries(playerIds.map((playerId) => [playerId, true])),
+    charityRequestQueue: [],
+    charityRequestIndex: 0,
     charityExchange: null,
     lastCharityTransfer: null,
   };

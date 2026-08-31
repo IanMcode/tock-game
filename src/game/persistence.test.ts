@@ -21,6 +21,25 @@ describe("game snapshots", () => {
     expect(() => deserializeGameSnapshot(serialized)).toThrow("version is not supported");
   });
 
+  it("adds per-hand charity defaults to older snapshots", () => {
+    const game = createGame({ shuffle: false, dealer: "P4", charityTurns: 2 });
+    const legacyGame = { ...game } as Partial<typeof game>;
+    delete legacyGame.charityRepeatAtThreshold;
+    delete legacyGame.charityHandEligible;
+    delete legacyGame.charityRequestQueue;
+    delete legacyGame.charityRequestIndex;
+
+    const restored = deserializeGameSnapshot(JSON.stringify({
+      version: GAME_SNAPSHOT_VERSION,
+      game: legacyGame,
+    }));
+
+    expect(restored.charityRepeatAtThreshold).toBe(false);
+    expect(restored.charityHandEligible).toEqual({ P1: true, P2: true, P3: true, P4: true });
+    expect(restored.charityRequestQueue).toEqual([]);
+    expect(restored.charityRequestIndex).toBe(0);
+  });
+
   it("rejects malformed snapshot content", () => {
     expect(() => deserializeGameSnapshot("not-json")).toThrow("not valid JSON");
     expect(() => deserializeGameSnapshot(JSON.stringify({

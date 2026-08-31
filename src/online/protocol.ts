@@ -24,7 +24,11 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
   }
   const charityTurns = value.charityTurns ?? 0;
   if (charityTurns !== 0 && charityTurns !== 1 && charityTurns !== 2 && charityTurns !== 3) {
-    throw new Error("Charity must be disabled or require 1, 2, or 3 turns.");
+    throw new Error("Charity must be disabled or require 1, 2, or 3 hands.");
+  }
+  const charityRepeatAtThreshold = value.charityRepeatAtThreshold ?? false;
+  if (typeof charityRepeatAtThreshold !== "boolean") {
+    throw new Error("Repeat charity must be true or false.");
   }
 
   const dealer = value.dealer ?? "random";
@@ -42,6 +46,7 @@ export function parseCreateRoomOptions(value: unknown): CreateRoomOptions {
     randomizeSeats,
     startWithPieceOnEntry,
     charityTurns,
+    charityRepeatAtThreshold,
     ...(value.playerName === undefined ? {} : { playerName: parsePlayerName(value.playerName) }),
   };
 }
@@ -78,12 +83,17 @@ export function parseRoomConfiguration(value: unknown): UpdateRoomConfigurationO
     throw new Error("Start-with-piece-on-entry must be true or false.");
   }
   if (value.charityTurns !== 0 && value.charityTurns !== 1 && value.charityTurns !== 2 && value.charityTurns !== 3) {
-    throw new Error("Charity must be disabled or require 1, 2, or 3 turns.");
+    throw new Error("Charity must be disabled or require 1, 2, or 3 hands.");
+  }
+  const charityRepeatAtThreshold = value.charityRepeatAtThreshold ?? false;
+  if (typeof charityRepeatAtThreshold !== "boolean") {
+    throw new Error("Repeat charity must be true or false.");
   }
   return {
     teams: value.teams,
     startWithPieceOnEntry: value.startWithPieceOnEntry,
     charityTurns: value.charityTurns,
+    charityRepeatAtThreshold,
   };
 }
 

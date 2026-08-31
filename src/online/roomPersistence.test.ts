@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createGame } from "../game/createGame";
 import { createGameSession } from "../game/session";
+import type { GameState } from "../game/types";
 import { deserializeOnlineRoom, serializeOnlineRoom } from "./roomPersistence";
 import { hashPlayerToken, type OnlineRoom } from "./roomService";
 
@@ -36,6 +37,27 @@ describe("online room persistence", () => {
     expect(restored.started).toBe(false);
     expect(restored.hostParticipantId).toBe("player-P1");
   });
+
+  it("adds the repeat-charity default to older room configuration", async () => {
+    const room = await createRoom();
+    const legacyGame = { ...room.session.game } as Partial<GameState>;
+    delete legacyGame.charityRepeatAtThreshold;
+    delete legacyGame.charityHandEligible;
+    delete legacyGame.charityRequestQueue;
+    delete legacyGame.charityRequestIndex;
+
+    const restored = deserializeOnlineRoom({
+      version: 1,
+      room: {
+        ...room,
+        configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0 },
+        session: { ...room.session, game: legacyGame },
+      },
+    });
+
+    expect(restored.configuration?.charityRepeatAtThreshold).toBe(false);
+    expect(restored.session.game.charityRequestQueue).toEqual([]);
+  });
 });
 
 async function createRoom(): Promise<OnlineRoom> {
@@ -51,6 +73,6 @@ async function createRoom(): Promise<OnlineRoom> {
     participantIds: { P1: "player-P1", P2: "player-P2", P3: "player-P3", P4: "player-P4" },
     matchHistory: [],
     currentGameNumber: 1,
-    configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0 },
+    configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0, charityRepeatAtThreshold: false },
   };
 }

@@ -79,10 +79,14 @@ export type GameState = {
   winningTeam: readonly PlayerId[] | null;
   dealer: PlayerId;
   dealIndex: number;
-  phase: "exchange" | "play";
+  phase: "charity" | "exchange" | "play";
   exchangeSelections: Partial<Record<PlayerId, number>>;
   charityTurns: CharityTurns;
+  charityRepeatAtThreshold: boolean;
   charityCounts: Partial<Record<PlayerId, number>>;
+  charityHandEligible: Partial<Record<PlayerId, boolean>>;
+  charityRequestQueue: PlayerId[];
+  charityRequestIndex: number;
   charityExchange: CharityExchange | null;
   lastCharityTransfer: Pick<CharityExchange, "requester" | "donor" | "requestedRank"> | null;
 };

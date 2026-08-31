@@ -11,6 +11,7 @@ describe("online command protocol", () => {
       randomizeSeats: false,
       startWithPieceOnEntry: true,
       charityTurns: 0,
+      charityRepeatAtThreshold: false,
     });
     expect(parseCreateRoomOptions(undefined)).toEqual({});
   });
@@ -28,6 +29,7 @@ describe("online command protocol", () => {
       teams: false,
       startWithPieceOnEntry: true,
       charityTurns: 3,
+      charityRepeatAtThreshold: false,
     });
     expect(parseRematchVoteOptions({ vote: "request", dealer: "P2", randomizeSeats: true })).toEqual({
       vote: "request",

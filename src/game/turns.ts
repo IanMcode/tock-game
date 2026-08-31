@@ -1,5 +1,5 @@
 import { applyAtomicMove, type AtomicMove } from "./actions";
-import { isCharityRequestRequired, updateCharityAfterTurn } from "./charity";
+import { isCharityRequestRequired, updateCharityEligibilityAfterTurn } from "./charity";
 import { getLegalBasicCardMoves } from "./cardMoves";
 import { advanceDealIfHandComplete } from "./deals";
 import { getAllPieces } from "./occupancy";
@@ -151,7 +151,7 @@ function advanceTurn(
       : game.discardPile,
     forcedDiscardPlayer: discardedCard?.rank === "10" ? nextPlayer : null,
     winningTeam: getWinningTeam(pieces, game.rulesetId),
-    charityCounts: updateCharityAfterTurn(game),
+    charityHandEligible: updateCharityEligibilityAfterTurn(game),
   };
 
   return advanceDealIfHandComplete(nextGame);

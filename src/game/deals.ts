@@ -1,4 +1,5 @@
 import { shuffleDeckWithState } from "./cards";
+import { beginCharityRequests, settleCharityCountsAfterHand } from "./charity";
 import { CLASSIC_PARTNERS_RULESET } from "./definition";
 import { getRulesetDefinition } from "./definition";
 import { getNextPlayer } from "./rules";
@@ -133,6 +134,7 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
 
   const ruleset = getRulesetDefinition(game.rulesetId);
   const schedule = ruleset.dealSchedule;
+  const charityCounts = settleCharityCountsAfterHand(game);
   if (game.dealIndex < schedule.length - 1) {
     const dealIndex = game.dealIndex + 1;
     const dealt = dealHand(
@@ -141,7 +143,7 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
       schedule[dealIndex],
     );
 
-    return startHand({ ...game, ...dealt, dealIndex });
+    return startHand({ ...game, ...dealt, dealIndex, charityCounts });
   }
 
   const playerIds = game.players.map((player) => player.id);
@@ -163,17 +165,18 @@ export function advanceDealIfHandComplete(game: GameState): GameState {
     dealIndex: 0,
     discardPile: [],
     randomState: shuffled.state,
+    charityCounts,
   });
 }
 
 function startHand(game: GameState): GameState {
   const ruleset = getRulesetDefinition(game.rulesetId);
-  return {
+  const starter = getNextPlayer(game.dealer, game.players.map((player) => player.id));
+  return beginCharityRequests({
     ...game,
-    currentPlayer: getNextPlayer(game.dealer, game.players.map((player) => player.id)),
-    phase: ruleset.exchange === "partners" ? "exchange" : "play",
+    currentPlayer: starter,
     exchangeSelections: {},
     forcedDiscardPlayer: null,
     charityExchange: null,
-  };
+  }, starter, ruleset.exchange === "partners" ? "exchange" : "play");
 }

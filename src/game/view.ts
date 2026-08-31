@@ -26,6 +26,8 @@ export type GamePublicView = Pick<
   | "phase"
   | "charityTurns"
   | "charityCounts"
+  | "charityRequestQueue"
+  | "charityRequestIndex"
   | "lastCharityTransfer"
 > & {
   players: PlayerPublicView[];
@@ -143,6 +145,8 @@ export function createSessionView(
       ),
       charityTurns: game.charityTurns,
       charityCounts: { ...game.charityCounts },
+      charityRequestQueue: [...game.charityRequestQueue],
+      charityRequestIndex: game.charityRequestIndex,
       charityExchange: game.charityExchange ? {
         requester: game.charityExchange.requester,
         donor: game.charityExchange.donor,

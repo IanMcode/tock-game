@@ -144,4 +144,26 @@ describe("turn actions", () => {
       "The current player has a legal card move and cannot discard.",
     );
   });
+
+  it("tracks charity eligibility without incrementing the counter during the hand", () => {
+    let game = withHand(createGame({
+      playerCount: 2,
+      teams: false,
+      shuffle: false,
+      charityTurns: 2,
+    }), "P1", [card("2")]);
+    game = {
+      ...game,
+      charityCounts: { P1: 1 },
+      players: game.players.map((player) => ({
+        ...player,
+        pieces: player.pieces.map((piece) => ({ ...piece, position: { zone: "reserve" as const } })),
+      })),
+    };
+
+    const result = discardCardForTurn(game, 0);
+
+    expect(result.charityCounts.P1).toBe(1);
+    expect(result.charityHandEligible.P1).toBe(true);
+  });
 });
