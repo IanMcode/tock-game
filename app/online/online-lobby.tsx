@@ -745,8 +745,6 @@ function OnlineRoomTable({
     () => (room.session.events ?? []).filter((event) => event.type !== "exchange").slice(-PLAY_LOG_ENTRY_LIMIT).reverse(),
     [room.session.events],
   );
-  const latestEvent = recentEvents[0];
-  const latestCard = latestEvent?.card ?? game.discardPile.at(-1) ?? null;
   const latestAnimationTurn = useMemo(
     () => getLatestAnimationTurn(room.session.events ?? []),
     [room.session.events],
@@ -1500,23 +1498,7 @@ function OnlineRoomTable({
         </div>
 
         <section className="online-play-log" aria-label="Play log">
-        <div className="online-log-heading">
-          <div>
-            <p className="eyebrow">Play log</p>
-            <strong>{latestEvent ? "Most recent turns" : "Waiting for the first card"}</strong>
-          </div>
-          <div className="online-log-actions">
-            <button
-              type="button"
-              className="online-replay-turn"
-              disabled={busy || isAnimating || isDealing || Boolean(pendingDealKey) || !canReplayLastTurn}
-              onClick={() => void replayLastTurn()}
-            >
-              {isReplaying ? "Replaying…" : "Replay last turn"}
-            </button>
-            {latestCard && <PlayingCardGraphic card={latestCard} className="online-log-card" />}
-          </div>
-        </div>
+        <p className="eyebrow">Play log</p>
         <div className="online-log-window">
           {recentEvents.map((event) => (
             <p key={event.revision}>{describePublicGameEvent(event, room.playerNames)}</p>
@@ -1526,8 +1508,18 @@ function OnlineRoomTable({
         </section>
 
         <section className="online-deal-summary" aria-label="Upcoming deal information">
-          <strong>Next hand: {nextHand.cardsPerPlayer} cards, {room.playerNames[nextHand.starter] ?? PLAYER_LABELS[nextHand.starter]} starts</strong>
-          <span>{nextHand.handsRemainingInDeal} {nextHand.handsRemainingInDeal === 1 ? "hand" : "hands"} remaining in this deal</span>
+          <div>
+            <strong>Next hand: {nextHand.cardsPerPlayer} cards, {room.playerNames[nextHand.starter] ?? PLAYER_LABELS[nextHand.starter]} starts</strong>
+            <span>{nextHand.handsRemainingInDeal} {nextHand.handsRemainingInDeal === 1 ? "hand" : "hands"} remaining in this deal</span>
+          </div>
+          <button
+            type="button"
+            className="online-replay-turn"
+            disabled={busy || isAnimating || isDealing || Boolean(pendingDealKey) || !canReplayLastTurn}
+            onClick={() => void replayLastTurn()}
+          >
+            {isReplaying ? "Replaying…" : "Replay last turn"}
+          </button>
         </section>
       </div>
       {commandError && <p className="online-error" role="alert">{commandError}</p>}
