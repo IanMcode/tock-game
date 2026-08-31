@@ -1314,6 +1314,7 @@ function OnlineRoomTable({
       ...getDefaultPlayerAppearanceVariables(),
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
+      "--capture-duration": `${ONLINE_CAPTURE_DURATION}ms`,
     } as React.CSSProperties}>
       <div className="online-game-viewport">
         <div className="online-status-rail has-player-status">
@@ -1582,6 +1583,7 @@ function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
 
 const ONLINE_HOP_DURATION = 130;
 const ONLINE_SWAP_DURATION = 720;
+const ONLINE_CAPTURE_DURATION = 430;
 const ONLINE_CARD_PLAY_DURATION = 720;
 const ONLINE_CARD_SETTLE_DURATION = 34;
 const ONLINE_DEAL_DURATION = 1_050;
@@ -1659,7 +1661,11 @@ async function animateOnlineMoves({
         const piece = currentPieces.find((candidate) => candidate.id === animated.pieceId);
         return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
       }));
-      await waitForOnlineAnimation(ONLINE_HOP_DURATION);
+      await waitForOnlineAnimation(
+        frameIndex === frames.length - 1 && move.capturedPieceId
+          ? ONLINE_CAPTURE_DURATION
+          : ONLINE_HOP_DURATION,
+      );
     }
     if (!shouldContinue()) return currentPieces;
     currentPieces = applyAtomicMove(currentPieces, move);

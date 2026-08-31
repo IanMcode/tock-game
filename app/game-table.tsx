@@ -91,11 +91,11 @@ type RecentPlay = {
   verb: "played" | "discarded";
 };
 
-const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number }> = {
-  relaxed: { hop: 200, swap: 1_050 },
-  standard: { hop: 130, swap: 720 },
-  quick: { hop: 75, swap: 420 },
-  off: { hop: 0, swap: 0 },
+const ANIMATION_TIMINGS: Record<AnimationSpeed, { hop: number; swap: number; capture: number }> = {
+  relaxed: { hop: 200, swap: 1_050, capture: 560 },
+  standard: { hop: 130, swap: 720, capture: 430 },
+  quick: { hop: 75, swap: 420, capture: 300 },
+  off: { hop: 0, swap: 0, capture: 0 },
 };
 
 const PLAYER_COLORS: Record<PlayerColorId, { label: string; color: string; soft: string; ink: string; edge: string; borderWidth: string; text: string }> = {
@@ -365,7 +365,11 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
           const piece = pieces.find((candidate) => candidate.id === animated.pieceId);
           return piece ? [{ ...animated, piece, frame: frameNumber }] : [];
         }));
-        await waitForAnimation(animationTimings.hop);
+        await waitForAnimation(
+          frameIndex === frames.length - 1 && move.capturedPieceId
+            ? animationTimings.capture
+            : animationTimings.hop,
+        );
       }
 
       pieces = applyAtomicMove(pieces, move);
@@ -494,6 +498,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
         ...getPlayerAppearanceVariables(settings.playerColors, settings.playerShapes),
         "--hop-duration": `${animationTimings.hop}ms`,
         "--swap-duration": `${animationTimings.swap}ms`,
+        "--capture-duration": `${animationTimings.capture}ms`,
       } as React.CSSProperties}
     >
       <header className="topbar">
@@ -1056,6 +1061,7 @@ export function Board({
   const animatedPieceIds = new Set([
     ...hoppingPieces.map((animated) => animated.piece.id),
     ...swappingPieces.map((animated) => animated.piece.id),
+    ...capturingPieceIds,
   ]);
   const destinationColor = selectedPieceId
     ? playerColorVar(pieces.find((piece) => piece.id === selectedPieceId)?.owner ?? "P1")
@@ -1307,6 +1313,36 @@ export function Board({
             );
           });
         })}
+        {capturingPieceIds.map((pieceId) => {
+          const piece = pieces.find((candidate) => candidate.id === pieceId);
+          if (!piece || piece.position.zone === "reserve") return null;
+          const from = getPiecePoint(piece, boardDefinition);
+          const to = useBoardReserveGrids
+            ? getBoardReserveGridPoint(piece.owner, boardDefinition)
+            : getBoardReservePoint(piece.owner, boardDefinition, perspectivePlayerId);
+
+          return (
+            <div
+              className="captured-piece-flight"
+              key={`captured-${piece.id}`}
+              style={{
+                "--capture-from-x": `${from.x}%`,
+                "--capture-from-y": `${from.y}%`,
+                "--capture-to-x": `${to.x}%`,
+                "--capture-to-y": `${to.y}%`,
+              } as React.CSSProperties}
+              aria-hidden="true"
+            >
+              <PieceButton
+                piece={piece}
+                active={false}
+                selected={false}
+                playerName={playerNames?.[piece.owner]}
+                onClick={() => undefined}
+              />
+            </div>
+          );
+        })}
         {hoppingPieces.map((animated) => {
           const point = animated.position.zone === "track"
             ? getBoardTrackPoint(animated.position.index, boardDefinition)
@@ -1536,7 +1572,7 @@ function CardArtwork({ card }: { card: Card }) {
       <span className="card-corner card-corner-top"><b>{card.rank}</b><i>{suit}</i></span>
       <span className="card-art" aria-hidden="true">
         {pips ? (
-          <span className={`card-pip-field ${card.rank === "A" ? "is-ace" : ""}`}>
+          <span className={`card-pip-field rank-${card.rank.toLowerCase()} ${card.rank === "A" ? "is-ace" : ""}`}>
             {pips.map((pip, index) => (
               <i
                 className={`card-pip ${pip.flipped ? "is-flipped" : ""}`}
