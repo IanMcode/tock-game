@@ -1511,42 +1511,52 @@ function CourtPortrait({ rank, suit, transform }: {
   suit: string;
   transform?: string;
 }) {
-  const robe = rank === "Q" ? "#a74555" : rank === "K" ? "#286aa0" : "#b64a3c";
+  const robe = rank === "Q" ? "#1f4f91" : rank === "K" ? "#b72e3b" : "#d6a729";
+  const accent = rank === "Q" ? "#b72e3b" : rank === "K" ? "#1f4f91" : "#b72e3b";
   return (
     <g transform={transform}>
-      <path d="M22 78 27 49 39 42h22l12 7 5 29Z" fill={robe} stroke="#253a36" strokeWidth="2" />
-      <path d="m29 76 7-28 8 12 6-15 6 15 8-12 7 28Z" fill="#f5d36e" stroke="#253a36" strokeWidth="1.5" />
-      <path d="m38 43 12 8 12-8-3 21H41Z" fill="#f8f4e8" stroke="#253a36" strokeWidth="1.5" />
-      <ellipse cx="50" cy="33" rx="11" ry="13" fill="#e9b77f" stroke="#513a2d" strokeWidth="1.6" />
-      <path d="M39 34q1-17 11-17t11 17l-5-7-13 1Z" fill="#553526" />
-      <circle cx="46" cy="34" r="1.2" fill="#263430" />
-      <circle cx="54" cy="34" r="1.2" fill="#263430" />
-      <path d="M46 40q4 3 8 0" fill="none" stroke="#7c403c" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M15 78 21 55 35 43h30l14 12 6 23Z" fill="#f5d15d" stroke="#172b2b" strokeWidth="1.8" />
+      <path d="m18 76 8-20 12-9 6 31Z" fill={accent} stroke="#172b2b" strokeWidth="1.5" />
+      <path d="m82 76-8-20-12-9-6 31Z" fill={robe} stroke="#172b2b" strokeWidth="1.5" />
+      <path d="m35 44 15 9 15-9-4 34H39Z" fill="#fff8df" stroke="#172b2b" strokeWidth="1.5" />
+      <path d="m39 50 11 7 11-7-2 9-9 6-9-6Z" fill={robe} stroke="#172b2b" strokeWidth="1.1" />
+      <path d="m40 65 10-6 10 6-3 13H43Z" fill={accent} stroke="#172b2b" strokeWidth="1.1" />
+      <path d="M24 57 35 68M76 57 65 68" stroke="#f7dd75" strokeWidth="3" />
+      <path d="M27 52 39 76M73 52 61 76" stroke="#172b2b" strokeWidth="1.2" strokeDasharray="3 2" />
+      <path d="M40 43q-2-5 0-12 3-12 13-12 11 1 12 12-2 12-12 15-8 1-13-3Z" fill="#f1c59b" stroke="#172b2b" strokeWidth="1.6" />
+      <path d="M39 34q0-15 13-17 10 0 14 10l-8-3-5 5-10-1Z" fill="#283b59" stroke="#172b2b" strokeWidth="1.2" />
+      <path d="m62 31 5 3-5 3" fill="#f1c59b" stroke="#172b2b" strokeWidth="1.1" strokeLinejoin="round" />
+      <circle cx="57" cy="31" r="1.2" fill="#172b2b" />
+      <path d="M55 39q4 2 7-1" fill="none" stroke="#8d413d" strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M41 34q-3 8 4 13" fill="none" stroke="#283b59" strokeWidth="4" />
       {rank === "J" ? (
         <>
-          <path d="M37 24q12-15 28-5l-7 8q-10-6-21-3Z" fill="#286aa0" stroke="#253a36" strokeWidth="1.5" />
-          <path d="M62 18q7-8 10-1-6 2-10 6" fill="#d8a82f" stroke="#253a36" strokeWidth="1" />
-          <path d="M27 71 69 47" stroke="#253a36" strokeWidth="3" />
-          <circle cx="69" cy="47" r="3" fill="#d8a82f" stroke="#253a36" strokeWidth="1.5" />
+          <path d="M38 24q10-15 28-7l-5 8q-12-5-23-1Z" fill="#b72e3b" stroke="#172b2b" strokeWidth="1.5" />
+          <path d="M62 18q10-10 13-2-7 2-12 7" fill="#1f4f91" stroke="#172b2b" strokeWidth="1.1" />
+          <path d="M23 72 72 43" stroke="#172b2b" strokeWidth="3" />
+          <path d="m69 45 8-9 1 9-6 3Z" fill="#d5d8d2" stroke="#172b2b" strokeWidth="1" />
         </>
       ) : (
-        <path d="m37 23 3-12 7 8 4-11 5 11 7-8 1 14Z" fill="#efc646" stroke="#253a36" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="m38 22 2-12 7 7 4-11 5 11 8-7 1 14Z" fill="#efc646" stroke="#172b2b" strokeWidth="1.5" strokeLinejoin="round" />
       )}
       {rank === "Q" && (
         <>
-          <path d="M30 68q8-12 16-5" fill="none" stroke="#2f7258" strokeWidth="2.5" />
-          <circle cx="28" cy="68" r="4" fill="#d94752" stroke="#253a36" strokeWidth="1.2" />
-          <circle cx="33" cy="64" r="3" fill="#efc646" stroke="#253a36" strokeWidth="1" />
+          <path d="M24 70q9-15 22-8" fill="none" stroke="#2d7a51" strokeWidth="2.4" />
+          <circle cx="23" cy="70" r="4.5" fill="#b72e3b" stroke="#172b2b" strokeWidth="1.2" />
+          <circle cx="29" cy="64" r="3.5" fill="#efc646" stroke="#172b2b" strokeWidth="1" />
+          <path d="m20 66-4-5 7 1M26 62l1-6 4 5" fill="none" stroke="#2d7a51" strokeWidth="1.4" />
         </>
       )}
       {rank === "K" && (
         <>
-          <path d="M70 18 61 71" stroke="#59666c" strokeWidth="3" />
-          <path d="m66 18 6-8 3 10Z" fill="#d7dde0" stroke="#253a36" strokeWidth="1.2" />
-          <path d="m57 64 10 2" stroke="#efc646" strokeWidth="4" />
+          <path d="M73 14 62 73" stroke="#46575a" strokeWidth="3.2" />
+          <path d="m68 16 7-10 4 12Z" fill="#d9ddd8" stroke="#172b2b" strokeWidth="1.2" />
+          <path d="m57 64 11 2" stroke="#efc646" strokeWidth="4" />
+          <path d="M48 40q8 8 15 1-1 8-8 10" fill="#e8e1ce" stroke="#172b2b" strokeWidth="1.1" />
         </>
       )}
-      <text x="50" y="72" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="15" fontWeight="700">{suit}</text>
+      <path d="M45 69h10v9H45Z" fill="#fff8df" stroke="#172b2b" strokeWidth="1" />
+      <text x="50" y="77" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="10" fontWeight="700">{suit}</text>
     </g>
   );
 }
@@ -1554,11 +1564,14 @@ function CourtPortrait({ rank, suit, transform }: {
 function CourtCardArtwork({ rank, suit }: { rank: "J" | "Q" | "K"; suit: string }) {
   return (
     <svg className={`card-court card-court-${rank.toLowerCase()}`} viewBox="0 0 100 156" preserveAspectRatio="xMidYMid meet">
-      <rect className="card-court-frame" x="1" y="1" width="98" height="154" rx="7" />
+      <rect className="card-court-frame" x="1" y="1" width="98" height="154" rx="4" />
+      <rect x="5" y="5" width="90" height="146" rx="2" fill="none" stroke="#172b2b" strokeWidth="1" />
+      <path d="M8 8h13M8 8v16M92 148H79M92 148v-16" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <CourtPortrait rank={rank} suit={suit} />
       <CourtPortrait rank={rank} suit={suit} transform="rotate(180 50 78)" />
-      <path className="card-court-band" d="M17 73 50 62l33 11v10L50 94 17 83Z" />
-      <text x="50" y="84" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="18" fontWeight="700">{suit}</text>
+      <path className="card-court-band" d="M13 73 31 68l19 7 19-7 18 5v10l-18 5-19-7-19 7-18-5Z" />
+      <path d="m19 78 12-5 12 5-12 5Zm38 0 12-5 12 5-12 5Z" fill="#1f4f91" stroke="#172b2b" strokeWidth=".8" />
+      <text x="50" y="84" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="17" fontWeight="700">{suit}</text>
     </svg>
   );
 }
