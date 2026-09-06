@@ -6,6 +6,12 @@ export type SplitSevenDestinationOption = {
   steps: ForwardMove[];
 };
 
+export const SPLIT_SEVEN_DISTANCE = 7;
+
+export function getSplitSevenSpacesRemaining(assignedSteps: number): number {
+  return Math.max(0, SPLIT_SEVEN_DISTANCE - assignedSteps);
+}
+
 export function getSplitSevenDestinationOptions(
   moves: readonly SplitSevenMove[],
   assignedSteps: number,

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ForwardMove } from "./moves";
 import type { SplitSevenMove } from "./specialMoves";
-import { getSplitSevenDestinationOptions } from "./splitSelection";
+import {
+  getSplitSevenDestinationOptions,
+  getSplitSevenSpacesRemaining,
+} from "./splitSelection";
 
 function step(pieceId: string, index: number): ForwardMove {
   return {
@@ -14,6 +17,14 @@ function step(pieceId: string, index: number): ForwardMove {
 }
 
 describe("split 7 destination selection", () => {
+  it("reports the distance still available while a split is being assembled", () => {
+    expect(getSplitSevenSpacesRemaining(0)).toBe(7);
+    expect(getSplitSevenSpacesRemaining(3)).toBe(4);
+    expect(getSplitSevenSpacesRemaining(6)).toBe(1);
+    expect(getSplitSevenSpacesRemaining(7)).toBe(0);
+    expect(getSplitSevenSpacesRemaining(8)).toBe(0);
+  });
+
   it("offers every reachable distance for the selected piece", () => {
     const move: SplitSevenMove = {
       kind: "split7",

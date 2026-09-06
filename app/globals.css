@@ -577,6 +577,9 @@ button { font: inherit; }
 .online-hand-panel.is-forced-discard .online-card:hover, .online-hand-panel.is-forced-discard .online-card.is-selected { opacity: 1; filter: none; }
 .online-empty-hand { color: var(--muted); font-size: 12px; }
 .online-hand-actions { display: grid; gap: 6px; }
+.online-split-seven-progress { grid-column: 2 / -1; display: flex; align-items: baseline; justify-content: center; gap: 7px; margin: -7px 0 0; color: #164d3e; font-size: 11px; }
+.online-split-seven-progress strong { padding: 4px 8px; border: 1px solid #7ca78e; border-radius: 999px; background: #e6f2e9; white-space: nowrap; }
+.online-split-seven-progress span { color: var(--muted); }
 .online-charity-panel { grid-column: 1; display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 6px 8px; border: 1px solid #d5b24e; border-radius: 10px; color: #5a4310; background: #fff7d8; font-size: 10px; }
 .online-charity-panel label { display: flex; align-items: center; gap: 5px; }
 .online-charity-panel select { padding: 4px 7px; border: 1px solid #c9ad58; border-radius: 7px; background: white; }

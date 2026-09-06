@@ -21,7 +21,10 @@ import {
 } from "../src/game/moveAnimation";
 import type { ForwardMove } from "../src/game/moves";
 import type { SplitSevenMove } from "../src/game/specialMoves";
-import { getSplitSevenDestinationOptions } from "../src/game/splitSelection";
+import {
+  getSplitSevenDestinationOptions,
+  getSplitSevenSpacesRemaining,
+} from "../src/game/splitSelection";
 import { getControlledPlayer, getPartner } from "../src/game/teams";
 import {
   discardCardForTurn,
@@ -175,6 +178,7 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
     [allPieces, forcedDiscard, game.cardRules, game.currentPlayer, game.rulesetId, selectedCard],
   );
   const isSplitSeven = selectedCard?.rank === "7";
+  const splitSevenSpacesRemaining = getSplitSevenSpacesRemaining(splitSteps.length);
   const previewPieces = useMemo(
     () =>
       splitSteps.reduce<Piece[]>(
@@ -593,6 +597,14 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             <h2>{selectedCard ? `${selectedCard.rank}${SUIT_SYMBOL[selectedCard.suit]} selected` : "Ready when you are"}</h2>
           </div>
 
+          {isSplitSeven && splitSteps.length > 0 && (
+            <div className="seven-counter" role="status" aria-live="polite">
+              <strong>{splitSevenSpacesRemaining}</strong>
+              <span>{splitSevenSpacesRemaining === 1 ? "space" : "spaces"} remaining</span>
+              <button disabled={isAnimating} onClick={resetSelection}>Cancel selection and restart</button>
+            </div>
+          )}
+
           {destinationMoves.length > 0 ? (
             <div className="helper-card destination-helper">
               <span>◎</span>
@@ -600,12 +612,6 @@ export default function GameTable({ initialGame }: { initialGame: GameState }) {
             </div>
           ) : selectedCard && legalMoves.length === 0 && !forcedDiscard ? (
             <div className="empty-note">This card has no legal move right now.</div>
-          ) : isSplitSeven && splitSteps.length > 0 ? (
-            <div className="seven-counter">
-              <strong>{splitSteps.length}</strong>
-              <span>of 7 steps assigned</span>
-              <button disabled={isAnimating} onClick={() => { setSplitSteps([]); setSelectedPieceId(null); setDestinationMoves([]); }}>Start the split again</button>
-            </div>
           ) : (
             <div className="helper-card">
               <span>{forcedDiscard ? "10" : selectedCard ? selectedCard.rank : "♟"}</span>

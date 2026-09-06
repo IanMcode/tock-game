@@ -62,7 +62,10 @@ import { getNextHandPreview } from "../../src/game/deals";
 import { getRulesetDefinition } from "../../src/game/definition";
 import type { ForwardMove } from "../../src/game/moves";
 import { getMoveAnimationFrames } from "../../src/game/moveAnimation";
-import { getSplitSevenDestinationOptions } from "../../src/game/splitSelection";
+import {
+  getSplitSevenDestinationOptions,
+  getSplitSevenSpacesRemaining,
+} from "../../src/game/splitSelection";
 import type { SplitSevenMove } from "../../src/game/specialMoves";
 import type { Card, Piece } from "../../src/game/types";
 import type { GameCommand } from "../../src/game/session";
@@ -1162,6 +1165,7 @@ function OnlineRoomTable({
     ),
   [access.playerId, canTakeNormalTurn, forcedDiscard, game.cardRules, game.rulesetId, hand, pieces]);
   const isSplitSeven = selectedCard?.rank === "7";
+  const splitSevenSpacesRemaining = getSplitSevenSpacesRemaining(splitSteps.length);
   const previewPieces = useMemo(() => splitSteps.reduce<Piece[]>(
     (current, step) => applyPieceMove(current, step),
     pieces,
@@ -1466,6 +1470,12 @@ function OnlineRoomTable({
         ))}
         {hand.length === 0 && <span className="online-empty-hand">No cards remaining</span>}
       </div>
+      {game.phase === "play" && isSplitSeven && splitSteps.length > 0 && (
+        <div className="online-split-seven-progress" role="status" aria-live="polite">
+          <strong>{splitSevenSpacesRemaining} {splitSevenSpacesRemaining === 1 ? "space" : "spaces"} remaining</strong>
+          <span>Continue the split, or use Cancel selection to restart it.</span>
+        </div>
+      )}
       {game.phase === "exchange" && !alreadyExchanged && <div className="online-hand-actions exchange-actions">
         <button className="online-cancel-selection" type="button" disabled={busy || selectedCardIndex === null} onClick={() => resetSelection()}>
           Cancel selection
@@ -1508,7 +1518,9 @@ function OnlineRoomTable({
           ? canDiscard
             ? "This card has no legal move and may be discarded—double-click it or use the discard button."
             : "This card has no legal move while another card can be played. Choose a different card."
-          : destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>
+          : isSplitSeven
+            ? `${splitSevenSpacesRemaining} ${splitSevenSpacesRemaining === 1 ? "space" : "spaces"} remaining. ${destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}`
+            : destinationMoves.length ? "Choose a glowing destination." : "Choose a glowing piece."}</p>
       )}
       {exchangeReceipt && <div className="online-exchange-receipt" role="status" aria-live="polite">
         <article>
