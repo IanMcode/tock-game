@@ -6,6 +6,7 @@ export type PlayerGameStatistics = {
   playerId: PlayerId;
   jacksPlayed: number;
   outCardsPlayed: number;
+  timesEliminated: number;
   eliminations: number;
   eliminatedPlayers: Partial<Record<PlayerId, number>>;
 };
@@ -18,6 +19,7 @@ export function getGameStatistics(
     playerId,
     jacksPlayed: 0,
     outCardsPlayed: 0,
+    timesEliminated: 0,
     eliminations: 0,
     eliminatedPlayers: {} as Partial<Record<PlayerId, number>>,
   } satisfies PlayerGameStatistics]));
@@ -33,6 +35,8 @@ export function getGameStatistics(
       const eliminatedPlayer = pieceId.split("-")[0] as PlayerId;
       player.eliminations += 1;
       player.eliminatedPlayers[eliminatedPlayer] = (player.eliminatedPlayers[eliminatedPlayer] ?? 0) + 1;
+      const eliminated = statistics.get(eliminatedPlayer);
+      if (eliminated) eliminated.timesEliminated += 1;
     }
   }
 

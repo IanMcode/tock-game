@@ -34,8 +34,8 @@ describe("online game statistics", () => {
     ];
 
     expect(getGameStatistics(events, ["P1", "P2"])).toEqual([
-      { playerId: "P1", jacksPlayed: 1, outCardsPlayed: 1, eliminations: 1, eliminatedPlayers: { P2: 1 } },
-      { playerId: "P2", jacksPlayed: 0, outCardsPlayed: 0, eliminations: 2, eliminatedPlayers: { P1: 2 } },
+      { playerId: "P1", jacksPlayed: 1, outCardsPlayed: 1, timesEliminated: 2, eliminations: 1, eliminatedPlayers: { P2: 1 } },
+      { playerId: "P2", jacksPlayed: 0, outCardsPlayed: 0, timesEliminated: 1, eliminations: 2, eliminatedPlayers: { P1: 2 } },
     ]);
   });
 });

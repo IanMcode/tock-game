@@ -1979,8 +1979,18 @@ function getPlayerAppearanceVariables(
   }, {}) as React.CSSProperties;
 }
 
-export function getDefaultPlayerAppearanceVariables(): React.CSSProperties {
-  return getPlayerAppearanceVariables(DEFAULT_SETTINGS.playerColors, DEFAULT_SETTINGS.playerShapes);
+export function getDefaultPlayerAppearanceVariables(
+  appearanceSeats?: Partial<Record<PlayerId, PlayerId>>,
+): React.CSSProperties {
+  const colors = Object.fromEntries(PLAYER_IDS.map((playerId) => {
+    const appearanceSeat = appearanceSeats?.[playerId] ?? playerId;
+    return [playerId, DEFAULT_SETTINGS.playerColors[appearanceSeat]];
+  })) as Record<PlayerId, PlayerColorId>;
+  const shapes = Object.fromEntries(PLAYER_IDS.map((playerId) => {
+    const appearanceSeat = appearanceSeats?.[playerId] ?? playerId;
+    return [playerId, DEFAULT_SETTINGS.playerShapes[appearanceSeat]];
+  })) as Record<PlayerId, PlayerShapeId>;
+  return getPlayerAppearanceVariables(colors, shapes);
 }
 
 function shuffleItems<T>(items: readonly T[]): T[] {

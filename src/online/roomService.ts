@@ -32,6 +32,7 @@ export type OnlineRoom = {
   chatMessages: ChatMessage[];
   session: GameSession;
   participantIds?: Partial<Record<PlayerId, string>>;
+  appearanceSeats?: Partial<Record<PlayerId, PlayerId>>;
   matchHistory?: MatchGameRecord[];
   currentGameNumber?: number;
   configuration?: RoomConfiguration;
@@ -63,6 +64,7 @@ export type MatchPlayerResult = PlayerGameStatistics & {
 export type MatchGameRecord = {
   gameNumber: number;
   winnerParticipantIds: string[];
+  teamParticipantIds?: string[][];
   players: MatchPlayerResult[];
   completedAt: number;
 };
@@ -85,6 +87,7 @@ export type RoomView = {
   matchHistory: MatchGameRecord[];
   currentGameNumber: number;
   configuration: RoomConfiguration;
+  appearanceSeats: Partial<Record<PlayerId, PlayerId>>;
   rematchVote: RematchVote | null;
 };
 
@@ -232,6 +235,7 @@ export class RoomService {
         chatMessages: [],
         session: createGameSession(roomId, game),
         participantIds,
+        appearanceSeats: identityAppearanceSeats(game.players.map((player) => player.id)),
         matchHistory: [],
         currentGameNumber: 1,
         configuration: {
@@ -579,6 +583,7 @@ export class RoomService {
       matchHistory: cloneMatchHistory(room.matchHistory ?? []),
       currentGameNumber: room.currentGameNumber ?? 1,
       configuration: { ...(room.configuration ?? defaultRoomConfiguration(room)) },
+      appearanceSeats: { ...(room.appearanceSeats ?? identityAppearanceSeats(room.session.game.players.map((player) => player.id))) },
       rematchVote: room.rematchVote ? {
         requestedBy: room.rematchVote.requestedBy,
         votes: { ...room.rematchVote.votes },
@@ -648,6 +653,7 @@ function recordCompletedGame(room: OnlineRoom): OnlineRoom {
   const history = room.matchHistory ?? [];
   if (history.some((game) => game.gameNumber === gameNumber)) return room;
   const playerIds = room.session.game.players.map((player) => player.id);
+  const ruleset = getRulesetDefinition(room.session.game.rulesetId);
   const statistics = getGameStatistics(createSessionView(room.session, null).events, playerIds);
   const players = statistics.map((player) => ({
     ...player,
@@ -661,6 +667,10 @@ function recordCompletedGame(room: OnlineRoom): OnlineRoom {
     matchHistory: [...history, {
       gameNumber,
       winnerParticipantIds: room.session.game.winningTeam.map((playerId) => participantIdForSeat(room, playerId)),
+      ...(ruleset.exchange === "partners" ? {
+        teamParticipantIds: ruleset.teams
+          .map((team) => team.map((playerId) => participantIdForSeat(room, playerId))),
+      } : {}),
       players,
       completedAt: Date.now(),
     }],
@@ -679,13 +689,15 @@ function arrangeRoomSeats(
   const seats: OnlineRoom["seats"] = {};
   const playerNames: OnlineRoom["playerNames"] = {};
   const participantIds: NonNullable<OnlineRoom["participantIds"]> = {};
+  const appearanceSeats: NonNullable<OnlineRoom["appearanceSeats"]> = {};
   playerIds.forEach((newSeat, index) => {
     const oldSeat = oldSeatsForNewSeats[index];
     if (room.seats[oldSeat]) seats[newSeat] = room.seats[oldSeat];
     if (room.playerNames[oldSeat]) playerNames[newSeat] = room.playerNames[oldSeat];
     participantIds[newSeat] = participantIdForSeat(room, oldSeat);
+    appearanceSeats[newSeat] = room.appearanceSeats?.[oldSeat] ?? oldSeat;
   });
-  return { ...room, seats, playerNames, participantIds, joinOrder: [...playerIds] };
+  return { ...room, seats, playerNames, participantIds, appearanceSeats, joinOrder: [...playerIds] };
 }
 
 function randomizeRoomSeats(
@@ -702,48 +714,51 @@ function randomizeRoomSeats(
   const seats: OnlineRoom["seats"] = {};
   const playerNames: OnlineRoom["playerNames"] = {};
   const participantIds: NonNullable<OnlineRoom["participantIds"]> = {};
+  const appearanceSeats: NonNullable<OnlineRoom["appearanceSeats"]> = {};
   playerIds.forEach((oldSeat, index) => {
     const newSeat = newSeatsForOldSeats[index];
     if (room.seats[oldSeat]) seats[newSeat] = room.seats[oldSeat];
     if (room.playerNames[oldSeat]) playerNames[newSeat] = room.playerNames[oldSeat];
     participantIds[newSeat] = participantIdForSeat(room, oldSeat);
+    appearanceSeats[newSeat] = room.appearanceSeats?.[oldSeat] ?? oldSeat;
   });
-  return { ...room, seats, playerNames, participantIds, joinOrder: [...playerIds] };
+  return { ...room, seats, playerNames, participantIds, appearanceSeats, joinOrder: [...playerIds] };
 }
 
 function randomizedTeamSeats(
   playerIds: readonly PlayerId[],
   randomState: number,
 ): PlayerId[] {
-  const randomized = [...playerIds];
-  // Opposite seats are 0/2 and 1/3. Pick one of the three non-identity
-  // outcomes so requesting randomized positions always changes turn order.
-  const swapMask = 1 + ((randomState >>> 0) % 3);
-  if (swapMask & 1) [randomized[0], randomized[2]] = [randomized[2], randomized[0]];
-  if (swapMask & 2) [randomized[1], randomized[3]] = [randomized[3], randomized[1]];
-  return randomized;
+  if (playerIds.length !== 4) return shufflePlayerIds(playerIds, randomState);
+  const outcome = (randomState >>> 0) % 8;
+  const firstTeamTargets = outcome & 1 ? [playerIds[1], playerIds[3]] : [playerIds[0], playerIds[2]];
+  const secondTeamTargets = outcome & 1 ? [playerIds[0], playerIds[2]] : [playerIds[1], playerIds[3]];
+  if (outcome & 2) firstTeamTargets.reverse();
+  if (outcome & 4) secondTeamTargets.reverse();
+  return [firstTeamTargets[0], secondTeamTargets[0], firstTeamTargets[1], secondTeamTargets[1]];
 }
 
 function randomizedFreeForAllSeats(
   playerIds: readonly PlayerId[],
   randomState: number,
 ): PlayerId[] {
-  const randomized = shufflePlayerIds(playerIds, randomState);
-  if (randomized.every((playerId, index) => playerId === playerIds[index])) {
-    [randomized[0], randomized[1]] = [randomized[1], randomized[0]];
-  }
-  return randomized;
+  return shufflePlayerIds(playerIds, randomState);
 }
 
 function cloneMatchHistory(history: readonly MatchGameRecord[]): MatchGameRecord[] {
   return history.map((game) => ({
     ...game,
     winnerParticipantIds: [...game.winnerParticipantIds],
+    teamParticipantIds: game.teamParticipantIds?.map((team) => [...team]),
     players: game.players.map((player) => ({
       ...player,
       eliminatedPlayers: { ...player.eliminatedPlayers },
     })),
   }));
+}
+
+function identityAppearanceSeats(playerIds: readonly PlayerId[]): Partial<Record<PlayerId, PlayerId>> {
+  return Object.fromEntries(playerIds.map((playerId) => [playerId, playerId]));
 }
 
 export async function hashPlayerToken(token: string): Promise<string> {

@@ -831,6 +831,7 @@ function OnlineRoomTable({
     return true;
   }, []);
   const matchTotals = useMemo(() => getMatchTotals(room.matchHistory), [room.matchHistory]);
+  const matchTeamTotals = useMemo(() => getMatchTeamTotals(room.matchHistory), [room.matchHistory]);
   const winnerNames = game.winningTeam?.map((playerId) => room.playerNames[playerId] ?? PLAYER_LABELS[playerId]) ?? [];
   const nextHand = getNextHandPreview(game);
 
@@ -1358,7 +1359,7 @@ function OnlineRoomTable({
 
   return (
     <section className={`online-table ${woodTheme ? "theme-wood" : "theme-sage"} ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
-      ...getDefaultPlayerAppearanceVariables(),
+      ...getDefaultPlayerAppearanceVariables(room.appearanceSeats),
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
       "--capture-duration": `${ONLINE_CAPTURE_DURATION}ms`,
@@ -1444,7 +1445,7 @@ function OnlineRoomTable({
           showLegend={false}
         />
         {game.winningTeam && (
-          <section className="online-victory" aria-label="Game complete">
+          <section className={`online-victory ${victoryPanel === "statistics" ? "has-statistics" : ""}`} aria-label="Game complete">
             <p className="eyebrow">Game complete</p>
             <h2>{winnerNames.join(" and ")} Win!</h2>
             <p>{winnerNames.length > 1 ? "Every team piece made it home." : "All four pieces made it home first."}</p>
@@ -1490,6 +1491,22 @@ function OnlineRoomTable({
             {victoryPanel === "statistics" && (
               <div className="online-statistics online-match-statistics">
                 <h3>Match overall · {room.matchHistory.length} {room.matchHistory.length === 1 ? "game" : "games"}</h3>
+                {matchTeamTotals.length > 0 && <>
+                  <h4>Team totals</h4>
+                  <div className="online-stat-grid online-team-stat-grid">
+                    {matchTeamTotals.map((team) => (
+                      <article key={team.teamId}>
+                        <strong>{team.playerNames.join(" + ")}</strong>
+                        <span>Games won: {team.gamesWon}</span>
+                        <span>Jacks played: {team.jacksPlayed}</span>
+                        <span>Out cards (A/K): {team.outCardsPlayed}</span>
+                        <span>Times eliminated: {team.timesEliminated}</span>
+                        <span>Pieces eliminated: {team.eliminations}</span>
+                      </article>
+                    ))}
+                  </div>
+                  <h4>Player totals</h4>
+                </>}
                 <div className="online-stat-grid">
                   {matchTotals.map((player) => (
                     <article key={player.participantId}>
@@ -1497,9 +1514,10 @@ function OnlineRoomTable({
                       <span>Games won: {player.gamesWon}</span>
                       <span>Jacks played: {player.jacksPlayed}</span>
                       <span>Out cards (A/K): {player.outCardsPlayed}</span>
+                      <span>Times eliminated: {player.timesEliminated}</span>
                       <span>Pieces eliminated: {player.eliminations}</span>
                       <small>{player.eliminatedPlayers.length
-                        ? player.eliminatedPlayers.map((target) => `${target.playerName} ×${target.count}`).join(" · ")
+                        ? `Eliminated: ${player.eliminatedPlayers.map((target) => `${target.playerName} ×${target.count}`).join(" · ")}`
                         : "No opposing pieces eliminated"}</small>
                     </article>
                   ))}
@@ -1511,18 +1529,35 @@ function OnlineRoomTable({
                   return (
                     <section className="online-game-statistics" key={matchGame.gameNumber}>
                       <h3>Game {matchGame.gameNumber} · {winners.join(" and ")} {winners.length > 1 ? "win" : "wins"}</h3>
+                      {getGameTeamStatistics(matchGame).length > 0 && <>
+                        <h4>Teams</h4>
+                        <div className="online-stat-grid online-team-stat-grid">
+                          {getGameTeamStatistics(matchGame).map((team) => (
+                            <article key={team.teamId}>
+                              <strong>{team.playerNames.join(" + ")}</strong>
+                              <span>{team.won ? "Winner" : "Runner-up"}</span>
+                              <span>Jacks played: {team.jacksPlayed}</span>
+                              <span>Out cards (A/K): {team.outCardsPlayed}</span>
+                              <span>Times eliminated: {team.timesEliminated}</span>
+                              <span>Pieces eliminated: {team.eliminations}</span>
+                            </article>
+                          ))}
+                        </div>
+                        <h4>Players</h4>
+                      </>}
                       <div className="online-stat-grid">
                         {matchGame.players.map((player) => (
                           <article key={player.participantId}>
                             <strong>{player.playerName}</strong>
                             <span>Jacks played: {player.jacksPlayed}</span>
                             <span>Out cards (A/K): {player.outCardsPlayed}</span>
+                            <span>Times eliminated: {player.timesEliminated}</span>
                             <span>Pieces eliminated: {player.eliminations}</span>
                             <small>{Object.entries(player.eliminatedPlayers).length
-                              ? Object.entries(player.eliminatedPlayers).map(([playerId, count]) => {
+                              ? `Eliminated: ${Object.entries(player.eliminatedPlayers).map(([playerId, count]) => {
                                   const target = matchGame.players.find((candidate) => candidate.seatId === playerId);
                                   return `${target?.playerName ?? PLAYER_LABELS[playerId as PlayerId]} ×${count}`;
-                                }).join(" · ")
+                                }).join(" · ")}`
                               : "No opposing pieces eliminated"}</small>
                           </article>
                         ))}
@@ -1582,11 +1617,12 @@ type MatchTotal = {
   gamesWon: number;
   jacksPlayed: number;
   outCardsPlayed: number;
+  timesEliminated: number;
   eliminations: number;
   eliminatedPlayers: Array<{ participantId: string; playerName: string; count: number }>;
 };
 
-function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
+export function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
   const totals = new Map<string, Omit<MatchTotal, "eliminatedPlayers"> & { eliminated: Map<string, { playerName: string; count: number }> }>();
   for (const game of history) {
     for (const player of game.players) {
@@ -1596,6 +1632,7 @@ function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
         gamesWon: 0,
         jacksPlayed: 0,
         outCardsPlayed: 0,
+        timesEliminated: 0,
         eliminations: 0,
         eliminated: new Map(),
       };
@@ -1603,6 +1640,7 @@ function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
       if (game.winnerParticipantIds.includes(player.participantId)) total.gamesWon += 1;
       total.jacksPlayed += player.jacksPlayed;
       total.outCardsPlayed += player.outCardsPlayed;
+      total.timesEliminated += player.timesEliminated;
       total.eliminations += player.eliminations;
       for (const [seatId, count] of Object.entries(player.eliminatedPlayers)) {
         const target = game.players.find((candidate) => candidate.seatId === seatId);
@@ -1620,6 +1658,62 @@ function getMatchTotals(history: readonly MatchGameRecord[]): MatchTotal[] {
     ...total,
     eliminatedPlayers: [...eliminated].map(([participantId, result]) => ({ participantId, ...result })),
   }));
+}
+
+type TeamStatistics = {
+  teamId: string;
+  playerNames: string[];
+  won: boolean;
+  gamesWon: number;
+  jacksPlayed: number;
+  outCardsPlayed: number;
+  timesEliminated: number;
+  eliminations: number;
+};
+
+export function getGameTeamStatistics(game: MatchGameRecord): TeamStatistics[] {
+  return (game.teamParticipantIds ?? []).map((participantIds) => {
+    const players = participantIds.flatMap((participantId) => {
+      const player = game.players.find((candidate) => candidate.participantId === participantId);
+      return player ? [player] : [];
+    });
+    const won = participantIds.every((participantId) => game.winnerParticipantIds.includes(participantId));
+    return {
+      teamId: [...participantIds].sort().join(":"),
+      playerNames: players.map((player) => player.playerName),
+      won,
+      gamesWon: won ? 1 : 0,
+      jacksPlayed: players.reduce((total, player) => total + player.jacksPlayed, 0),
+      outCardsPlayed: players.reduce((total, player) => total + player.outCardsPlayed, 0),
+      timesEliminated: players.reduce((total, player) => total + player.timesEliminated, 0),
+      eliminations: players.reduce((total, player) => total + player.eliminations, 0),
+    };
+  });
+}
+
+export function getMatchTeamTotals(history: readonly MatchGameRecord[]): TeamStatistics[] {
+  const totals = new Map<string, TeamStatistics>();
+  for (const game of history) {
+    for (const team of getGameTeamStatistics(game)) {
+      const total = totals.get(team.teamId) ?? {
+        ...team,
+        won: false,
+        gamesWon: 0,
+        jacksPlayed: 0,
+        outCardsPlayed: 0,
+        timesEliminated: 0,
+        eliminations: 0,
+      };
+      total.playerNames = team.playerNames;
+      total.gamesWon += team.gamesWon;
+      total.jacksPlayed += team.jacksPlayed;
+      total.outCardsPlayed += team.outCardsPlayed;
+      total.timesEliminated += team.timesEliminated;
+      total.eliminations += team.eliminations;
+      totals.set(team.teamId, total);
+    }
+  }
+  return [...totals.values()];
 }
 
 const ONLINE_HOP_DURATION = 130;

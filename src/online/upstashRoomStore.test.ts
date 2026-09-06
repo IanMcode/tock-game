@@ -73,6 +73,7 @@ async function createRoom(): Promise<OnlineRoom> {
     chatMessages: [],
     session: createGameSession(id, createGame({ randomState: 12_345 })),
     participantIds: { P1: "player-P1", P2: "player-P2", P3: "player-P3", P4: "player-P4" },
+    appearanceSeats: { P1: "P1", P2: "P2", P3: "P3", P4: "P4" },
     matchHistory: [],
     currentGameNumber: 1,
     configuration: { teams: true, startWithPieceOnEntry: true, charityTurns: 0, charityRepeatAtThreshold: false, cardRules: { ...DEFAULT_CARD_RULE_VARIANTS } },

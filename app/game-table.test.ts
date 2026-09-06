@@ -32,6 +32,15 @@ describe("default player appearance", () => {
       "--color-p4-ink": "#111827",
     });
   });
+
+  it("can carry an appearance to a player's new board seat", () => {
+    expect(getDefaultPlayerAppearanceVariables({ P1: "P3", P3: "P1" })).toMatchObject({
+      "--color-p1": "#0057B8",
+      "--shape-p1": "polygon(50% 1%, 98% 94%, 2% 94%)",
+      "--color-p3": "#111827",
+      "--shape-p3": "circle(49% at 50% 50%)",
+    });
+  });
 });
 
 describe("playing card artwork", () => {
