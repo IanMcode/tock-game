@@ -213,9 +213,48 @@ describe("charity rule", () => {
     });
     const view = createSessionView(session, "P2");
 
-    expect(view.events.at(-1)).toMatchObject({ type: "charity-request", charityRank: "6", charityDonor: "P2" });
+    expect(view.events.at(-1)).toMatchObject({
+      type: "charity-request",
+      charityRank: "6",
+      charityDonor: "P2",
+      charityResponses: [{ playerId: "P2", outcome: "donor" }],
+    });
     expect(view.game.charityExchange).toEqual({ requester: "P1", donor: "P2", requestedRank: "6" });
     expect(view.game.players.find((player) => player.id === "P1")?.hand).toBeUndefined();
+
+    const returned = applySessionCommand(session, {
+      commandId: "return",
+      expectedRevision: 1,
+      command: { type: "return-charity-card", actor: "P1", cardIndex: 0 },
+    });
+    expect(createSessionView(returned, "P2").events.at(-1)).toMatchObject({
+      type: "charity-return",
+      charityRank: "6",
+      charityDonor: "P2",
+    });
+  });
+
+  it("publishes each clockwise response without revealing any other cards", () => {
+    const game = queuedGame({ playerCount: 4, threshold: 2, queue: ["P1", "P3"] });
+    const requestedRank = game.players.find((player) => player.id === "P4")!.hand[0].rank;
+    const prepared = {
+      ...game,
+      charityCounts: { P1: 2, P2: 0, P3: 2, P4: 0 },
+      players: game.players.map((player) => player.id === "P2"
+        ? { ...player, hand: player.hand.filter((card) => card.rank !== requestedRank) }
+        : player),
+    };
+    const session = applySessionCommand(createGameSession("charity-responses", prepared), {
+      commandId: "request",
+      expectedRevision: 0,
+      command: { type: "request-charity-card", actor: "P1", rank: requestedRank },
+    });
+
+    expect(createSessionView(session, "P2").events.at(-1)?.charityResponses).toEqual([
+      { playerId: "P2", outcome: "unavailable" },
+      { playerId: "P3", outcome: "exempt" },
+      { playerId: "P4", outcome: "donor" },
+    ]);
   });
 });
 

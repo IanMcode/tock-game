@@ -17,7 +17,12 @@ export function describePublicGameEvent(
       ? `${actor} requested a ${event.charityRank}; ${donor} supplied the card.`
       : `${actor} requested a ${event.charityRank}, but no player held one.`;
   }
-  if (event.type === "charity-return") return `${actor} returned a card and completed the charity exchange.`;
+  if (event.type === "charity-return") {
+    const donor = event.charityDonor ? playerNames[event.charityDonor] ?? DEFAULT_PLAYER_NAMES[event.charityDonor] : null;
+    return donor && event.charityRank
+      ? `${actor} took a ${formatRank(event.charityRank)} from ${donor} and replaced it with another card of their choice.`
+      : `${actor} returned a card and completed the charity exchange.`;
+  }
   if (event.type === "discard") return `${actor} discarded ${card}.`;
   if (!event.move) return `${actor} played ${card}.`;
 
@@ -47,6 +52,14 @@ export function describePublicGameEvent(
   const spaces = event.movedPieces?.find((detail) => detail.pieceId === pieceMove.pieceId)?.spaces
     ?? getCardDistance(event.card?.rank, pieceMove.kind);
   return `${actor} played ${card} on ${formatPawn(pieceMove.pieceId, event.actor, playerNames)}, moving it ${direction}${spaces ? ` ${formatSpaces(spaces)}` : ""}${eliminated}.`;
+}
+
+function formatRank(rank: CardRank): string {
+  if (rank === "A") return "Ace";
+  if (rank === "J") return "Jack";
+  if (rank === "Q") return "Queen";
+  if (rank === "K") return "King";
+  return rank;
 }
 
 function formatPawn(

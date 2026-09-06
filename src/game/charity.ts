@@ -5,6 +5,11 @@ import { getNextPlayer } from "./rules";
 import type { CardMove } from "./turns";
 import type { CardRank, GameState, PlayerId } from "./types";
 
+export type CharityRequestResponse = {
+  playerId: PlayerId;
+  outcome: "unavailable" | "exempt" | "donor";
+};
+
 export function isCharityRequestRequired(game: GameState): boolean {
   return game.phase === "charity" &&
     !game.charityExchange &&
@@ -77,18 +82,11 @@ export function requestCharityCard(game: GameState, actor: PlayerId, requestedRa
   if (actor !== game.currentPlayer || !isCharityRequestRequired(game)) {
     throw new Error("The current player is not eligible to request a charity card.");
   }
-  const playerIds = game.players.map((player) => player.id);
-  let donorId = getNextPlayer(actor, playerIds);
-  let donor = game.players.find((player) => player.id === donorId);
-  while (
-    donorId !== actor &&
-    (isProtectedFromCharityRequest(game, donorId) || !donor?.hand.some((card) => card.rank === requestedRank))
-  ) {
-    donorId = getNextPlayer(donorId, playerIds);
-    donor = game.players.find((player) => player.id === donorId);
-  }
+  const responses = getCharityRequestResponses(game, actor, requestedRank);
+  const donorId = responses.find((response) => response.outcome === "donor")?.playerId;
+  const donor = game.players.find((player) => player.id === donorId);
 
-  if (!donor || donorId === actor) {
+  if (!donor || !donorId) {
     return completeCharityRequest({ ...game, lastCharityTransfer: null }, actor);
   }
 
@@ -104,6 +102,31 @@ export function requestCharityCard(game: GameState, actor: PlayerId, requestedRa
     charityExchange: { requester: actor, donor: donorId, requestedRank, receivedCard },
     lastCharityTransfer: { requester: actor, donor: donorId, requestedRank },
   };
+}
+
+export function getCharityRequestResponses(
+  game: GameState,
+  actor: PlayerId,
+  requestedRank: CardRank,
+): CharityRequestResponse[] {
+  const playerIds = game.players.map((player) => player.id);
+  const responses: CharityRequestResponse[] = [];
+  let playerId = getNextPlayer(actor, playerIds);
+
+  while (playerId !== actor) {
+    const player = game.players.find((candidate) => candidate.id === playerId);
+    if (isProtectedFromCharityRequest(game, playerId)) {
+      responses.push({ playerId, outcome: "exempt" });
+    } else if (player?.hand.some((card) => card.rank === requestedRank)) {
+      responses.push({ playerId, outcome: "donor" });
+      break;
+    } else {
+      responses.push({ playerId, outcome: "unavailable" });
+    }
+    playerId = getNextPlayer(playerId, playerIds);
+  }
+
+  return responses;
 }
 
 export function returnCharityCard(game: GameState, actor: PlayerId, cardIndex: number): GameState {

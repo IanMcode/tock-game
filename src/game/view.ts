@@ -1,4 +1,5 @@
 import type { GameSession, MovedPieceDetail, PiecePositionBefore } from "./session";
+import type { CharityRequestResponse } from "./charity";
 import type { CardMove } from "./turns";
 import type {
   Card,
@@ -56,6 +57,7 @@ export type PublicGameEvent = {
   startsNewDealerRound?: boolean;
   charityRank?: import("./types").CardRank;
   charityDonor?: PlayerId | null;
+  charityResponses?: CharityRequestResponse[];
 };
 
 export function createSessionView(
@@ -105,6 +107,7 @@ export function createSessionView(
           card: null,
           charityRank: event.command.rank,
           charityDonor: event.charityDonor ?? null,
+          charityResponses: event.charityResponses?.map((response) => ({ ...response })) ?? [],
         };
       }
       if (event.command.type === "return-charity-card") {
@@ -113,6 +116,8 @@ export function createSessionView(
           actor: event.command.actor,
           type: "charity-return" as const,
           card: null,
+          charityRank: event.charityRank,
+          charityDonor: event.charityDonor,
         };
       }
       return {

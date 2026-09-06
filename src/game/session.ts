@@ -1,5 +1,5 @@
 import { selectExchangeCard } from "./deals";
-import { requestCharityCard, returnCharityCard } from "./charity";
+import { getCharityRequestResponses, requestCharityCard, returnCharityCard, type CharityRequestResponse } from "./charity";
 import { applyPieceMove, getCapturedPieceIds, type AtomicMove } from "./actions";
 import { getRulesetDefinition } from "./definition";
 import { getMoveAnimationFrames } from "./moveAnimation";
@@ -30,6 +30,8 @@ export type GameEvent = {
   piecePositionsBefore?: PiecePositionBefore[];
   startsNewDealerRound?: boolean;
   charityDonor?: PlayerId | null;
+  charityRank?: CardRank;
+  charityResponses?: CharityRequestResponse[];
 };
 
 export type MovedPieceDetail = { pieceId: string; spaces: number };
@@ -100,6 +102,9 @@ export function applySessionCommand(
   const piecePositionsBefore = envelope.command.type === "play-card"
     ? getPiecePositionsBefore(session.game, envelope.command.move)
     : undefined;
+  const charityExchangeBefore = envelope.command.type === "return-charity-card"
+    ? session.game.charityExchange
+    : null;
   try {
     game = applyGameCommand(session.game, envelope.command);
     assertValidGameState(game);
@@ -127,9 +132,13 @@ export function applySessionCommand(
       ...(piecePositionsBefore ? { piecePositionsBefore } : {}),
       ...(startsNewDealerRound ? { startsNewDealerRound: true } : {}),
       ...(envelope.command.type === "request-charity-card" ? {
-        charityDonor: game.lastCharityTransfer?.requester === envelope.command.actor
-          ? game.lastCharityTransfer.donor
-          : null,
+        charityDonor: game.lastCharityTransfer?.requester === envelope.command.actor ? game.lastCharityTransfer.donor : null,
+        charityRank: envelope.command.rank,
+        charityResponses: getCharityRequestResponses(session.game, envelope.command.actor, envelope.command.rank),
+      } : {}),
+      ...(envelope.command.type === "return-charity-card" && charityExchangeBefore ? {
+        charityDonor: charityExchangeBefore.donor,
+        charityRank: charityExchangeBefore.requestedRank,
       } : {}),
     }],
   };

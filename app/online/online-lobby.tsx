@@ -74,14 +74,61 @@ const SURFACE_THEME_KEY = "tock-online-surface-theme";
 const TRACK_COLOR_KEY = "tock-online-track-colors";
 const RULE_PREFERENCES_KEY = "tock-online-rule-preferences";
 const PLAY_LOG_ENTRY_LIMIT = 6;
+const CHARITY_LINE_DELAY = 600;
+const CHARITY_COMPLETE_HOLD = 3_000;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
 type ExchangeReceipt = { sent: Card; received: Card };
+type CharityStory = {
+  requester: PlayerId;
+  requestedRank: CardRank | null;
+  donor: PlayerId | null;
+  lines: string[];
+  complete: boolean;
+  readyForReturn: boolean;
+};
 const PLAYER_LABELS: Record<PlayerId, string> = {
   P1: "Player 1",
   P2: "Player 2",
   P3: "Player 3",
   P4: "Player 4",
 };
+
+function charityRankName(rank: CardRank): string {
+  if (rank === "A") return "Ace";
+  if (rank === "J") return "Jack";
+  if (rank === "Q") return "Queen";
+  if (rank === "K") return "King";
+  return rank;
+}
+
+function charityPlayerName(playerId: PlayerId, playerNames: Partial<Record<PlayerId, string>>): string {
+  return playerNames[playerId] ?? PLAYER_LABELS[playerId];
+}
+
+function charityIntro(requester: PlayerId, playerNames: Partial<Record<PlayerId, string>>): CharityStory {
+  return {
+    requester,
+    requestedRank: null,
+    donor: null,
+    lines: [`${charityPlayerName(requester, playerNames)} is requesting a card due to charity.`],
+    complete: false,
+    readyForReturn: false,
+  };
+}
+
+function charityRequestLines(event: PublicGameEvent, playerNames: Partial<Record<PlayerId, string>>): string[] {
+  if (event.type !== "charity-request" || !event.charityRank) return [];
+  const requester = charityPlayerName(event.actor, playerNames);
+  return [
+    `${requester} requests a ${charityRankName(event.charityRank)}!`,
+    ...(event.charityResponses ?? []).map((response) => {
+      const player = charityPlayerName(response.playerId, playerNames);
+      if (response.outcome === "donor") return `${player} has that card…`;
+      if (response.outcome === "exempt") return `${player} is not concerned with the request.`;
+      return `${player} does not have that card.`;
+    }),
+  ];
+}
 
 type OnlineLobbyProps = {
   realtimeEnabled?: boolean;
@@ -741,6 +788,7 @@ function OnlineRoomTable({
   const [submittedExchange, setSubmittedExchange] = useState<{ card: Card; index: number } | null>(null);
   const [exchangeReceipt, setExchangeReceipt] = useState<ExchangeReceipt | null>(null);
   const [requestedCharityRank, setRequestedCharityRank] = useState<CardRank>("A");
+  const [charityStory, setCharityStory] = useState<CharityStory | null>(null);
   const game = room.session.game;
   const ruleset = getRulesetDefinition(game.rulesetId);
   const viewer = game.players.find((player) => player.id === access.playerId);
@@ -773,6 +821,8 @@ function OnlineRoomTable({
   const dealKey = `${game.dealer}-${game.dealIndex}`;
   const previousDealKey = useRef(dealKey);
   const previousDealer = useRef(game.dealer);
+  const charityTimers = useRef<number[]>([]);
+  const lastSeenCharityEventRevision = useRef<number | null>(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(SURFACE_THEME_KEY);
@@ -804,6 +854,121 @@ function OnlineRoomTable({
       return next;
     });
   }
+
+  useEffect(() => () => {
+    charityTimers.current.forEach((timer) => window.clearTimeout(timer));
+    charityTimers.current = [];
+  }, []);
+
+  useEffect(() => {
+    const activeRequester = game.phase === "charity"
+      ? game.charityRequestQueue[game.charityRequestIndex]
+      : null;
+    if (!activeRequester) return;
+    const timer = window.setTimeout(() => {
+      setCharityStory((current) => {
+        if (current?.complete || current?.requester === activeRequester) return current;
+        return charityIntro(activeRequester, room.playerNames);
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [game.charityRequestIndex, game.charityRequestQueue, game.phase, room.playerNames]);
+
+  useEffect(() => {
+    const schedule = (callback: () => void, delay: number) => {
+      charityTimers.current.push(window.setTimeout(callback, delay));
+    };
+    const charityEvents = (room.session.events ?? []).filter((event) =>
+      event.type === "charity-request" || event.type === "charity-return");
+    const latestRevision = charityEvents.at(-1)?.revision ?? 0;
+    if (lastSeenCharityEventRevision.current === null) {
+      lastSeenCharityEventRevision.current = latestRevision;
+      if (!game.charityExchange) return;
+      const currentRequest = [...charityEvents].reverse().find((event) =>
+        event.type === "charity-request" &&
+        event.actor === game.charityExchange?.requester &&
+        event.charityDonor === game.charityExchange?.donor &&
+        event.charityRank === game.charityExchange?.requestedRank);
+      if (!currentRequest) return;
+      schedule(() => setCharityStory({
+        ...charityIntro(currentRequest.actor, room.playerNames),
+        requestedRank: currentRequest.charityRank ?? null,
+        donor: currentRequest.charityDonor ?? null,
+        lines: [
+          ...charityIntro(currentRequest.actor, room.playerNames).lines,
+          ...charityRequestLines(currentRequest, room.playerNames),
+        ],
+        readyForReturn: true,
+      }), 0);
+      return;
+    }
+    if (latestRevision < lastSeenCharityEventRevision.current) {
+      lastSeenCharityEventRevision.current = latestRevision;
+      schedule(() => setCharityStory(null), 0);
+      return;
+    }
+    const event = charityEvents.filter((candidate) =>
+      candidate.revision > (lastSeenCharityEventRevision.current ?? 0)).at(-1);
+    if (!event) return;
+    lastSeenCharityEventRevision.current = latestRevision;
+    charityTimers.current.forEach((timer) => window.clearTimeout(timer));
+    charityTimers.current = [];
+
+    const matchingRequest = event.type === "charity-request"
+      ? event
+      : [...charityEvents].reverse().find((candidate) =>
+          candidate.revision < event.revision && candidate.type === "charity-request" && candidate.actor === event.actor);
+    const requestLines = matchingRequest ? charityRequestLines(matchingRequest, room.playerNames) : [];
+    const baseStory = charityIntro(event.actor, room.playerNames);
+
+    const showNextRequesterOrClose = () => {
+      const nextRequester = game.phase === "charity"
+        ? game.charityRequestQueue[game.charityRequestIndex]
+        : null;
+      setCharityStory(nextRequester ? charityIntro(nextRequester, room.playerNames) : null);
+    };
+    if (event.type === "charity-return") {
+      const donor = event.charityDonor ?? matchingRequest?.charityDonor ?? null;
+      const rank = event.charityRank ?? matchingRequest?.charityRank ?? null;
+      schedule(() => setCharityStory({
+        ...baseStory,
+        requestedRank: rank,
+        donor,
+        lines: [...baseStory.lines, ...requestLines],
+        readyForReturn: false,
+      }), 0);
+      const finalLine = donor && rank
+        ? `${charityPlayerName(event.actor, room.playerNames)} has taken a ${charityRankName(rank)} from ${charityPlayerName(donor, room.playerNames)} and replaced it with another card of their choice.`
+        : `${charityPlayerName(event.actor, room.playerNames)} has completed the charity exchange.`;
+      schedule(() => setCharityStory((current) => current ? {
+        ...current,
+        lines: [...current.lines, finalLine],
+        complete: true,
+      } : current), CHARITY_LINE_DELAY);
+      schedule(showNextRequesterOrClose, CHARITY_LINE_DELAY + CHARITY_COMPLETE_HOLD);
+      return;
+    }
+
+    schedule(() => setCharityStory({
+      ...baseStory,
+      requestedRank: event.charityRank ?? null,
+      donor: event.charityDonor ?? null,
+    }), 0);
+    requestLines.forEach((line, index) => schedule(() => {
+      setCharityStory((current) => current ? { ...current, lines: [...current.lines, line] } : current);
+    }, CHARITY_LINE_DELAY * (index + 1)));
+    const revealDuration = CHARITY_LINE_DELAY * requestLines.length;
+    if (event.charityDonor) {
+      schedule(() => setCharityStory((current) => current ? { ...current, readyForReturn: true } : current), revealDuration);
+    } else {
+      schedule(() => setCharityStory((current) => current ? {
+        ...current,
+        lines: [...current.lines, `${charityPlayerName(event.actor, room.playerNames)}'s request could not be filled.`],
+        complete: true,
+      } : current), revealDuration + CHARITY_LINE_DELAY);
+      schedule(showNextRequesterOrClose, revealDuration + CHARITY_LINE_DELAY + CHARITY_COMPLETE_HOLD);
+    }
+  }, [game.charityExchange, game.charityRequestIndex, game.charityRequestQueue, game.phase, room.playerNames, room.session.events]);
 
   useEffect(() => {
     if (
@@ -1036,6 +1201,7 @@ function OnlineRoomTable({
 
   function chooseCard(index: number) {
     if (busy || isAnimating || isDealing) return;
+    if (isCharityRequester && !charityStory?.readyForReturn) return;
     if (isCharityRequester && index === hand.length - 1) return;
     setSelectedCardIndex(index);
     setSelectedPieceId(null);
@@ -1271,26 +1437,6 @@ function OnlineRoomTable({
         <strong>{room.playerNames[access.playerId] ?? PLAYER_LABELS[access.playerId]}</strong>
       </div>
       {forcedDiscard && <strong className="forced-discard-prompt">10 played · discard one card</strong>}
-      {charityRequestRequired && (
-        <div className="online-charity-panel" role="group" aria-label="Request a charity card">
-          <strong>Charity earned</strong>
-          <label>
-            <span>Request</span>
-            <select value={requestedCharityRank} onChange={(event) => setRequestedCharityRank(event.target.value as CardRank)}>
-              {(["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const).map((rank) => <option value={rank} key={rank}>{rank}</option>)}
-            </select>
-          </label>
-          <button type="button" disabled={busy} onClick={() => void requestCharity()}>Request card</button>
-        </div>
-      )}
-      {game.charityExchange && (
-        <div className="online-charity-panel is-exchanging" role="status">
-          <strong>{room.playerNames[game.charityExchange.donor] ?? PLAYER_LABELS[game.charityExchange.donor]} supplied the requested {game.charityExchange.requestedRank}</strong>
-          {isCharityRequester
-            ? <span>Choose one of your original cards to return.</span>
-            : <span>Waiting for {room.playerNames[game.charityExchange.requester] ?? PLAYER_LABELS[game.charityExchange.requester]} to return a card.</span>}
-        </div>
-      )}
       <div className="online-hand">
         {hand.map((card, index) => (
           <button
@@ -1299,7 +1445,7 @@ function OnlineRoomTable({
             disabled={busy || isDealing || (game.phase === "exchange"
               ? alreadyExchanged
               : isCharityRequester
-                ? index === hand.length - 1
+                ? index === hand.length - 1 || !charityStory?.readyForReturn
                 : !canTakeNormalTurn)}
             style={{ "--deal-card-index": index } as React.CSSProperties}
             aria-label={`${card.rank} of ${card.suit}`}
@@ -1333,7 +1479,7 @@ function OnlineRoomTable({
         <button className="online-cancel-selection" type="button" disabled={busy || selectedCardIndex === null} onClick={() => resetSelection()}>
           Cancel selection
         </button>
-        <button className="online-pass-card" type="button" disabled={busy || selectedCardIndex === null} onClick={() => void returnCharity()}>
+        <button className="online-pass-card" type="button" disabled={busy || selectedCardIndex === null || !charityStory?.readyForReturn} onClick={() => void returnCharity()}>
           Return selected card
         </button>
       </div>}
@@ -1604,6 +1750,35 @@ function OnlineRoomTable({
           <div className="online-deal-overlay" role="status" aria-live="polite">
             <span className="online-deal-deck" aria-hidden="true"><i /><i /><i /></span>
             <strong>Dealing a new hand…</strong>
+          </div>
+        )}
+        {charityStory && (
+          <div className="online-charity-story-layer">
+            <section className={`online-charity-story ${charityStory.complete ? "is-complete" : ""}`} role="status" aria-live="polite" aria-label="Charity request progress">
+              <p className="eyebrow">Charity request</p>
+              <h3>{charityPlayerName(charityStory.requester, room.playerNames)}</h3>
+              <ol>
+                {charityStory.lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+              </ol>
+              {charityRequestRequired && charityStory.requester === access.playerId && !charityStory.requestedRank && (
+                <div className="online-charity-story-request" role="group" aria-label="Choose a charity card">
+                  <label>
+                    <span>Card to request</span>
+                    <select value={requestedCharityRank} onChange={(changeEvent) => setRequestedCharityRank(changeEvent.target.value as CardRank)}>
+                      {(["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const).map((rank) => <option value={rank} key={rank}>{charityRankName(rank)}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" disabled={busy} onClick={() => void requestCharity()}>Request card</button>
+                </div>
+              )}
+              {charityStory.readyForReturn && charityStory.donor && (
+                <p className="online-charity-story-prompt">
+                  {charityStory.requester === access.playerId
+                    ? "Choose one of your original cards below to return."
+                    : `Waiting for ${charityPlayerName(charityStory.requester, room.playerNames)} to choose a replacement card.`}
+                </p>
+              )}
+            </section>
           </div>
         )}
         </div>

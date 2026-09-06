@@ -80,4 +80,19 @@ describe("online play history", () => {
     expect(description).toContain("their 1st pawn 3 spots and their 2nd pawn 4 spots");
     expect(description).toContain("eliminating Jon's piece 1 and Omi's piece 4 and returning them to reserve");
   });
+
+  it("records the completed charity transfer without revealing the replacement card", () => {
+    const event: PublicGameEvent = {
+      revision: 12,
+      actor: "P1",
+      type: "charity-return",
+      card: null,
+      charityRank: "K",
+      charityDonor: "P4",
+    };
+
+    expect(describePublicGameEvent(event, { P1: "Ian", P4: "Dee" })).toBe(
+      "Ian took a King from Dee and replaced it with another card of their choice.",
+    );
+  });
 });

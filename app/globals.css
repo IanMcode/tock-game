@@ -582,6 +582,22 @@ button { font: inherit; }
 .online-charity-panel select { padding: 4px 7px; border: 1px solid #c9ad58; border-radius: 7px; background: white; }
 .online-charity-panel button { padding: 5px 8px; border: 0; border-radius: 7px; color: white; background: var(--green); cursor: pointer; font-weight: 800; }
 .online-charity-panel.is-exchanging { justify-content: center; flex-wrap: wrap; }
+.online-charity-story-layer { position: absolute; inset: 0; z-index: 26; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+.online-charity-story { width: min(480px, calc(100% - 24px)); max-height: calc(100% - 32px); overflow-y: auto; padding: 22px 24px; border: 2px solid #d5b24e; border-radius: 20px; color: var(--ink); background: rgba(255,253,247,.97); box-shadow: 0 22px 65px rgba(22,42,34,.3), 0 0 0 999px rgba(17,42,34,.16); pointer-events: auto; }
+.online-charity-story.is-complete { border-color: #7ca78e; }
+.online-charity-story .eyebrow { margin: 0 0 3px; color: #80600f; }
+.online-charity-story h3 { margin: 0 0 13px; font-family: Georgia,serif; font-size: clamp(24px,3vw,34px); font-weight: 500; }
+.online-charity-story ol { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.online-charity-story li { position: relative; padding: 8px 10px 8px 30px; border-radius: 9px; background: #f5f3e8; font-size: 13px; line-height: 1.35; animation: charity-line-arrive .24s ease-out both; }
+.online-charity-story li::before { content: ""; position: absolute; left: 11px; top: 13px; width: 8px; height: 8px; border: 2px solid #b58b20; border-radius: 50%; background: #f6d46d; }
+.online-charity-story li:last-child::before { background: #1d5948; border-color: #1d5948; }
+.online-charity-story-request { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 9px; margin-top: 15px; padding-top: 14px; border-top: 1px solid #ddd4b7; }
+.online-charity-story-request label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.online-charity-story-request select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: white; font: inherit; font-size: 12px; font-weight: 800; }
+.online-charity-story-request button { min-height: 36px; padding: 8px 13px; border: 0; border-radius: 9px; color: white; background: var(--green); cursor: pointer; font-weight: 900; }
+.online-charity-story-request button:disabled { cursor: default; opacity: .45; }
+.online-charity-story-prompt { margin: 14px 0 0; padding: 10px 12px; border-radius: 9px; color: #164d3e; background: #e6f2e9; font-size: 12px; font-weight: 800; line-height: 1.35; }
+@keyframes charity-line-arrive { from { opacity: 0; transform: translateY(5px); } }
 .online-discard { min-height: 30px; padding: 5px 8px; border: 1px solid #b96962; border-radius: 8px; color: #8e2424; background: #fff0f0; cursor: pointer; font-size: 10px; font-weight: 800; }
 .online-discard:disabled { cursor: default; opacity: .4; }
 .online-cancel-selection { min-height: 30px; padding: 5px 8px; border: 1px solid #b9c5bd; border-radius: 8px; color: var(--ink); background: rgba(255,255,255,.8); cursor: pointer; font-size: 10px; font-weight: 800; }
