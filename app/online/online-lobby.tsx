@@ -71,6 +71,7 @@ import type { PublicGameEvent } from "../../src/game/view";
 
 const ACCESS_KEY = "tock-online-room-access";
 const SURFACE_THEME_KEY = "tock-online-surface-theme";
+const TRACK_COLOR_KEY = "tock-online-track-colors";
 const RULE_PREFERENCES_KEY = "tock-online-rule-preferences";
 const PLAY_LOG_ENTRY_LIMIT = 6;
 type PresentedCard = { card: Card; actor: PlayerId; key: string | number };
@@ -687,6 +688,22 @@ function SurfaceThemeToggle({ wood, onToggle }: { wood: boolean; onToggle: () =>
   );
 }
 
+function TrackColorToggle({ colored, onToggle }: { colored: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className="number-toggle track-color-toggle"
+      type="button"
+      aria-pressed={colored}
+      aria-label={colored ? "Use uniform shared track spaces" : "Color shared track spaces by player"}
+      title={colored ? "Use uniform shared track spaces" : "Color shared track spaces by player"}
+      onClick={onToggle}
+    >
+      <i aria-hidden="true"><span /></i>
+      Track colors
+    </button>
+  );
+}
+
 function OnlineRoomTable({
   access,
   room,
@@ -706,6 +723,7 @@ function OnlineRoomTable({
   const [destinationMoves, setDestinationMoves] = useState<DestinationOption[]>([]);
   const [showNumbers, setShowNumbers] = useState(true);
   const [woodTheme, setWoodTheme] = useState(false);
+  const [coloredTrackSpaces, setColoredTrackSpaces] = useState(true);
   const [busy, setBusy] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [hoppingPieces, setHoppingPieces] = useState<HoppingPiece[]>([]);
@@ -758,7 +776,11 @@ function OnlineRoomTable({
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(SURFACE_THEME_KEY);
-    const restoreTheme = window.setTimeout(() => setWoodTheme(savedTheme === "wood"), 0);
+    const savedTrackColors = localStorage.getItem(TRACK_COLOR_KEY);
+    const restoreTheme = window.setTimeout(() => {
+      setWoodTheme(savedTheme === "wood");
+      setColoredTrackSpaces(savedTrackColors !== "uniform");
+    }, 0);
     return () => window.clearTimeout(restoreTheme);
   }, []);
 
@@ -771,6 +793,14 @@ function OnlineRoomTable({
     setWoodTheme((current) => {
       const next = !current;
       localStorage.setItem(SURFACE_THEME_KEY, next ? "wood" : "sage");
+      return next;
+    });
+  }
+
+  function toggleTrackColors() {
+    setColoredTrackSpaces((current) => {
+      const next = !current;
+      localStorage.setItem(TRACK_COLOR_KEY, next ? "colored" : "uniform");
       return next;
     });
   }
@@ -1358,7 +1388,7 @@ function OnlineRoomTable({
   );
 
   return (
-    <section className={`online-table ${woodTheme ? "theme-wood" : "theme-sage"} ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
+    <section className={`online-table ${woodTheme ? "theme-wood" : "theme-sage"} ${coloredTrackSpaces ? "track-spaces-colored" : "track-spaces-uniform"} ${isAnimating ? "is-animating" : ""} ${isDealing ? "is-dealing" : ""}`} style={{
       ...getDefaultPlayerAppearanceVariables(room.appearanceSeats),
       "--hop-duration": `${ONLINE_HOP_DURATION}ms`,
       "--swap-duration": `${ONLINE_SWAP_DURATION}ms`,
@@ -1378,6 +1408,7 @@ function OnlineRoomTable({
               <div className="online-room-view-controls">
                 <SpaceNumberToggle shown={showNumbers} onToggle={() => setShowNumbers((shown) => !shown)} />
                 <SurfaceThemeToggle wood={woodTheme} onToggle={toggleSurfaceTheme} />
+                <TrackColorToggle colored={coloredTrackSpaces} onToggle={toggleTrackColors} />
               </div>
             </div>
             <div className="online-room-actions">

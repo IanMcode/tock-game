@@ -73,7 +73,7 @@ export type BoardPoint = { x: number; y: number };
 type AnimationSpeed = "relaxed" | "standard" | "quick" | "off";
 type DealerChoice = PlayerId | "random";
 type PlayerColorId = "black" | "white" | "blue" | "yellow" | "light-red" | "orange";
-type PlayerShapeId = "circle" | "square" | "triangle" | "hexagon";
+type PlayerShapeId = "circle" | "square" | "pentagon" | "hexagon";
 type GameSettings = {
   playerCount: BoardPlayerCount;
   teams: boolean;
@@ -112,7 +112,7 @@ const PLAYER_COLOR_IDS = Object.keys(PLAYER_COLORS) as PlayerColorId[];
 const PLAYER_SHAPES: Record<PlayerShapeId, { label: string; clipPath: string }> = {
   circle: { label: "Circle", clipPath: "circle(49% at 50% 50%)" },
   square: { label: "Rounded square", clipPath: "inset(2% round 24%)" },
-  triangle: { label: "Triangle", clipPath: "polygon(50% 1%, 98% 94%, 2% 94%)" },
+  pentagon: { label: "Pentagon", clipPath: "polygon(50% 1%, 97% 35%, 79% 96%, 21% 96%, 3% 35%)" },
   hexagon: { label: "Hexagon", clipPath: "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)" },
 };
 
@@ -134,7 +134,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   playerShapes: {
     P1: "circle",
     P2: "square",
-    P3: "triangle",
+    P3: "pentagon",
     P4: "hexagon",
   },
 };
@@ -1434,7 +1434,7 @@ export function Board({
 export function SpaceNumberToggle({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
   return (
     <button
-      className="number-toggle"
+      className="number-toggle space-number-toggle"
       type="button"
       aria-pressed={shown}
       onClick={onToggle}
@@ -1974,7 +1974,7 @@ function getPlayerAppearanceVariables(
     variables[`--color-${playerId.toLowerCase()}-border-width`] = color.borderWidth;
     variables[`--color-${playerId.toLowerCase()}-label`] = color.text;
     variables[`--shape-${playerId.toLowerCase()}`] = shape.clipPath;
-    variables[`--pip-offset-${playerId.toLowerCase()}`] = shape === PLAYER_SHAPES.triangle ? "12%" : "0%";
+    variables[`--pip-offset-${playerId.toLowerCase()}`] = "0%";
     return variables;
   }, {}) as React.CSSProperties;
 }
